@@ -1,0 +1,1016 @@
+#! /usr/bin/perl
+
+#
+# remoteglot - Connects an abitrary UCI-speaking engine to ICS for easier post-game
+#              analysis, or for live analysis of relayed games. (Do not use for
+#              cheating! Cheating is bad for your karma, and your abuser flag.)
+#
+# Copyright 2007 Steinar H. Gunderson <sgunderson@bigfoot.com>
+# Licensed under the GNU General Public License, version 2.
+#
+
+use Net::Telnet;
+use FileHandle;
+use IPC::Open2;
+use Time::HiRes;
+use strict;
+use warnings;
+
+# Configuration
+my $server = "freechess.org";
+my $target = "GMCarlsen";
+# my $engine = "/usr/games/toga2";
+#my $engine = "wine Rybkav2.3.2a.mp.w32.exe";
+my $engine = "~/microwine-0.5/microwine Rybkav2.3.2a.mp.x64.exe";
+#my $engine = "ssh -t sesse\@84.48.204.209 ./microwine-0.5/microwine ./Rybkav2.3.2a.mp.x64.exe";
+#my $engine = "ssh -t sesse\@cirkus.samfundet.no nice -n 19 ./microwine-0.5/microwine ./microwine-0.5/Rybkav2.3.2a.mp.x64.exe";
+my $telltarget = undef;   # undef to be silent
+my @tell_intervals = (5, 20, 60, 120, 240, 480, 960);  # after each move
+my $uci_assume_full_compliance = 0;                    # dangerous :-)
+my @masters = (
+	'Sesse',
+	'Sessse',
+	'Sesssse',
+	'greatestguns',
+	'beuki'
+);
+
+# Program starts here
+$SIG{ALRM} = sub { output_screen(); };
+
+$| = 1;
+
+open(FICSLOG, ">ficslog.txt")
+	or die "ficslog.txt: $!";
+print FICSLOG "Log starting.\n";
+select(FICSLOG);
+$| = 1;
+
+open(UCILOG, ">ucilog.txt")
+	or die "ucilog.txt: $!";
+print UCILOG "Log starting.\n";
+select(UCILOG);
+$| = 1;
+select(STDOUT);
+
+# open the chess engine
+my $pid = IPC::Open2::open2(*UCIREAD, *UCIWRITE, $engine);
+my %uciinfo = ();
+my %uciid = ();
+my ($last_move, $last_tell);
+my $last_text = '';
+my $last_told_text = '';
+my ($pos_waiting, $pos_calculating);
+
+uciprint("uci");
+
+# gobble the options
+while (<UCIREAD>) {
+	/uciok/ && last;
+	handle_uci($_);
+}
+
+uciprint("setoption name UCI_AnalyseMode value true");
+# uciprint("setoption name Preserve Analysis value true");
+# uciprint("setoption name NalimovPath value /srv/tablebase");
+uciprint("setoption name NalimovUsage value Rarely");
+uciprint("setoption name Hash value 1024");
+uciprint("setoption name MultiPV value 2");
+# uciprint("setoption name Contempt value 1000");
+# uciprint("setoption name Outlook value Ultra Optimistic");
+uciprint("ucinewgame");
+
+print "Chess engine ready.\n";
+
+# now talk to FICS
+my $t = Net::Telnet->new(Timeout => 10, Prompt => '/fics% /');
+$t->input_log(\*FICSLOG);
+$t->open($server);
+$t->print("SesseBOT");
+$t->waitfor('/Press return to enter the server/');
+$t->cmd("");
+
+# set some options
+$t->cmd("set shout 0");
+$t->cmd("set seek 0");
+$t->cmd("set style 12");
+$t->cmd("observe $target");
+
+# main loop
+print "FICS ready.\n";
+while (1) {
+	my $rin = '';
+	my $rout;
+	vec($rin, fileno(UCIREAD), 1) = 1;
+	vec($rin, fileno($t), 1) = 1;
+
+	my ($nfound, $timeleft) = select($rout=$rin, undef, undef, 5.0);
+	my $sleep = 1.0;
+
+	while (1) {
+		my $line = $t->getline(Timeout => 0, errmode => 'return');
+		last if (!defined($line));
+
+		chomp $line;
+		$line =~ tr/\r//d;
+		if ($line =~ /^<12> /) {
+			my $pos = style12_to_fen($line);
+			
+			# if this is already in the queue, ignore it
+			next if (defined($pos_waiting) && $pos->{'fen'} eq $pos_waiting->{'fen'});
+
+			# if we're already chewing on this and there's nothing else in the queue,
+			# also ignore it
+			next if (!defined($pos_waiting) && defined($pos_calculating) &&
+			         $pos->{'fen'} eq $pos_calculating->{'fen'});
+
+			# if we're already thinking on something, stop and wait for the engine
+			# to approve
+			if (defined($pos_calculating)) {
+				if (!defined($pos_waiting)) {
+					uciprint("stop");
+				}
+				if ($uci_assume_full_compliance) {
+					$pos_waiting = $pos;
+				} else {
+					uciprint("position fen " . $pos->{'fen'});
+					uciprint("go infinite");
+					$pos_calculating = $pos;
+				}
+			} else {
+				# it's wrong just to give the FEN (the move history is useful,
+				# and per the UCI spec, we should really have sent "ucinewgame"),
+				# but it's easier
+				uciprint("position fen " . $pos->{'fen'});
+				uciprint("go infinite");
+				$pos_calculating = $pos;
+			}
+
+			%uciinfo = ();
+			$last_move = time;
+
+			# 
+			# Output a command every move to note that we're
+			# still paying attention -- this is a good tradeoff,
+			# since if no move has happened in the last half
+			# hour, the analysis/relay has most likely stopped
+			# and we should stop hogging server resources.
+			#
+			$t->cmd("date");
+		}
+		if ($line =~ /^([A-Za-z]+)(?:\([A-Z]+\))* tells you: (.*)$/) {
+			my ($who, $msg) = ($1, $2);
+
+			next if (grep { $_ eq $who } (@masters) == 0);
+	
+			if ($msg =~ /^fics (.*?)$/) {
+				$t->cmd("tell $who Executing '$1' on FICS.");
+				$t->cmd($1);
+			} elsif ($msg =~ /^uci (.*?)$/) {
+				$t->cmd("tell $who Sending '$1' to the engine.");
+				print UCIWRITE "$1\n";
+			} else {
+				$t->cmd("tell $who Couldn't understand '$msg', sorry.");
+			}
+		}
+		#print "FICS: [$line]\n";
+		$sleep = 0;
+	}
+	
+	# any fun on the UCI channel?
+	if ($nfound > 0 && vec($rout, fileno(UCIREAD), 1) == 1) {
+		# 
+		# Read until we've got a full line -- if the engine sends part of
+		# a line and then stops we're pretty much hosed, but that should
+		# never happen.
+		#
+		my $line = '';
+		while ($line !~ /\n/) {
+			my $tmp;
+			my $ret = sysread UCIREAD, $tmp, 1;
+
+			if (!defined($ret)) {
+				next if ($!{EINTR});
+				die "error in reading from the UCI engine: $!";
+			} elsif ($ret == 0) {
+				die "EOF from UCI engine";
+			}
+
+			$line .= $tmp;
+		}
+
+		$line =~ tr/\r\n//d;
+		handle_uci($line);
+		$sleep = 0;
+
+		# don't update too often
+		Time::HiRes::alarm(0.2);
+	}
+
+	sleep $sleep;
+}
+
+sub handle_uci {
+	my ($line) = @_;
+
+	chomp $line;
+	$line =~ tr/\r//d;
+	$line =~ s/  / /g;  # Sometimes needed for Zappa Mexico
+	print UCILOG localtime() . " <= $line\n";
+	if ($line =~ /^info/) {
+		my (@infos) = split / /, $line;
+		shift @infos;
+
+		parse_infos(@infos);
+	}
+	if ($line =~ /^id/) {
+		my (@ids) = split / /, $line;
+		shift @ids;
+
+		parse_ids(@ids);
+	}
+	if ($line =~ /^bestmove/ && $uci_assume_full_compliance) {
+		if (defined($pos_waiting)) {
+			uciprint("position fen " . $pos_waiting->{'fen'});
+			uciprint("go infinite");
+
+			$pos_calculating = $pos_waiting;
+			$pos_waiting = undef;
+		}
+	}
+}
+
+sub parse_infos {
+	my (@x) = @_;
+	my $mpv = '';
+
+	while (scalar @x > 0) {
+		if ($x[0] =~ 'multipv') {
+			shift @x;
+			$mpv = shift @x;
+			next;
+		}
+		if ($x[0] =~ /^(currmove|currmovenumber|cpuload)$/) {
+			my $key = shift @x;
+			my $value = shift @x;
+			$uciinfo{$key} = $value;
+			next;
+		}
+		if ($x[0] =~ /^(depth|seldepth|hashfull|time|nodes|nps|tbhits)$/) {
+			my $key = shift @x;
+			my $value = shift @x;
+			$uciinfo{$key . $mpv} = $value;
+			next;
+		}
+		if ($x[0] eq 'score') {
+			shift @x;
+
+			delete $uciinfo{'score_cp' . $mpv};
+			delete $uciinfo{'score_mate' . $mpv};
+
+			while ($x[0] =~ /^(cp|mate|lowerbound|upperbound)$/) {
+				if ($x[0] eq 'cp') {
+					shift @x;
+					$uciinfo{'score_cp' . $mpv} = shift @x;
+				} elsif ($x[0] eq 'mate') {
+					shift @x;
+					$uciinfo{'score_mate' . $mpv} = shift @x;
+				} else {
+					shift @x;
+				}
+			}
+			next;
+		}
+		if ($x[0] eq 'pv') {
+			$uciinfo{'pv' . $mpv} = [ @x[1..$#x] ];
+			last;
+		}
+		if ($x[0] eq 'string' || $x[0] eq 'UCI_AnalyseMode' || $x[0] eq 'setting' || $x[0] eq 'contempt') {
+			last;
+		}
+
+		#print "unknown info '$x[0]', trying to recover...\n";
+		#shift @x;
+		die "Unknown info '" . join(',', @x) . "'";
+
+	}
+}
+
+sub parse_ids {
+	my (@x) = @_;
+
+	while (scalar @x > 0) {
+		if ($x[0] =~ /^(name|author)$/) {
+			my $key = shift @x;
+			my $value = join(' ', @x);
+			$uciid{$key} = $value;
+			last;
+		}
+
+		# unknown
+		shift @x;
+	}
+}
+
+sub style12_to_fen {
+	my $str = shift;
+	my %pos = ();
+	my (@x) = split / /, $str;
+	
+	$pos{'board'} = [ @x[1..8] ];
+	$pos{'toplay'} = $x[9];
+	
+	# the board itself
+	my (@board) = @x[1..8];
+	for my $rank (0..7) {
+		$board[$rank] =~ s/(-+)/length($1)/ge;
+	}
+	my $fen = join('/', @board);
+
+	# white/black to move
+	$fen .= " ";
+	$fen .= lc($x[9]);
+
+	# castling
+	my $castling = "";
+	$castling .= "K" if ($x[11] == 1);
+	$castling .= "Q" if ($x[12] == 1);
+	$castling .= "k" if ($x[13] == 1);
+	$castling .= "q" if ($x[14] == 1);
+	$castling = "-" if ($castling eq "");
+	# $castling = "-"; # chess960
+	$fen .= " ";
+	$fen .= $castling;
+
+	# en passant
+	my $ep = "-";
+	if ($x[10] != -1) {
+		my $col = $x[10];
+		my $nep = (qw(a b c d e f g h))[$col];
+
+		if ($x[9] eq 'B') {
+			$nep .= "3";
+		} else {
+			$nep .= "6";
+		}
+
+		#
+		# Showing the en passant square when actually no capture can be made
+		# seems to confuse at least Rybka. Thus, check if there's actually
+		# a pawn of the opposite side that can do the en passant move, and if
+		# not, just lie -- it doesn't matter anyway. I'm unsure what's the
+		# "right" thing as per the standard, though.
+		#
+		if ($x[9] eq 'B') {
+			$ep = $nep if ($col > 0 && substr($pos{'board'}[4], $col-1, 1) eq 'p');
+			$ep = $nep if ($col < 7 && substr($pos{'board'}[4], $col+1, 1) eq 'p');
+		} else {
+			$ep = $nep if ($col > 0 && substr($pos{'board'}[3], $col-1, 1) eq 'P');
+			$ep = $nep if ($col < 7 && substr($pos{'board'}[3], $col+1, 1) eq 'P');
+		}
+	}
+	$fen .= " ";
+	$fen .= $ep;
+
+	# half-move clock
+	$fen .= " ";
+	$fen .= $x[15];
+
+	# full-move clock
+	$fen .= " ";
+	$fen .= $x[26];
+
+	$pos{'fen'} = $fen;
+	$pos{'move_num'} = $x[26];
+	$pos{'last_move'} = $x[29];
+
+	return \%pos;
+}
+
+sub prettyprint_pv {
+	my ($board, @pvs) = @_;
+
+	if (scalar @pvs == 0 || !defined($pvs[0])) {
+		return ();
+	}
+	
+	my @nb = @$board;
+
+	my $pv = shift @pvs;
+	my $from_col = ord(substr($pv, 0, 1)) - ord('a');
+	my $from_row = 7 - (ord(substr($pv, 1, 1)) - ord('1'));
+	my $to_col   = ord(substr($pv, 2, 1)) - ord('a');
+	my $to_row   = 7 - (ord(substr($pv, 3, 1)) - ord('1'));
+
+	my $pretty;
+	my $piece = substr($board->[$from_row], $from_col, 1);
+
+	if ($piece eq '-') {
+		die "Invalid move $pv";
+	}
+
+	# white short castling
+	if ($pv eq 'e1g1' && $piece eq 'K') {
+		# king
+		substr($nb[7], 4, 1, '-');
+		substr($nb[7], 6, 1, $piece);
+		
+		# rook
+		substr($nb[7], 7, 1, '-');
+		substr($nb[7], 5, 1, 'R');
+				
+		return ('0-0', prettyprint_pv(\@nb, @pvs));
+	}
+
+	# white long castling
+	if ($pv eq 'e1c1' && $piece eq 'K') {
+		# king
+		substr($nb[7], 4, 1, '-');
+		substr($nb[7], 2, 1, $piece);
+		
+		# rook
+		substr($nb[7], 0, 1, '-');
+		substr($nb[7], 3, 1, 'R');
+				
+		return ('0-0-0', prettyprint_pv(\@nb, @pvs));
+	}
+
+	# black short castling
+	if ($pv eq 'e8g8' && $piece eq 'k') {
+		# king
+		substr($nb[0], 4, 1, '-');
+		substr($nb[0], 6, 1, $piece);
+		
+		# rook
+		substr($nb[0], 7, 1, '-');
+		substr($nb[0], 5, 1, 'r');
+				
+		return ('0-0', prettyprint_pv(\@nb, @pvs));
+	}
+
+	# black long castling
+	if ($pv eq 'e8c8' && $piece eq 'k') {
+		# king
+		substr($nb[0], 4, 1, '-');
+		substr($nb[0], 2, 1, $piece);
+		
+		# rook
+		substr($nb[0], 0, 1, '-');
+		substr($nb[0], 3, 1, 'r');
+				
+		return ('0-0-0', prettyprint_pv(\@nb, @pvs));
+	}
+
+	# check if the from-piece is a pawn
+	if (lc($piece) eq 'p') {
+		# attack?
+		if ($from_col != $to_col) {
+			$pretty = substr($pv, 0, 1) . 'x' . substr($pv, 2, 2);
+
+			# en passant?
+			if (substr($board->[$to_row], $to_col, 1) eq '-') {
+				if ($piece eq 'p') {
+					substr($nb[$to_row + 1], $to_col, 1, '-');
+				} else {
+					substr($nb[$to_row - 1], $to_col, 1, '-');
+				}
+			}
+		} else {
+			$pretty = substr($pv, 2, 2);
+
+			if (length($pv) == 5) {
+				# promotion
+				$pretty .= "=";
+				$pretty .= uc(substr($pv, 4, 1));
+
+				if ($piece eq 'p') {
+					$piece = substr($pv, 4, 1);
+				} else {
+					$piece = uc(substr($pv, 4, 1));
+				}
+			}
+		}
+	} else {
+		$pretty = uc($piece);
+
+		# see how many of these pieces could go here, in all
+		my $num_total = 0;
+		for my $col (0..7) {
+			for my $row (0..7) {
+				next unless (substr($board->[$row], $col, 1) eq $piece);
+				++$num_total if (can_reach($board, $piece, $row, $col, $to_row, $to_col));
+			}
+		}
+
+		# see how many of these pieces from the given row could go here
+		my $num_row = 0;
+		for my $col (0..7) {
+			next unless (substr($board->[$from_row], $col, 1) eq $piece);
+			++$num_row if (can_reach($board, $piece, $from_row, $col, $to_row, $to_col));
+		}
+		
+		# and same for columns
+		my $num_col = 0;
+		for my $row (0..7) {
+			next unless (substr($board->[$row], $from_col, 1) eq $piece);
+			++$num_col if (can_reach($board, $piece, $row, $from_col, $to_row, $to_col));
+		}
+		
+		# see if we need to disambiguate
+		if ($num_total > 1) {
+			if ($num_col == 1) {
+				$pretty .= substr($pv, 0, 1);
+			} elsif ($num_row == 1) {
+				$pretty .= substr($pv, 1, 1);
+			} else {
+				$pretty .= substr($pv, 0, 2);
+			}
+		}
+
+		# attack?
+		if (substr($board->[$to_row], $to_col, 1) ne '-') {
+			$pretty .= 'x';
+		}
+
+		$pretty .= substr($pv, 2, 2);
+	}
+
+	# update the board
+	substr($nb[$from_row], $from_col, 1, '-');
+	substr($nb[$to_row], $to_col, 1, $piece);
+
+	if (in_mate(\@nb)) {
+		$pretty .= '#';
+	} elsif (in_check(\@nb) ne 'none') {
+		$pretty .= '+';
+	}
+
+	return ($pretty, prettyprint_pv(\@nb, @pvs));
+}
+
+sub output_screen {
+	#return;
+	
+	return if (!defined($pos_calculating));
+
+	#
+	# Check the PVs first. if they're invalid, just wait, as our data
+	# is most likely out of sync. This isn't a very good solution, as
+	# it can frequently miss stuff, but it's good enough for most users.
+	#
+	eval {
+		my $dummy;
+		if (exists($uciinfo{'pv'})) {
+			$dummy = prettyprint_pv($pos_calculating->{'board'}, @{$uciinfo{'pv'}});
+		}
+	
+		my $mpv = 1;
+		while (exists($uciinfo{'pv' . $mpv})) {
+			$dummy = prettyprint_pv($pos_calculating->{'board'}, @{$uciinfo{'pv' . $mpv}});
+			++$mpv;
+		}
+	};
+	if ($@) {
+		%uciinfo = ();
+		return;
+	}
+
+	my $text = 'Analysis';
+	if ($pos_calculating->{'last_move'} ne 'none') {
+		if ($pos_calculating->{'toplay'} eq 'W') {
+			$text .= sprintf ' after %u. ... %s', ($pos_calculating->{'move_num'}-1), $pos_calculating->{'last_move'};
+		} else {
+			$text .= sprintf ' after %u. %s', $pos_calculating->{'move_num'}, $pos_calculating->{'last_move'};
+		}
+		if (exists($uciid{'name'})) {
+			$text .= ',';
+		}
+	}
+
+	if (exists($uciid{'name'})) {
+		$text .= " by $uciid{'name'}:\n\n";
+	} else {
+		$text .= ":\n\n";
+	}
+
+	return unless (exists($pos_calculating->{'board'}));
+		
+	#
+	# Some programs _always_ report MultiPV, even with only one PV.
+	# In this case, we simply use that data as if MultiPV was never
+	# specified.
+	#
+	if (exists($uciinfo{'pv1'}) && !exists($uciinfo{'pv2'})) {
+		for my $key qw(pv score_cp score_mate nodes nps depth seldepth tbhits) {
+			if (exists($uciinfo{$key . '1'}) && !exists($uciinfo{$key})) {
+				$uciinfo{$key} = $uciinfo{$key . '1'};
+			}
+		}
+	}
+
+	if (exists($uciinfo{'pv1'}) && exists($uciinfo{'pv2'})) {
+		# multi-PV
+		my $mpv = 1;
+		while (exists($uciinfo{'pv' . $mpv})) {
+			$text .= sprintf "  PV%2u", $mpv;
+			my $score = short_score(\%uciinfo, $pos_calculating, $mpv);
+			$text .= "  ($score)" if (defined($score));
+
+			my $tbhits = '';
+			if (exists($uciinfo{'tbhits' . $mpv}) && $uciinfo{'tbhits' . $mpv} > 0) {
+				if ($uciinfo{'tbhits' . $mpv} == 1) {
+					$tbhits = ", 1 tbhit";
+				} else {
+					$tbhits = sprintf ", %u tbhits", $uciinfo{'tbhits' . $mpv};
+				}
+			}
+
+			if (exists($uciinfo{'nodes' . $mpv}) && exists($uciinfo{'nps' . $mpv}) && exists($uciinfo{'depth' . $mpv})) {
+				$text .= sprintf " (%5u kn, %3u kn/s, %2u ply$tbhits)",
+					$uciinfo{'nodes' . $mpv} / 1000, $uciinfo{'nps' . $mpv} / 1000, $uciinfo{'depth' . $mpv};
+			}
+
+			$text .= ":\n";
+			$text .= "  " . join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$uciinfo{'pv' . $mpv}})) . "\n";
+			$text .= "\n";
+			++$mpv;
+		}
+	} else {
+		# single-PV
+		my $score = long_score(\%uciinfo, $pos_calculating, '');
+		$text .= "  $score\n" if defined($score);
+		$text .=  "  PV: " . join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$uciinfo{'pv'}}));
+		$text .=  "\n";
+
+		if (exists($uciinfo{'nodes'}) && exists($uciinfo{'nps'}) && exists($uciinfo{'depth'})) {
+			$text .= sprintf "  %u nodes, %7u nodes/sec, depth %u ply",
+				$uciinfo{'nodes'}, $uciinfo{'nps'}, $uciinfo{'depth'};
+		}
+		if (exists($uciinfo{'tbhits'}) && $uciinfo{'tbhits'} > 0) {
+			if ($uciinfo{'tbhits'} == 1) {
+				$text .= ", one Nalimov hit";
+			} else {
+				$text .= sprintf ", %u Nalimov hits", $uciinfo{'tbhits'};
+			}
+		}
+		if (exists($uciinfo{'seldepth'})) {
+			$text .= sprintf " (%u selective)", $uciinfo{'seldepth'};
+		}
+		$text .=  "\n\n";
+	}
+
+	#$text .= book_info($pos_calculating->{'fen'}, $pos_calculating->{'board'}, $pos_calculating->{'toplay'});
+
+	if ($last_text ne $text) {
+		print "[H[2J"; # clear the screen
+		print $text;
+		$last_text = $text;
+	}
+
+	# Now construct the tell text, if any
+	return if (!defined($telltarget));
+
+	my $tell_text = '';
+
+	if (exists($uciid{'name'})) {
+		$tell_text .= "Analysis by $uciid{'name'} -- see http://analysis.sesse.net/ for more information\n";
+	} else {
+		$tell_text .= "Computer analysis -- http://analysis.sesse.net/ for more information\n";
+	}
+
+	if (exists($uciinfo{'pv1'}) && exists($uciinfo{'pv2'})) {
+		# multi-PV
+		my $mpv = 1;
+		while (exists($uciinfo{'pv' . $mpv})) {
+			$tell_text .= sprintf "  PV%2u", $mpv;
+			my $score = short_score(\%uciinfo, $pos_calculating, $mpv);
+			$tell_text .= "  ($score)" if (defined($score));
+
+			if (exists($uciinfo{'depth' . $mpv})) {
+				$tell_text .= sprintf " (%2u ply)", $uciinfo{'depth' . $mpv};
+			}
+
+			$tell_text .= ": ";
+			$tell_text .= join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$uciinfo{'pv' . $mpv}}));
+			$tell_text .= "\n";
+			++$mpv;
+		}
+	} else {
+		# single-PV
+		my $score = long_score(\%uciinfo, $pos_calculating, '');
+		$tell_text .= "  $score\n" if defined($score);
+		$tell_text .= "  PV: " . join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$uciinfo{'pv'}}));
+		if (exists($uciinfo{'depth'})) {
+			$tell_text .= sprintf " (depth %u ply)", $uciinfo{'depth'};
+		}
+		$tell_text .=  "\n";
+	}
+
+	# see if a new tell is called for -- it is if the delay has expired _and_
+	# this is not simply a repetition of the last one
+	if ($last_told_text ne $tell_text) {
+		my $now = time;
+		for my $iv (@tell_intervals) {
+			last if ($now - $last_move < $iv);
+			next if ($last_tell - $last_move >= $iv);
+
+			for my $line (split /\n/, $tell_text) {
+				$t->print("tell $telltarget [$target] $line");
+			}
+
+			$last_told_text = $text;
+			$last_tell = $now;
+
+			last;
+		}
+	}
+}
+
+sub find_kings {
+	my $board = shift;
+	my ($wkr, $wkc, $bkr, $bkc);
+
+	for my $row (0..7) {
+		for my $col (0..7) {
+			my $piece = substr($board->[$row], $col, 1);
+			if ($piece eq 'K') {
+				($wkr, $wkc) = ($row, $col);
+			} elsif ($piece eq 'k') {
+				($bkr, $bkc) = ($row, $col);
+			}
+		}
+	}
+
+	return ($wkr, $wkc, $bkr, $bkc);
+}
+
+sub in_mate {
+	my $board = shift;
+	my $check = in_check($board);
+	return 0 if ($check eq 'none');
+
+	# try all possible moves for the side in check
+	for my $row (0..7) {
+		for my $col (0..7) {
+			my $piece = substr($board->[$row], $col, 1);
+			next if ($piece eq '-');
+
+			if ($check eq 'white') {
+				next if ($piece eq lc($piece));
+			} else {
+				next if ($piece eq uc($piece));
+			}
+
+			for my $dest_row (0..7) {
+				for my $dest_col (0..7) {
+					next if ($row == $dest_row && $col == $dest_col);
+					next unless (can_reach($board, $piece, $row, $col, $dest_row, $dest_col));
+
+					my @nb = @$board;
+					substr($nb[$row], $col, 1, '-');
+					substr($nb[$dest_row], $dest_col, 1, $piece);
+
+					my $new_check = in_check(\@nb);
+					return 0 if ($new_check ne $check && $new_check ne 'both');
+				}
+			}
+		}
+	}
+
+	# nothing to do; mate
+	return 1;
+}
+
+sub in_check {
+	my $board = shift;
+	my ($black_check, $white_check) = (0, 0);
+
+	my ($wkr, $wkc, $bkr, $bkc) = find_kings($board);
+
+	# check all pieces for the possibility of threatening the two kings
+	for my $row (0..7) {
+		for my $col (0..7) {
+			my $piece = substr($board->[$row], $col, 1);
+			next if ($piece eq '-');
+		
+			if (uc($piece) eq $piece) {
+				# white piece
+				$black_check = 1 if (can_reach($board, $piece, $row, $col, $bkr, $bkc));
+			} else {
+				# black piece
+				$white_check = 1 if (can_reach($board, $piece, $row, $col, $wkr, $wkc));
+			}
+		}
+	}
+
+	if ($black_check && $white_check) {
+		return 'both';
+	} elsif ($black_check) {
+		return 'black';
+	} elsif ($white_check) {
+		return 'white';
+	} else {
+		return 'none';
+	}
+}
+
+sub can_reach {
+	my ($board, $piece, $from_row, $from_col, $to_row, $to_col) = @_;
+	
+	# can't eat your own piece
+	my $dest_piece = substr($board->[$to_row], $to_col, 1);
+	if ($dest_piece ne '-') {
+		return 0 if (($piece eq lc($piece)) == ($dest_piece eq lc($dest_piece)));
+	}
+
+	if (lc($piece) eq 'k') {
+		return (abs($from_row - $to_row) <= 1 && abs($from_col - $to_col) <= 1);
+	}
+	if (lc($piece) eq 'r') {
+		return 0 unless ($from_row == $to_row || $from_col == $to_col);
+
+		# check that there's a clear passage
+		if ($from_row == $to_row) {
+			if ($from_col > $to_col) {
+				($to_col, $from_col) = ($from_col, $to_col);
+			}
+
+			for my $c (($from_col+1)..($to_col-1)) {
+				my $middle_piece = substr($board->[$to_row], $c, 1);
+				return 0 if ($middle_piece ne '-');	
+			}
+
+			return 1;
+		} else {
+			if ($from_row > $to_row) {
+				($to_row, $from_row) = ($from_row, $to_row);
+			}
+
+			for my $r (($from_row+1)..($to_row-1)) {
+				my $middle_piece = substr($board->[$r], $to_col, 1);
+				return 0 if ($middle_piece ne '-');	
+			}
+
+			return 1;
+		}
+	}
+	if (lc($piece) eq 'b') {
+		return 0 unless (abs($from_row - $to_row) == abs($from_col - $to_col));
+
+		my $dr = ($to_row - $from_row) / abs($to_row - $from_row);
+		my $dc = ($to_col - $from_col) / abs($to_col - $from_col);
+
+		my $r = $from_row + $dr;
+		my $c = $from_col + $dc;
+
+		while ($r != $to_row) {
+			my $middle_piece = substr($board->[$r], $c, 1);
+			return 0 if ($middle_piece ne '-');
+			
+			$r += $dr;
+			$c += $dc;
+		}
+
+		return 1;
+	}
+	if (lc($piece) eq 'n') {
+		my $diff_r = abs($from_row - $to_row);
+		my $diff_c = abs($from_col - $to_col);
+		return 1 if ($diff_r == 2 && $diff_c == 1);
+		return 1 if ($diff_r == 1 && $diff_c == 2);
+		return 0;
+	}
+	if ($piece eq 'q') {
+		return (can_reach($board, 'r', $from_row, $from_col, $to_row, $to_col) ||
+		        can_reach($board, 'b', $from_row, $from_col, $to_row, $to_col));
+	}
+	if ($piece eq 'Q') {
+		return (can_reach($board, 'R', $from_row, $from_col, $to_row, $to_col) ||
+		        can_reach($board, 'B', $from_row, $from_col, $to_row, $to_col));
+	}
+	if ($piece eq 'p') {
+		# black pawn
+		if ($to_col == $from_col && $to_row == $from_row + 1) {
+			return ($dest_piece eq '-');
+		}
+		if (abs($to_col - $from_col) == 1 && $to_row == $from_row + 1) {
+			return ($dest_piece ne '-');
+		}
+		return 0;
+	}
+	if ($piece eq 'P') {
+		# white pawn
+		if ($to_col == $from_col && $to_row == $from_row - 1) {
+			return ($dest_piece eq '-');
+		}
+		if (abs($to_col - $from_col) == 1 && $to_row == $from_row - 1) {
+			return ($dest_piece ne '-');
+		}
+		return 0;
+	}
+	
+	# unknown piece
+	return 0;
+}
+
+sub uciprint {
+	my $msg = shift;
+	print UCIWRITE "$msg\n";
+	print UCILOG localtime() . " => $msg\n";
+}
+
+sub short_score {
+	my ($uciinfo, $pos, $mpv) = @_;
+
+	if (defined($uciinfo{'score_mate' . $mpv})) {
+		return sprintf "M%3d", $uciinfo{'score_mate' . $mpv};
+	} else {
+		if (exists($uciinfo{'score_cp' . $mpv})) {
+			my $score = $uciinfo{'score_cp' . $mpv} * 0.01;
+			if ($pos->{'toplay'} eq 'B') {
+				$score = -$score;
+			}
+			return sprintf "%+5.2f", $score;
+		}
+	}
+
+	return undef;
+}
+
+sub long_score {
+	my ($uciinfo, $pos, $mpv) = @_;
+
+	if (defined($uciinfo{'score_mate' . $mpv})) {
+		my $mate = $uciinfo{'score_mate' . $mpv};
+		if ($pos->{'toplay'} eq 'B') {
+			$mate = -$mate;
+		}
+		if ($mate > 0) {
+			return sprintf "White mates in %u", $mate;
+		} else {
+			return sprintf "Black mates in %u", -$mate;
+		}
+	} else {
+		if (exists($uciinfo{'score_cp' . $mpv})) {
+			my $score = $uciinfo{'score_cp' . $mpv} * 0.01;
+			if ($pos->{'toplay'} eq 'B') {
+				$score = -$score;
+			}
+			return sprintf "Score: %+5.2f", $score;
+		}
+	}
+
+	return undef;
+}
+
+my %book_cache = ();
+sub book_info {
+	my ($fen, $board, $toplay) = @_;
+
+	if (exists($book_cache{$fen})) {
+		return $book_cache{$fen};
+	}
+
+	my $ret = `./booklook $fen`;
+	return "" if ($ret =~ /Not found/ || $ret eq '');
+
+	my @moves = ();
+
+	for my $m (split /\n/, $ret) {
+		my ($move, $annotation, $win, $draw, $lose, $rating, $rating_div) = split /,/, $m;
+
+		my $pmove;
+		if ($move eq '')  {
+			$pmove = '(current)';
+		} else {
+			($pmove) = prettyprint_pv($board, $move);
+			$pmove .= $annotation;
+		}
+
+		my $score;
+		if ($toplay eq 'W') {
+			$score = 1.0 * $win + 0.5 * $draw + 0.0 * $lose;
+		} else {
+			$score = 0.0 * $win + 0.5 * $draw + 1.0 * $lose;
+		}
+		my $n = $win + $draw + $lose;
+		
+		my $percent;
+		if ($n == 0) {
+			$percent = "     ";
+		} else {
+			$percent = sprintf "%4u%%", int(100.0 * $score / $n + 0.5);
+		}
+
+		push @moves, [ $pmove, $n, $percent, $rating ];
+	}
+
+	@moves[1..$#moves] = sort { $b->[2] cmp $a->[2] } @moves[1..$#moves];
+	
+	my $text = "Book moves:\n\n              Perf.     N     Rating\n\n";
+	for my $m (@moves) {
+		$text .= sprintf "  %-10s %s   %6u    %4s\n", $m->[0], $m->[2], $m->[1], $m->[3]
+	}
+
+	return $text;
+}
