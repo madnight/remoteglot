@@ -363,32 +363,18 @@ sub make_fen {
 	return $fen;
 }
 
-}
-
-sub prettyprint_pv {
-	my ($board, @pvs) = @_;
-
-	if (scalar @pvs == 0 || !defined($pvs[0])) {
-		return ();
-	}
-	
+sub make_move {
+	my ($board, $from_row, $from_col, $to_row, $to_col, $promo) = @_;
+	my $move = move_to_uci_notation($from_row, $from_col, $to_row, $to_col, $promo);
+	my $piece = substr($board->[$from_row], $from_col, 1);
 	my @nb = @$board;
 
-	my $pv = shift @pvs;
-	my $from_col = ord(substr($pv, 0, 1)) - ord('a');
-	my $from_row = 7 - (ord(substr($pv, 1, 1)) - ord('1'));
-	my $to_col   = ord(substr($pv, 2, 1)) - ord('a');
-	my $to_row   = 7 - (ord(substr($pv, 3, 1)) - ord('1'));
-
-	my $pretty;
-	my $piece = substr($board->[$from_row], $from_col, 1);
-
 	if ($piece eq '-') {
-		die "Invalid move $pv";
+		die "Invalid move $move";
 	}
 
 	# white short castling
-	if ($pv eq 'e1g1' && $piece eq 'K') {
+	if ($move eq 'e1g1' && $piece eq 'K') {
 		# king
 		substr($nb[7], 4, 1, '-');
 		substr($nb[7], 6, 1, $piece);
@@ -397,11 +383,11 @@ sub prettyprint_pv {
 		substr($nb[7], 7, 1, '-');
 		substr($nb[7], 5, 1, 'R');
 				
-		return ('0-0', prettyprint_pv(\@nb, @pvs));
+		return \@nb;
 	}
 
 	# white long castling
-	if ($pv eq 'e1c1' && $piece eq 'K') {
+	if ($move eq 'e1c1' && $piece eq 'K') {
 		# king
 		substr($nb[7], 4, 1, '-');
 		substr($nb[7], 2, 1, $piece);
@@ -410,11 +396,11 @@ sub prettyprint_pv {
 		substr($nb[7], 0, 1, '-');
 		substr($nb[7], 3, 1, 'R');
 				
-		return ('0-0-0', prettyprint_pv(\@nb, @pvs));
+		return \@nb;
 	}
 
 	# black short castling
-	if ($pv eq 'e8g8' && $piece eq 'k') {
+	if ($move eq 'e8g8' && $piece eq 'k') {
 		# king
 		substr($nb[0], 4, 1, '-');
 		substr($nb[0], 6, 1, $piece);
@@ -423,11 +409,11 @@ sub prettyprint_pv {
 		substr($nb[0], 7, 1, '-');
 		substr($nb[0], 5, 1, 'r');
 				
-		return ('0-0', prettyprint_pv(\@nb, @pvs));
+		return \@nb;
 	}
 
 	# black long castling
-	if ($pv eq 'e8c8' && $piece eq 'k') {
+	if ($move eq 'e8c8' && $piece eq 'k') {
 		# king
 		substr($nb[0], 4, 1, '-');
 		substr($nb[0], 2, 1, $piece);
@@ -436,15 +422,13 @@ sub prettyprint_pv {
 		substr($nb[0], 0, 1, '-');
 		substr($nb[0], 3, 1, 'r');
 				
-		return ('0-0-0', prettyprint_pv(\@nb, @pvs));
+		return \@nb;
 	}
 
 	# check if the from-piece is a pawn
 	if (lc($piece) eq 'p') {
 		# attack?
 		if ($from_col != $to_col) {
-			$pretty = substr($pv, 0, 1) . 'x' . substr($pv, 2, 2);
-
 			# en passant?
 			if (substr($board->[$to_row], $to_col, 1) eq '-') {
 				if ($piece eq 'p') {
@@ -453,6 +437,72 @@ sub prettyprint_pv {
 					substr($nb[$to_row - 1], $to_col, 1, '-');
 				}
 			}
+		} else {
+			if ($promo ne '') {
+				if ($piece eq 'p') {
+					$piece = $promo;
+				} else {
+					$piece = uc($promo);
+				}
+			}
+		}
+	}
+
+	# update the board
+	substr($nb[$from_row], $from_col, 1, '-');
+	substr($nb[$to_row], $to_col, 1, $piece);
+
+	return \@nb;
+}
+
+sub prettyprint_pv {
+	my ($board, @pvs) = @_;
+
+	if (scalar @pvs == 0 || !defined($pvs[0])) {
+		return ();
+	}
+
+	my $pv = shift @pvs;
+	my $from_col = col_letter_to_num(substr($pv, 0, 1));
+	my $from_row = row_letter_to_num(substr($pv, 1, 1));
+	my $to_col   = col_letter_to_num(substr($pv, 2, 1));
+	my $to_row   = row_letter_to_num(substr($pv, 3, 1));
+	my $promo    = substr($pv, 4, 1);
+
+	my $nb = make_move($board, $from_row, $from_col, $to_row, $to_col, $promo);
+	my $piece = substr($board->[$from_row], $from_col, 1);
+
+	if ($piece eq '-') {
+		die "Invalid move $pv";
+	}
+
+	# white short castling
+	if ($pv eq 'e1g1' && $piece eq 'K') {
+		return ('0-0', prettyprint_pv($nb, @pvs));
+	}
+
+	# white long castling
+	if ($pv eq 'e1c1' && $piece eq 'K') {
+		return ('0-0-0', prettyprint_pv($nb, @pvs));
+	}
+
+	# black short castling
+	if ($pv eq 'e8g8' && $piece eq 'k') {
+		return ('0-0', prettyprint_pv($nb, @pvs));
+	}
+
+	# black long castling
+	if ($pv eq 'e8c8' && $piece eq 'k') {
+		return ('0-0-0', prettyprint_pv($nb, @pvs));
+	}
+
+	my $pretty;
+
+	# check if the from-piece is a pawn
+	if (lc($piece) eq 'p') {
+		# attack?
+		if ($from_col != $to_col) {
+			$pretty = substr($pv, 0, 1) . 'x' . substr($pv, 2, 2);
 		} else {
 			$pretty = substr($pv, 2, 2);
 
@@ -513,17 +563,12 @@ sub prettyprint_pv {
 		$pretty .= substr($pv, 2, 2);
 	}
 
-	# update the board
-	substr($nb[$from_row], $from_col, 1, '-');
-	substr($nb[$to_row], $to_col, 1, $piece);
-
-	if (in_mate(\@nb)) {
+	if (in_mate($nb)) {
 		$pretty .= '#';
-	} elsif (in_check(\@nb) ne 'none') {
+	} elsif (in_check($nb) ne 'none') {
 		$pretty .= '+';
 	}
-
-	return ($pretty, prettyprint_pv(\@nb, @pvs));
+	return ($pretty, prettyprint_pv($nb, @pvs));
 }
 
 sub output_screen {
@@ -1050,4 +1095,18 @@ sub read_line {
 
 	$line =~ tr/\r\n//d;
 	return $line;
+}
+
+sub col_letter_to_num {
+	return ord(shift) - ord('a');
+}
+
+sub row_letter_to_num {
+	return 7 - (ord(shift) - ord('1'));
+}
+
+sub move_to_uci_notation {
+	my ($from_row, $from_col, $to_row, $to_col, $promo) = @_;
+	$promo //= "";
+	return sprintf("%c%d%c%d%s", ord('a') + $from_col, 8 - $from_row, ord('a') + $to_col, 8 - $to_row, $promo);
 }
