@@ -132,6 +132,7 @@ while (1) {
 			}
 
 			%uciinfo = ();
+			$engine->{'info'} = {};
 			$last_move = time;
 
 			# 
@@ -165,7 +166,7 @@ while (1) {
 	# any fun on the UCI channel?
 	if ($nfound > 0 && vec($rout, fileno($engine->{'read'}), 1) == 1) {
 		my $line = read_line($engine->{'read'});
-		handle_uci($line);
+		handle_uci($engine, $line);
 		$sleep = 0;
 
 		# don't update too often
@@ -176,7 +177,7 @@ while (1) {
 }
 
 sub handle_uci {
-	my ($line) = @_;
+	my ($engine, $line) = @_;
 
 	chomp $line;
 	$line =~ tr/\r//d;
@@ -186,13 +187,13 @@ sub handle_uci {
 		my (@infos) = split / /, $line;
 		shift @infos;
 
-		parse_infos(@infos);
+		parse_infos($engine, @infos);
 	}
 	if ($line =~ /^id/) {
 		my (@ids) = split / /, $line;
 		shift @ids;
 
-		parse_ids(@ids);
+		parse_ids($engine, @ids);
 	}
 	if ($line =~ /^bestmove/ && $uci_assume_full_compliance) {
 		if (defined($pos_waiting)) {
@@ -206,8 +207,10 @@ sub handle_uci {
 }
 
 sub parse_infos {
-	my (@x) = @_;
+	my ($engine, @x) = @_;
 	my $mpv = '';
+
+	my $info = $engine->{'info'};
 
 	while (scalar @x > 0) {
 		if ($x[0] =~ 'multipv') {
@@ -218,28 +221,28 @@ sub parse_infos {
 		if ($x[0] =~ /^(currmove|currmovenumber|cpuload)$/) {
 			my $key = shift @x;
 			my $value = shift @x;
-			$uciinfo{$key} = $value;
+			$info->{$key} = $value;
 			next;
 		}
 		if ($x[0] =~ /^(depth|seldepth|hashfull|time|nodes|nps|tbhits)$/) {
 			my $key = shift @x;
 			my $value = shift @x;
-			$uciinfo{$key . $mpv} = $value;
+			$info->{$key . $mpv} = $value;
 			next;
 		}
 		if ($x[0] eq 'score') {
 			shift @x;
 
-			delete $uciinfo{'score_cp' . $mpv};
-			delete $uciinfo{'score_mate' . $mpv};
+			delete $info->{'score_cp' . $mpv};
+			delete $info->{'score_mate' . $mpv};
 
 			while ($x[0] =~ /^(cp|mate|lowerbound|upperbound)$/) {
 				if ($x[0] eq 'cp') {
 					shift @x;
-					$uciinfo{'score_cp' . $mpv} = shift @x;
+					$info->{'score_cp' . $mpv} = shift @x;
 				} elsif ($x[0] eq 'mate') {
 					shift @x;
-					$uciinfo{'score_mate' . $mpv} = shift @x;
+					$info->{'score_mate' . $mpv} = shift @x;
 				} else {
 					shift @x;
 				}
@@ -247,7 +250,7 @@ sub parse_infos {
 			next;
 		}
 		if ($x[0] eq 'pv') {
-			$uciinfo{'pv' . $mpv} = [ @x[1..$#x] ];
+			$info->{'pv' . $mpv} = [ @x[1..$#x] ];
 			last;
 		}
 		if ($x[0] eq 'string' || $x[0] eq 'UCI_AnalyseMode' || $x[0] eq 'setting' || $x[0] eq 'contempt') {
@@ -262,13 +265,13 @@ sub parse_infos {
 }
 
 sub parse_ids {
-	my (@x) = @_;
+	my ($engine, @x) = @_;
 
 	while (scalar @x > 0) {
 		if ($x[0] =~ /^(name|author)$/) {
 			my $key = shift @x;
 			my $value = join(' ', @x);
-			$uciid{$key} = $value;
+			$engine->{'info'}{'id'}{$key} = $value;
 			last;
 		}
 
@@ -576,6 +579,9 @@ sub output_screen {
 	
 	return if (!defined($pos_calculating));
 
+	my $info = $engine->{'info'};
+	my $id = $engine->{'id'};
+
 	#
 	# Check the PVs first. if they're invalid, just wait, as our data
 	# is most likely out of sync. This isn't a very good solution, as
@@ -583,18 +589,18 @@ sub output_screen {
 	#
 	eval {
 		my $dummy;
-		if (exists($uciinfo{'pv'})) {
-			$dummy = prettyprint_pv($pos_calculating->{'board'}, @{$uciinfo{'pv'}});
+		if (exists($info->{'pv'})) {
+			$dummy = prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv'}});
 		}
 	
 		my $mpv = 1;
-		while (exists($uciinfo{'pv' . $mpv})) {
-			$dummy = prettyprint_pv($pos_calculating->{'board'}, @{$uciinfo{'pv' . $mpv}});
+		while (exists($info->{'pv' . $mpv})) {
+			$dummy = prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv' . $mpv}});
 			++$mpv;
 		}
 	};
 	if ($@) {
-		%uciinfo = ();
+		$engine->{'info'} = {};
 		return;
 	}
 
@@ -605,13 +611,13 @@ sub output_screen {
 		} else {
 			$text .= sprintf ' after %u. %s', $pos_calculating->{'move_num'}, $pos_calculating->{'last_move'};
 		}
-		if (exists($uciid{'name'})) {
+		if (exists($id->{'name'})) {
 			$text .= ',';
 		}
 	}
 
-	if (exists($uciid{'name'})) {
-		$text .= " by $uciid{'name'}:\n\n";
+	if (exists($id->{'name'})) {
+		$text .= " by $id->{'name'}:\n\n";
 	} else {
 		$text .= ":\n\n";
 	}
@@ -623,61 +629,61 @@ sub output_screen {
 	# In this case, we simply use that data as if MultiPV was never
 	# specified.
 	#
-	if (exists($uciinfo{'pv1'}) && !exists($uciinfo{'pv2'})) {
+	if (exists($info->{'pv1'}) && !exists($info->{'pv2'})) {
 		for my $key (qw(pv score_cp score_mate nodes nps depth seldepth tbhits)) {
-			if (exists($uciinfo{$key . '1'}) && !exists($uciinfo{$key})) {
-				$uciinfo{$key} = $uciinfo{$key . '1'};
+			if (exists($info->{$key . '1'}) && !exists($info->{$key})) {
+				$info->{$key} = $info->{$key . '1'};
 			}
 		}
 	}
 
-	if (exists($uciinfo{'pv1'}) && exists($uciinfo{'pv2'})) {
+	if (exists($info->{'pv1'}) && exists($info->{'pv2'})) {
 		# multi-PV
 		my $mpv = 1;
-		while (exists($uciinfo{'pv' . $mpv})) {
+		while (exists($info->{'pv' . $mpv})) {
 			$text .= sprintf "  PV%2u", $mpv;
-			my $score = short_score(\%uciinfo, $pos_calculating, $mpv);
+			my $score = short_score($info, $pos_calculating, $mpv);
 			$text .= "  ($score)" if (defined($score));
 
 			my $tbhits = '';
-			if (exists($uciinfo{'tbhits' . $mpv}) && $uciinfo{'tbhits' . $mpv} > 0) {
-				if ($uciinfo{'tbhits' . $mpv} == 1) {
+			if (exists($info->{'tbhits' . $mpv}) && $info->{'tbhits' . $mpv} > 0) {
+				if ($info->{'tbhits' . $mpv} == 1) {
 					$tbhits = ", 1 tbhit";
 				} else {
-					$tbhits = sprintf ", %u tbhits", $uciinfo{'tbhits' . $mpv};
+					$tbhits = sprintf ", %u tbhits", $info->{'tbhits' . $mpv};
 				}
 			}
 
-			if (exists($uciinfo{'nodes' . $mpv}) && exists($uciinfo{'nps' . $mpv}) && exists($uciinfo{'depth' . $mpv})) {
+			if (exists($info->{'nodes' . $mpv}) && exists($info->{'nps' . $mpv}) && exists($info->{'depth' . $mpv})) {
 				$text .= sprintf " (%5u kn, %3u kn/s, %2u ply$tbhits)",
-					$uciinfo{'nodes' . $mpv} / 1000, $uciinfo{'nps' . $mpv} / 1000, $uciinfo{'depth' . $mpv};
+					$info->{'nodes' . $mpv} / 1000, $info->{'nps' . $mpv} / 1000, $info->{'depth' . $mpv};
 			}
 
 			$text .= ":\n";
-			$text .= "  " . join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$uciinfo{'pv' . $mpv}})) . "\n";
+			$text .= "  " . join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv' . $mpv}})) . "\n";
 			$text .= "\n";
 			++$mpv;
 		}
 	} else {
 		# single-PV
-		my $score = long_score(\%uciinfo, $pos_calculating, '');
+		my $score = long_score($info, $pos_calculating, '');
 		$text .= "  $score\n" if defined($score);
-		$text .=  "  PV: " . join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$uciinfo{'pv'}}));
+		$text .=  "  PV: " . join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv'}}));
 		$text .=  "\n";
 
-		if (exists($uciinfo{'nodes'}) && exists($uciinfo{'nps'}) && exists($uciinfo{'depth'})) {
+		if (exists($info->{'nodes'}) && exists($info->{'nps'}) && exists($info->{'depth'})) {
 			$text .= sprintf "  %u nodes, %7u nodes/sec, depth %u ply",
-				$uciinfo{'nodes'}, $uciinfo{'nps'}, $uciinfo{'depth'};
+				$info->{'nodes'}, $info->{'nps'}, $info->{'depth'};
 		}
-		if (exists($uciinfo{'tbhits'}) && $uciinfo{'tbhits'} > 0) {
-			if ($uciinfo{'tbhits'} == 1) {
+		if (exists($info->{'tbhits'}) && $info->{'tbhits'} > 0) {
+			if ($info->{'tbhits'} == 1) {
 				$text .= ", one Nalimov hit";
 			} else {
-				$text .= sprintf ", %u Nalimov hits", $uciinfo{'tbhits'};
+				$text .= sprintf ", %u Nalimov hits", $info->{'tbhits'};
 			}
 		}
-		if (exists($uciinfo{'seldepth'})) {
-			$text .= sprintf " (%u selective)", $uciinfo{'seldepth'};
+		if (exists($info->{'seldepth'})) {
+			$text .= sprintf " (%u selective)", $info->{'seldepth'};
 		}
 		$text .=  "\n\n";
 	}
@@ -695,36 +701,36 @@ sub output_screen {
 
 	my $tell_text = '';
 
-	if (exists($uciid{'name'})) {
-		$tell_text .= "Analysis by $uciid{'name'} -- see http://analysis.sesse.net/ for more information\n";
+	if (exists($id->{'name'})) {
+		$tell_text .= "Analysis by $id->{'name'} -- see http://analysis.sesse.net/ for more information\n";
 	} else {
 		$tell_text .= "Computer analysis -- http://analysis.sesse.net/ for more information\n";
 	}
 
-	if (exists($uciinfo{'pv1'}) && exists($uciinfo{'pv2'})) {
+	if (exists($info->{'pv1'}) && exists($info->{'pv2'})) {
 		# multi-PV
 		my $mpv = 1;
-		while (exists($uciinfo{'pv' . $mpv})) {
+		while (exists($info->{'pv' . $mpv})) {
 			$tell_text .= sprintf "  PV%2u", $mpv;
-			my $score = short_score(\%uciinfo, $pos_calculating, $mpv);
+			my $score = short_score($info, $pos_calculating, $mpv);
 			$tell_text .= "  ($score)" if (defined($score));
 
-			if (exists($uciinfo{'depth' . $mpv})) {
-				$tell_text .= sprintf " (%2u ply)", $uciinfo{'depth' . $mpv};
+			if (exists($info->{'depth' . $mpv})) {
+				$tell_text .= sprintf " (%2u ply)", $info->{'depth' . $mpv};
 			}
 
 			$tell_text .= ": ";
-			$tell_text .= join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$uciinfo{'pv' . $mpv}}));
+			$tell_text .= join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv' . $mpv}}));
 			$tell_text .= "\n";
 			++$mpv;
 		}
 	} else {
 		# single-PV
-		my $score = long_score(\%uciinfo, $pos_calculating, '');
+		my $score = long_score($info, $pos_calculating, '');
 		$tell_text .= "  $score\n" if defined($score);
-		$tell_text .= "  PV: " . join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$uciinfo{'pv'}}));
-		if (exists($uciinfo{'depth'})) {
-			$tell_text .= sprintf " (depth %u ply)", $uciinfo{'depth'};
+		$tell_text .= "  PV: " . join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv'}}));
+		if (exists($info->{'depth'})) {
+			$tell_text .= sprintf " (depth %u ply)", $info->{'depth'};
 		}
 		$tell_text .=  "\n";
 	}
@@ -953,13 +959,13 @@ sub uciprint {
 }
 
 sub short_score {
-	my ($uciinfo, $pos, $mpv) = @_;
+	my ($info, $pos, $mpv) = @_;
 
-	if (defined($uciinfo{'score_mate' . $mpv})) {
-		return sprintf "M%3d", $uciinfo{'score_mate' . $mpv};
+	if (defined($info->{'score_mate' . $mpv})) {
+		return sprintf "M%3d", $info->{'score_mate' . $mpv};
 	} else {
-		if (exists($uciinfo{'score_cp' . $mpv})) {
-			my $score = $uciinfo{'score_cp' . $mpv} * 0.01;
+		if (exists($info->{'score_cp' . $mpv})) {
+			my $score = $info->{'score_cp' . $mpv} * 0.01;
 			if ($pos->{'toplay'} eq 'B') {
 				$score = -$score;
 			}
@@ -971,10 +977,10 @@ sub short_score {
 }
 
 sub long_score {
-	my ($uciinfo, $pos, $mpv) = @_;
+	my ($info, $pos, $mpv) = @_;
 
-	if (defined($uciinfo{'score_mate' . $mpv})) {
-		my $mate = $uciinfo{'score_mate' . $mpv};
+	if (defined($info->{'score_mate' . $mpv})) {
+		my $mate = $info->{'score_mate' . $mpv};
 		if ($pos->{'toplay'} eq 'B') {
 			$mate = -$mate;
 		}
@@ -984,8 +990,8 @@ sub long_score {
 			return sprintf "Black mates in %u", -$mate;
 		}
 	} else {
-		if (exists($uciinfo{'score_cp' . $mpv})) {
-			my $score = $uciinfo{'score_cp' . $mpv} * 0.01;
+		if (exists($info->{'score_cp' . $mpv})) {
+			my $score = $info->{'score_cp' . $mpv} * 0.01;
 			if ($pos->{'toplay'} eq 'B') {
 				$score = -$score;
 			}
@@ -1056,7 +1062,9 @@ sub open_engine {
 	my $engine = {
 		pid => $pid,
 		read => $uciread,
-		write => $uciwrite
+		write => $uciwrite,
+		info => {},
+		ids => {}
 	};
 
 	uciprint($engine, "uci");
@@ -1064,7 +1072,7 @@ sub open_engine {
 	# gobble the options
 	while (<$uciread>) {
 		/uciok/ && last;
-		handle_uci($_);
+		handle_uci($engine, $_);
 	}
 	
 	return $engine;
