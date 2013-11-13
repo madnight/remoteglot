@@ -164,27 +164,7 @@ while (1) {
 	
 	# any fun on the UCI channel?
 	if ($nfound > 0 && vec($rout, fileno($engine->{'read'}), 1) == 1) {
-		# 
-		# Read until we've got a full line -- if the engine sends part of
-		# a line and then stops we're pretty much hosed, but that should
-		# never happen.
-		#
-		my $line = '';
-		while ($line !~ /\n/) {
-			my $tmp;
-			my $ret = sysread $engine->{'read'}, $tmp, 1;
-
-			if (!defined($ret)) {
-				next if ($!{EINTR});
-				die "error in reading from the UCI engine: $!";
-			} elsif ($ret == 0) {
-				die "EOF from UCI engine";
-			}
-
-			$line .= $tmp;
-		}
-
-		$line =~ tr/\r\n//d;
+		my $line = read_line($engine->{'read'});
 		handle_uci($line);
 		$sleep = 0;
 
@@ -1020,4 +1000,31 @@ sub open_engine {
 	}
 	
 	return $engine;
+}
+
+sub read_line {
+	my $fh = shift;
+
+	# 
+	# Read until we've got a full line -- if the engine sends part of
+	# a line and then stops we're pretty much hosed, but that should
+	# never happen.
+	#
+	my $line = '';
+	while ($line !~ /\n/) {
+		my $tmp;
+		my $ret = sysread $engine->{'read'}, $tmp, 1;
+
+		if (!defined($ret)) {
+			next if ($!{EINTR});
+			die "error in reading from the UCI engine: $!";
+		} elsif ($ret == 0) {
+			die "EOF from UCI engine";
+		}
+
+		$line .= $tmp;
+	}
+
+	$line =~ tr/\r\n//d;
+	return $line;
 }
