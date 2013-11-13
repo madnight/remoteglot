@@ -99,7 +99,7 @@ while (1) {
 		chomp $line;
 		$line =~ tr/\r//d;
 		if ($line =~ /^<12> /) {
-			my $pos = style12_to_fen($line);
+			my $pos = style12_to_pos($line);
 			
 			# if this is already in the queue, ignore it
 			next if (defined($pos_waiting) && $pos->{'fen'} eq $pos_waiting->{'fen'});
@@ -277,16 +277,31 @@ sub parse_ids {
 	}
 }
 
-sub style12_to_fen {
+sub style12_to_pos {
 	my $str = shift;
 	my %pos = ();
 	my (@x) = split / /, $str;
 	
 	$pos{'board'} = [ @x[1..8] ];
 	$pos{'toplay'} = $x[9];
-	
+	$pos{'ep_file_num'} = $x[10];
+	$pos{'white_castle_k'} = $x[11];
+	$pos{'white_castle_q'} = $x[12];
+	$pos{'black_castle_k'} = $x[13];
+	$pos{'black_castle_q'} = $x[14];
+	$pos{'time_to_100move_rule'} = $x[15];
+	$pos{'move_num'} = $x[26];
+	$pos{'last_move'} = $x[29];
+	$pos{'fen'} = make_fen(\%pos);
+
+	return \%pos;
+}
+
+sub make_fen {
+	my $pos = shift;
+
 	# the board itself
-	my (@board) = @x[1..8];
+	my (@board) = @{$pos->{'board'}};
 	for my $rank (0..7) {
 		$board[$rank] =~ s/(-+)/length($1)/ge;
 	}
@@ -294,14 +309,14 @@ sub style12_to_fen {
 
 	# white/black to move
 	$fen .= " ";
-	$fen .= lc($x[9]);
+	$fen .= lc($pos->{'toplay'});
 
 	# castling
 	my $castling = "";
-	$castling .= "K" if ($x[11] == 1);
-	$castling .= "Q" if ($x[12] == 1);
-	$castling .= "k" if ($x[13] == 1);
-	$castling .= "q" if ($x[14] == 1);
+	$castling .= "K" if ($pos->{'white_castle_k'} == 1);
+	$castling .= "Q" if ($pos->{'white_castle_q'} == 1);
+	$castling .= "k" if ($pos->{'black_castle_k'} == 1);
+	$castling .= "q" if ($pos->{'black_castle_q'} == 1);
 	$castling = "-" if ($castling eq "");
 	# $castling = "-"; # chess960
 	$fen .= " ";
@@ -309,11 +324,11 @@ sub style12_to_fen {
 
 	# en passant
 	my $ep = "-";
-	if ($x[10] != -1) {
-		my $col = $x[10];
+	if ($pos->{'ep_file_num'} != -1) {
+		my $col = $pos->{'ep_file_num'};
 		my $nep = (qw(a b c d e f g h))[$col];
 
-		if ($x[9] eq 'B') {
+		if ($pos->{'toplay'} eq 'B') {
 			$nep .= "3";
 		} else {
 			$nep .= "6";
@@ -326,12 +341,12 @@ sub style12_to_fen {
 		# not, just lie -- it doesn't matter anyway. I'm unsure what's the
 		# "right" thing as per the standard, though.
 		#
-		if ($x[9] eq 'B') {
-			$ep = $nep if ($col > 0 && substr($pos{'board'}[4], $col-1, 1) eq 'p');
-			$ep = $nep if ($col < 7 && substr($pos{'board'}[4], $col+1, 1) eq 'p');
+		if ($pos->{'toplay'} eq 'B') {
+			$ep = $nep if ($col > 0 && substr($pos->{'board'}[4], $col-1, 1) eq 'p');
+			$ep = $nep if ($col < 7 && substr($pos->{'board'}[4], $col+1, 1) eq 'p');
 		} else {
-			$ep = $nep if ($col > 0 && substr($pos{'board'}[3], $col-1, 1) eq 'P');
-			$ep = $nep if ($col < 7 && substr($pos{'board'}[3], $col+1, 1) eq 'P');
+			$ep = $nep if ($col > 0 && substr($pos->{'board'}[3], $col-1, 1) eq 'P');
+			$ep = $nep if ($col < 7 && substr($pos->{'board'}[3], $col+1, 1) eq 'P');
 		}
 	}
 	$fen .= " ";
@@ -339,17 +354,15 @@ sub style12_to_fen {
 
 	# half-move clock
 	$fen .= " ";
-	$fen .= $x[15];
+	$fen .= $pos->{'time_to_100move_rule'};
 
 	# full-move clock
 	$fen .= " ";
-	$fen .= $x[26];
+	$fen .= $pos->{'move_num'};
 
-	$pos{'fen'} = $fen;
-	$pos{'move_num'} = $x[26];
-	$pos{'last_move'} = $x[29];
+	return $fen;
+}
 
-	return \%pos;
 }
 
 sub prettyprint_pv {
