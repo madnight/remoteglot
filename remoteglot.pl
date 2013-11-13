@@ -19,7 +19,7 @@ use warnings;
 # Configuration
 my $server = "freechess.org";
 my $target = "GMCarlsen";
-my $engine = "'./Deep Rybka 4 SSE42 x64'";
+my $engine_cmdline = "'./Deep Rybka 4 SSE42 x64'";
 my $telltarget = undef;   # undef to be silent
 my @tell_intervals = (5, 20, 60, 120, 240, 480, 960);  # after each move
 my $uci_assume_full_compliance = 0;                    # dangerous :-)
@@ -50,7 +50,7 @@ $| = 1;
 select(STDOUT);
 
 # open the chess engine
-my $pid = IPC::Open2::open2(*UCIREAD, *UCIWRITE, $engine);
+my $engine = open_engine($engine_cmdline);
 my %uciinfo = ();
 my %uciid = ();
 my ($last_move, $last_tell);
@@ -58,20 +58,12 @@ my $last_text = '';
 my $last_told_text = '';
 my ($pos_waiting, $pos_calculating);
 
-uciprint("uci");
-
-# gobble the options
-while (<UCIREAD>) {
-	/uciok/ && last;
-	handle_uci($_);
-}
-
-uciprint("setoption name UCI_AnalyseMode value true");
-# uciprint("setoption name NalimovPath value /srv/tablebase");
-uciprint("setoption name NalimovUsage value Rarely");
-uciprint("setoption name Hash value 1024");
-# uciprint("setoption name MultiPV value 2");
-uciprint("ucinewgame");
+uciprint($engine, "setoption name UCI_AnalyseMode value true");
+# uciprint($engine, "setoption name NalimovPath value /srv/tablebase");
+uciprint($engine, "setoption name NalimovUsage value Rarely");
+uciprint($engine, "setoption name Hash value 1024");
+# uciprint($engine, "setoption name MultiPV value 2");
+uciprint($engine, "ucinewgame");
 
 print "Chess engine ready.\n";
 
@@ -94,7 +86,7 @@ print "FICS ready.\n";
 while (1) {
 	my $rin = '';
 	my $rout;
-	vec($rin, fileno(UCIREAD), 1) = 1;
+	vec($rin, fileno($engine->{'read'}), 1) = 1;
 	vec($rin, fileno($t), 1) = 1;
 
 	my ($nfound, $timeleft) = select($rout=$rin, undef, undef, 5.0);
@@ -121,21 +113,21 @@ while (1) {
 			# to approve
 			if (defined($pos_calculating)) {
 				if (!defined($pos_waiting)) {
-					uciprint("stop");
+					uciprint($engine, "stop");
 				}
 				if ($uci_assume_full_compliance) {
 					$pos_waiting = $pos;
 				} else {
-					uciprint("position fen " . $pos->{'fen'});
-					uciprint("go infinite");
+					uciprint($engine, "position fen " . $pos->{'fen'});
+					uciprint($engine, "go infinite");
 					$pos_calculating = $pos;
 				}
 			} else {
 				# it's wrong just to give the FEN (the move history is useful,
 				# and per the UCI spec, we should really have sent "ucinewgame"),
 				# but it's easier
-				uciprint("position fen " . $pos->{'fen'});
-				uciprint("go infinite");
+				uciprint($engine, "position fen " . $pos->{'fen'});
+				uciprint($engine, "go infinite");
 				$pos_calculating = $pos;
 			}
 
@@ -161,7 +153,7 @@ while (1) {
 				$t->cmd($1);
 			} elsif ($msg =~ /^uci (.*?)$/) {
 				$t->cmd("tell $who Sending '$1' to the engine.");
-				print UCIWRITE "$1\n";
+				print { $engine->{'write'} } "$1\n";
 			} else {
 				$t->cmd("tell $who Couldn't understand '$msg', sorry.");
 			}
@@ -171,7 +163,7 @@ while (1) {
 	}
 	
 	# any fun on the UCI channel?
-	if ($nfound > 0 && vec($rout, fileno(UCIREAD), 1) == 1) {
+	if ($nfound > 0 && vec($rout, fileno($engine->{'read'}), 1) == 1) {
 		# 
 		# Read until we've got a full line -- if the engine sends part of
 		# a line and then stops we're pretty much hosed, but that should
@@ -180,7 +172,7 @@ while (1) {
 		my $line = '';
 		while ($line !~ /\n/) {
 			my $tmp;
-			my $ret = sysread UCIREAD, $tmp, 1;
+			my $ret = sysread $engine->{'read'}, $tmp, 1;
 
 			if (!defined($ret)) {
 				next if ($!{EINTR});
@@ -224,8 +216,8 @@ sub handle_uci {
 	}
 	if ($line =~ /^bestmove/ && $uci_assume_full_compliance) {
 		if (defined($pos_waiting)) {
-			uciprint("position fen " . $pos_waiting->{'fen'});
-			uciprint("go infinite");
+			uciprint($engine, "position fen " . $pos_waiting->{'fen'});
+			uciprint($engine, "go infinite");
 
 			$pos_calculating = $pos_waiting;
 			$pos_waiting = undef;
@@ -907,8 +899,8 @@ sub can_reach {
 }
 
 sub uciprint {
-	my $msg = shift;
-	print UCIWRITE "$msg\n";
+	my ($engine, $msg) = @_;
+	print { $engine->{'write'} } "$msg\n";
 	print UCILOG localtime() . " => $msg\n";
 }
 
@@ -1006,4 +998,26 @@ sub book_info {
 	}
 
 	return $text;
+}
+
+sub open_engine {
+	my $cmdline = shift;
+	my ($uciread, $uciwrite);
+	my $pid = IPC::Open2::open2($uciread, $uciwrite, $cmdline);
+
+	my $engine = {
+		pid => $pid,
+		read => $uciread,
+		write => $uciwrite
+	};
+
+	uciprint($engine, "uci");
+
+	# gobble the options
+	while (<$uciread>) {
+		/uciok/ && last;
+		handle_uci($_);
+	}
+	
+	return $engine;
 }
