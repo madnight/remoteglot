@@ -1089,7 +1089,7 @@ sub read_line {
 	my $line = '';
 	while ($line !~ /\n/) {
 		my $tmp;
-		my $ret = sysread $engine->{'read'}, $tmp, 1;
+		my $ret = sysread $fh, $tmp, 1;
 
 		if (!defined($ret)) {
 			next if ($!{EINTR});
