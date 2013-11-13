@@ -586,7 +586,7 @@ sub output_screen {
 	# specified.
 	#
 	if (exists($uciinfo{'pv1'}) && !exists($uciinfo{'pv2'})) {
-		for my $key qw(pv score_cp score_mate nodes nps depth seldepth tbhits) {
+		for my $key (qw(pv score_cp score_mate nodes nps depth seldepth tbhits)) {
 			if (exists($uciinfo{$key . '1'}) && !exists($uciinfo{$key})) {
 				$uciinfo{$key} = $uciinfo{$key . '1'};
 			}
