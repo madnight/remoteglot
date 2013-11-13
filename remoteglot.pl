@@ -19,11 +19,7 @@ use warnings;
 # Configuration
 my $server = "freechess.org";
 my $target = "GMCarlsen";
-# my $engine = "/usr/games/toga2";
-#my $engine = "wine Rybkav2.3.2a.mp.w32.exe";
-my $engine = "~/microwine-0.5/microwine Rybkav2.3.2a.mp.x64.exe";
-#my $engine = "ssh -t sesse\@84.48.204.209 ./microwine-0.5/microwine ./Rybkav2.3.2a.mp.x64.exe";
-#my $engine = "ssh -t sesse\@cirkus.samfundet.no nice -n 19 ./microwine-0.5/microwine ./microwine-0.5/Rybkav2.3.2a.mp.x64.exe";
+my $engine = "'./Deep Rybka 4 SSE42 x64'";
 my $telltarget = undef;   # undef to be silent
 my @tell_intervals = (5, 20, 60, 120, 240, 480, 960);  # after each move
 my $uci_assume_full_compliance = 0;                    # dangerous :-)
@@ -71,13 +67,10 @@ while (<UCIREAD>) {
 }
 
 uciprint("setoption name UCI_AnalyseMode value true");
-# uciprint("setoption name Preserve Analysis value true");
 # uciprint("setoption name NalimovPath value /srv/tablebase");
 uciprint("setoption name NalimovUsage value Rarely");
 uciprint("setoption name Hash value 1024");
-uciprint("setoption name MultiPV value 2");
-# uciprint("setoption name Contempt value 1000");
-# uciprint("setoption name Outlook value Ultra Optimistic");
+# uciprint("setoption name MultiPV value 2");
 uciprint("ucinewgame");
 
 print "Chess engine ready.\n";
