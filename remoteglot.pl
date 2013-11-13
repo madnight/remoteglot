@@ -853,10 +853,16 @@ sub can_reach {
 		return (can_reach($board, 'R', $from_row, $from_col, $to_row, $to_col) ||
 		        can_reach($board, 'B', $from_row, $from_col, $to_row, $to_col));
 	}
+
+	# TODO: en passant
 	if ($piece eq 'p') {
 		# black pawn
 		if ($to_col == $from_col && $to_row == $from_row + 1) {
 			return ($dest_piece eq '-');
+		}
+		if ($to_col == $from_col && $from_row == 1 && $to_row == 3) {
+			my $middle_piece = substr($board->[2], $to_col, 1);
+			return ($dest_piece eq '-' && $middle_piece eq '-');
 		}
 		if (abs($to_col - $from_col) == 1 && $to_row == $from_row + 1) {
 			return ($dest_piece ne '-');
@@ -867,6 +873,10 @@ sub can_reach {
 		# white pawn
 		if ($to_col == $from_col && $to_row == $from_row - 1) {
 			return ($dest_piece eq '-');
+		}
+		if ($to_col == $from_col && $from_row == 6 && $to_row == 4) {
+			my $middle_piece = substr($board->[5], $to_col, 1);
+			return ($dest_piece eq '-' && $middle_piece eq '-');
 		}
 		if (abs($to_col - $from_col) == 1 && $to_row == $from_row - 1) {
 			return ($dest_piece ne '-');
