@@ -271,7 +271,7 @@ sub parse_ids {
 		if ($x[0] =~ /^(name|author)$/) {
 			my $key = shift @x;
 			my $value = join(' ', @x);
-			$engine->{'info'}{'id'}{$key} = $value;
+			$engine->{'id'}{$key} = $value;
 			last;
 		}
 
