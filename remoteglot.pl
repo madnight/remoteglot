@@ -684,7 +684,7 @@ sub output_screen {
 	#
 	if (exists($info->{'pv1'}) && !exists($info->{'pv2'})) {
 		for my $key (qw(pv score_cp score_mate nodes nps depth seldepth tbhits)) {
-			if (exists($info->{$key . '1'}) && !exists($info->{$key})) {
+			if (exists($info->{$key . '1'})) {
 				$info->{$key} = $info->{$key . '1'};
 			}
 		}
