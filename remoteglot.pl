@@ -188,6 +188,7 @@ while (1) {
 	if ($nfound > 0 && vec($rout, fileno($engine->{'read'}), 1) == 1) {
 		my @lines = read_lines($engine);
 		for my $line (@lines) {
+			next if $line =~ /(upper|lower)bound/;
 			handle_uci($engine, $line, 1);
 		}
 		$sleep = 0;
@@ -197,6 +198,7 @@ while (1) {
 	if ($nfound > 0 && vec($rout, fileno($engine2->{'read'}), 1) == 1) {
 		my @lines = read_lines($engine2);
 		for my $line (@lines) {
+			next if $line =~ /(upper|lower)bound/;
 			handle_uci($engine2, $line, 0);
 		}
 		$sleep = 0;
