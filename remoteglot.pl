@@ -52,8 +52,8 @@ $| = 1;
 select(STDOUT);
 
 # open the chess engine
-my $engine = open_engine($engine_cmdline);
-my $engine2 = open_engine($engine2_cmdline);
+my $engine = open_engine($engine_cmdline, 'E1');
+my $engine2 = open_engine($engine2_cmdline, 'E2');
 my ($last_move, $last_tell);
 my $last_text = '';
 my $last_told_text = '';
@@ -213,7 +213,7 @@ sub handle_uci {
 	chomp $line;
 	$line =~ tr/\r//d;
 	$line =~ s/  / /g;  # Sometimes needed for Zappa Mexico
-	print UCILOG localtime() . " <= $line\n";
+	print UCILOG localtime() . " $engine->{'tag'} <= $line\n";
 	if ($line =~ /^info/) {
 		my (@infos) = split / /, $line;
 		shift @infos;
@@ -1028,7 +1028,7 @@ sub can_reach {
 sub uciprint {
 	my ($engine, $msg) = @_;
 	print { $engine->{'write'} } "$msg\n";
-	print UCILOG localtime() . " => $msg\n";
+	print UCILOG localtime() . " $engine->{'tag'} => $msg\n";
 }
 
 sub short_score {
@@ -1164,7 +1164,7 @@ sub book_info {
 }
 
 sub open_engine {
-	my $cmdline = shift;
+	my ($cmdline, $tag) = @_;
 	my ($uciread, $uciwrite);
 	my $pid = IPC::Open2::open2($uciread, $uciwrite, $cmdline);
 
@@ -1175,6 +1175,7 @@ sub open_engine {
 		write => $uciwrite,
 		info => {},
 		ids => {},
+		tag => $tag,
 	};
 
 	uciprint($engine, "uci");
