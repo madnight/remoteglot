@@ -20,9 +20,11 @@ use warnings;
 my $server = "freechess.org";
 my $target = "GMCarlsen";
 my $engine_cmdline = "'./Deep Rybka 4 SSE42 x64'";
+my $engine2_cmdline = "./stockfish_13111119_x64_modern_sse42";
 my $telltarget = undef;   # undef to be silent
 my @tell_intervals = (5, 20, 60, 120, 240, 480, 960);  # after each move
 my $uci_assume_full_compliance = 0;                    # dangerous :-)
+my $second_engine_start_depth = 8;
 my @masters = (
 	'Sesse',
 	'Sessse',
@@ -51,12 +53,12 @@ select(STDOUT);
 
 # open the chess engine
 my $engine = open_engine($engine_cmdline);
-my %uciinfo = ();
-my %uciid = ();
+my $engine2 = open_engine($engine2_cmdline);
 my ($last_move, $last_tell);
 my $last_text = '';
 my $last_told_text = '';
-my ($pos_waiting, $pos_calculating);
+my ($pos_waiting, $pos_calculating, $move_calculating_second_engine);
+my %refutation_moves = ();
 
 uciprint($engine, "setoption name UCI_AnalyseMode value true");
 # uciprint($engine, "setoption name NalimovPath value /srv/tablebase");
@@ -64,6 +66,14 @@ uciprint($engine, "setoption name NalimovUsage value Rarely");
 uciprint($engine, "setoption name Hash value 1024");
 # uciprint($engine, "setoption name MultiPV value 2");
 uciprint($engine, "ucinewgame");
+
+uciprint($engine2, "setoption name UCI_AnalyseMode value true");
+# uciprint($engine2, "setoption name NalimovPath value /srv/tablebase");
+uciprint($engine2, "setoption name NalimovUsage value Rarely");
+uciprint($engine2, "setoption name Hash value 1024");
+uciprint($engine2, "setoption name Threads value 8");
+# uciprint($engine2, "setoption name MultiPV value 2");
+uciprint($engine2, "ucinewgame");
 
 print "Chess engine ready.\n";
 
@@ -87,6 +97,7 @@ while (1) {
 	my $rin = '';
 	my $rout;
 	vec($rin, fileno($engine->{'read'}), 1) = 1;
+	vec($rin, fileno($engine2->{'read'}), 1) = 1;
 	vec($rin, fileno($t), 1) = 1;
 
 	my ($nfound, $timeleft) = select($rout=$rin, undef, undef, 5.0);
@@ -131,8 +142,16 @@ while (1) {
 				$pos_calculating = $pos;
 			}
 
-			%uciinfo = ();
+			%refutation_moves = calculate_refutation_moves($pos);
+			if (defined($move_calculating_second_engine)) {
+				uciprint($engine2, "stop");
+				$move_calculating_second_engine = undef;
+			} else {
+				give_new_move_to_second_engine($pos);
+			}
+
 			$engine->{'info'} = {};
+			$engine2->{'info'} = {};
 			$last_move = time;
 
 			# 
@@ -166,7 +185,15 @@ while (1) {
 	# any fun on the UCI channel?
 	if ($nfound > 0 && vec($rout, fileno($engine->{'read'}), 1) == 1) {
 		my $line = read_line($engine->{'read'});
-		handle_uci($engine, $line);
+		handle_uci($engine, $line, 1);
+		$sleep = 0;
+
+		# don't update too often
+		Time::HiRes::alarm(0.2);
+	}
+	if ($nfound > 0 && vec($rout, fileno($engine2->{'read'}), 1) == 1) {
+		my $line = read_line($engine2->{'read'});
+		handle_uci($engine2, $line, 0);
 		$sleep = 0;
 
 		# don't update too often
@@ -177,7 +204,7 @@ while (1) {
 }
 
 sub handle_uci {
-	my ($engine, $line) = @_;
+	my ($engine, $line, $primary) = @_;
 
 	chomp $line;
 	$line =~ tr/\r//d;
@@ -195,13 +222,25 @@ sub handle_uci {
 
 		parse_ids($engine, @ids);
 	}
-	if ($line =~ /^bestmove/ && $uci_assume_full_compliance) {
-		if (defined($pos_waiting)) {
-			uciprint($engine, "position fen " . $pos_waiting->{'fen'});
-			uciprint($engine, "go infinite");
+	if ($line =~ /^bestmove/) {
+		if ($primary) {
+			return if (!$uci_assume_full_compliance);
+			if (defined($pos_waiting)) {
+				uciprint($engine, "position fen " . $pos_waiting->{'fen'});
+				uciprint($engine, "go infinite");
 
-			$pos_calculating = $pos_waiting;
-			$pos_waiting = undef;
+				$pos_calculating = $pos_waiting;
+				$pos_waiting = undef;
+			}
+		} else {
+			if (defined($move_calculating_second_engine)) {	
+				my $move = $refutation_moves{$move_calculating_second_engine};
+				$move->{'pv'} = $engine->{'info'}{'pv'};
+				$move->{'score_cp'} = $engine->{'info'}{'score_cp'} // $engine->{'info'}{'score_cp1'} // 0;
+				$move->{'score_mate'} = $engine->{'info'}{'score_mate'} // $engine->{'info'}{'score_mate1'};
+				$move->{'toplay'} = $pos_calculating->{'toplay'};
+			}
+			give_new_move_to_second_engine($pos_waiting // $pos_calculating);
 		}
 	}
 }
@@ -685,10 +724,40 @@ sub output_screen {
 		if (exists($info->{'seldepth'})) {
 			$text .= sprintf " (%u selective)", $info->{'seldepth'};
 		}
-		$text .=  "\n\n";
+		$text .= "\n\n";
 	}
 
 	#$text .= book_info($pos_calculating->{'fen'}, $pos_calculating->{'board'}, $pos_calculating->{'toplay'});
+
+	my @refutation_lines = ();
+	for my $move (keys %refutation_moves) {
+		eval {
+			my $m = $refutation_moves{$move};
+			next if ($m->{'depth'} < $second_engine_start_depth);
+			my $pretty_move = join('', prettyprint_pv($pos_calculating->{'board'}, $move));
+			my @pretty_pv = prettyprint_pv($pos_calculating->{'board'}, $move, @{$m->{'pv'}});
+			if (scalar @pretty_pv > 5) {
+				@pretty_pv = @pretty_pv[0..4];
+				push @pretty_pv, "...";
+			}
+			#my $key = score_sort_key($refutation_moves{$move}, $pos_calculating, '', 1);
+			my $key = $pretty_move;
+			my $line = sprintf("  %-6s %6s %3s  %s",
+				$pretty_move,
+				short_score($refutation_moves{$move}, $pos_calculating, '', 1),
+				"d" . $m->{'depth'},
+				join(', ', @pretty_pv));
+			push @refutation_lines, [ $key, $line ];
+		};
+	}
+
+	if ($#refutation_lines >= 0) {
+		$text .= "Shallow search of all legal moves:\n\n";
+		for my $line (sort { $a->[0] cmp $b->[0] } @refutation_lines) {
+			$text .= $line->[1] . "\n";
+		}
+		$text .= "\n\n";	
+	}	
 
 	if ($last_text ne $text) {
 		print "[H[2J"; # clear the screen
@@ -959,17 +1028,53 @@ sub uciprint {
 }
 
 sub short_score {
-	my ($info, $pos, $mpv) = @_;
+	my ($info, $pos, $mpv, $invert) = @_;
+
+	$invert //= 0;
+	if ($pos->{'toplay'} eq 'B') {
+		$invert = !$invert;
+	}
 
 	if (defined($info->{'score_mate' . $mpv})) {
-		return sprintf "M%3d", $info->{'score_mate' . $mpv};
+		if ($invert) {
+			return sprintf "M%3d", $info->{'score_mate' . $mpv};
+		} else {
+			return sprintf "M%3d", -$info->{'score_mate' . $mpv};
+		}
 	} else {
 		if (exists($info->{'score_cp' . $mpv})) {
 			my $score = $info->{'score_cp' . $mpv} * 0.01;
-			if ($pos->{'toplay'} eq 'B') {
+			if ($invert) {
 				$score = -$score;
 			}
 			return sprintf "%+5.2f", $score;
+		}
+	}
+
+	return undef;
+}
+
+sub score_sort_key {
+	my ($info, $pos, $mpv, $invert) = @_;
+
+	$invert //= 0;
+	if ($pos->{'toplay'} eq 'B') {
+		$invert = !$invert;
+	}
+
+	if (defined($info->{'score_mate' . $mpv})) {
+		if ($invert) {
+			return -(99999 - $info->{'score_mate' . $mpv});
+		} else {
+			return 99999 - $info->{'score_mate' . $mpv};
+		}
+	} else {
+		if (exists($info->{'score_cp' . $mpv})) {
+			my $score = $info->{'score_cp' . $mpv};
+			if ($invert) {
+				$score = -$score;
+			}
+			return $score;
 		}
 	}
 
@@ -1103,6 +1208,74 @@ sub read_line {
 
 	$line =~ tr/\r\n//d;
 	return $line;
+}
+
+# Find all possible legal moves.
+sub calculate_refutation_moves {
+	my $pos = shift;
+	my $board = $pos->{'board'};
+	my %refutation_moves = ();
+	for my $col (0..7) {
+		for my $row (0..7) {
+			my $piece = substr($board->[$row], $col, 1);
+
+			# Check that there's a piece of the right color on this square.
+			next if ($piece eq '-');
+			if ($pos->{'toplay'} eq 'W') {
+				next if ($piece ne uc($piece));
+			} else {
+				next if ($piece ne lc($piece));
+			}
+
+			for my $to_col (0..7) {
+				for my $to_row (0..7) {
+					next if ($col == $to_col && $row == $to_row);
+					next unless (can_reach($board, $piece, $row, $col, $to_row, $to_col));
+
+					my $promo = "";  # FIXME
+					my $nb = make_move($board, $row, $col, $to_row, $to_col, $promo);
+					my $check = in_check($nb);
+					next if ($check eq 'both');
+					if ($pos->{'toplay'} eq 'W') {
+						next if ($check eq 'white');
+					} else {
+						next if ($check eq 'black');
+					}
+					my $move = move_to_uci_notation($row, $col, $to_row, $to_col, $promo);
+					$refutation_moves{$move} = { depth => $second_engine_start_depth - 1, score_cp => 0, pv => '' };
+				}
+			}
+		}
+	}
+	return %refutation_moves;
+}
+
+sub give_new_move_to_second_engine {
+	my $pos = shift;
+				
+	# Find the move that's been analyzed the shortest but is most promising.
+	# Tie-break on UCI move representation.
+	my $best_move = undef;
+	for my $move (sort keys %refutation_moves) {
+		if (!defined($best_move)) {
+			$best_move = $move;
+			next;
+		}
+		my $best = $refutation_moves{$best_move};
+		my $this = $refutation_moves{$move};
+
+		if ($this->{'depth'} < $best->{'depth'} ||
+		    ($this->{'depth'} == $best->{'depth'} && $this->{'score_cp'} < $best->{'score_cp'})) {
+			$best_move = $move;
+			next;
+		}
+	}
+
+	my $m = $refutation_moves{$best_move};
+	++$m->{'depth'};
+	uciprint($engine2, "position fen " . $pos->{'fen'} . " moves " . $best_move);
+	uciprint($engine2, "go depth " . $m->{'depth'});
+	$move_calculating_second_engine = $best_move;
 }
 
 sub col_letter_to_num {
