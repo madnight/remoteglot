@@ -24,6 +24,7 @@ my $engine2_cmdline = "./stockfish_13111119_x64_modern_sse42";
 my $telltarget = undef;   # undef to be silent
 my @tell_intervals = (5, 20, 60, 120, 240, 480, 960);  # after each move
 my $uci_assume_full_compliance = 0;                    # dangerous :-)
+my $update_max_interval = 2.0;
 my $second_engine_start_depth = 8;
 my @masters = (
 	'Sesse',
@@ -35,6 +36,7 @@ my @masters = (
 
 # Program starts here
 $SIG{ALRM} = sub { output_screen(); };
+my $latest_update = undef;
 
 $| = 1;
 
@@ -190,8 +192,7 @@ while (1) {
 		}
 		$sleep = 0;
 
-		# don't update too often
-		Time::HiRes::alarm(0.2);
+		output_screen();
 	}
 	if ($nfound > 0 && vec($rout, fileno($engine2->{'read'}), 1) == 1) {
 		my @lines = read_lines($engine2);
@@ -200,8 +201,7 @@ while (1) {
 		}
 		$sleep = 0;
 
-		# don't update too often
-		Time::HiRes::alarm(0.2);
+		output_screen();
 	}
 
 	sleep $sleep;
@@ -619,8 +619,16 @@ sub prettyprint_pv {
 
 sub output_screen {
 	#return;
-	
+
 	return if (!defined($pos_calculating));
+
+	# Don't update too often.
+	my $age = Time::HiRes::tv_interval($latest_update);
+	if ($age < $update_max_interval) {
+		Time::HiRes::alarm($update_max_interval + 0.01 - $age);
+		return;
+	}
+	$latest_update = [Time::HiRes::gettimeofday];
 
 	my $info = $engine->{'info'};
 	my $id = $engine->{'id'};
