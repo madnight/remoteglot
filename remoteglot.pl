@@ -737,7 +737,7 @@ sub output_screen {
 	for my $move (keys %refutation_moves) {
 		eval {
 			my $m = $refutation_moves{$move};
-			next if ($m->{'depth'} < $second_engine_start_depth);
+			die if ($m->{'depth'} < $second_engine_start_depth);
 			my $pretty_move = join('', prettyprint_pv($pos_calculating->{'board'}, $move));
 			my @pretty_pv = prettyprint_pv($pos_calculating->{'board'}, $move, @{$m->{'pv'}});
 			if (scalar @pretty_pv > 5) {
