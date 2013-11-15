@@ -239,7 +239,7 @@ sub handle_uci {
 		} else {
 			if (defined($move_calculating_second_engine)) {	
 				my $move = $refutation_moves{$move_calculating_second_engine};
-				$move->{'pv'} = $engine->{'info'}{'pv'};
+				$move->{'pv'} = $engine->{'info'}{'pv'} // $engine->{'info'}{'pv1'};
 				$move->{'score_cp'} = $engine->{'info'}{'score_cp'} // $engine->{'info'}{'score_cp1'} // 0;
 				$move->{'score_mate'} = $engine->{'info'}{'score_mate'} // $engine->{'info'}{'score_mate1'};
 				$move->{'toplay'} = $pos_calculating->{'toplay'};
