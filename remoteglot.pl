@@ -184,16 +184,20 @@ while (1) {
 	
 	# any fun on the UCI channel?
 	if ($nfound > 0 && vec($rout, fileno($engine->{'read'}), 1) == 1) {
-		my $line = read_line($engine->{'read'});
-		handle_uci($engine, $line, 1);
+		my @lines = read_lines($engine);
+		for my $line (@lines) {
+			handle_uci($engine, $line, 1);
+		}
 		$sleep = 0;
 
 		# don't update too often
 		Time::HiRes::alarm(0.2);
 	}
 	if ($nfound > 0 && vec($rout, fileno($engine2->{'read'}), 1) == 1) {
-		my $line = read_line($engine2->{'read'});
-		handle_uci($engine2, $line, 0);
+		my @lines = read_lines($engine2);
+		for my $line (@lines) {
+			handle_uci($engine2, $line, 0);
+		}
 		$sleep = 0;
 
 		# don't update too often
@@ -1167,9 +1171,10 @@ sub open_engine {
 	my $engine = {
 		pid => $pid,
 		read => $uciread,
+		readbuf => '',
 		write => $uciwrite,
 		info => {},
-		ids => {}
+		ids => {},
 	};
 
 	uciprint($engine, "uci");
@@ -1183,18 +1188,17 @@ sub open_engine {
 	return $engine;
 }
 
-sub read_line {
-	my $fh = shift;
+sub read_lines {
+	my $engine = shift;
 
 	# 
 	# Read until we've got a full line -- if the engine sends part of
 	# a line and then stops we're pretty much hosed, but that should
 	# never happen.
 	#
-	my $line = '';
-	while ($line !~ /\n/) {
+	while ($engine->{'readbuf'} !~ /\n/) {
 		my $tmp;
-		my $ret = sysread $fh, $tmp, 1;
+		my $ret = sysread $engine->{'read'}, $tmp, 4096;
 
 		if (!defined($ret)) {
 			next if ($!{EINTR});
@@ -1203,11 +1207,17 @@ sub read_line {
 			die "EOF from UCI engine";
 		}
 
-		$line .= $tmp;
+		$engine->{'readbuf'} .= $tmp;
 	}
 
-	$line =~ tr/\r\n//d;
-	return $line;
+	# Blah.
+	my @lines = ();
+	while ($engine->{'readbuf'} =~ s/^([^\n]*)\n//) {
+		my $line = $1;
+		$line =~ tr/\r\n//d;
+		push @lines, $line;
+	}
+	return @lines;
 }
 
 # Find all possible legal moves.
