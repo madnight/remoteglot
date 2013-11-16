@@ -1088,6 +1088,9 @@ sub score_sort_key {
 	} else {
 		if (exists($info->{'score_cp' . $mpv})) {
 			my $score = $info->{'score_cp' . $mpv};
+			if ($score == 0) {
+				return " 0.00";
+			}
 			if ($invert) {
 				$score = -$score;
 			}
