@@ -1130,11 +1130,6 @@ sub short_score {
 sub score_sort_key {
 	my ($info, $pos, $mpv, $invert) = @_;
 
-	$invert //= 0;
-	if ($pos->{'toplay'} eq 'B') {
-		$invert = !$invert;
-	}
-
 	if (defined($info->{'score_mate' . $mpv})) {
 		if ($invert) {
 			return -(99999 - $info->{'score_mate' . $mpv});
@@ -1144,9 +1139,6 @@ sub score_sort_key {
 	} else {
 		if (exists($info->{'score_cp' . $mpv})) {
 			my $score = $info->{'score_cp' . $mpv};
-			if ($score == 0) {
-				return " 0.00";
-			}
 			if ($invert) {
 				$score = -$score;
 			}
@@ -1348,7 +1340,7 @@ sub give_new_move_to_second_engine {
 		my $this = $refutation_moves{$move};
 
 		if ($this->{'depth'} < $best->{'depth'} ||
-		    ($this->{'depth'} == $best->{'depth'} && $this->{'score_cp'} < $best->{'score_cp'})) {
+		    ($this->{'depth'} == $best->{'depth'} && score_sort_key($this, $pos, '', 1) > score_sort_key($best, $pos, '', 1))) {
 			$best_move = $move;
 			next;
 		}
