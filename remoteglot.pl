@@ -258,10 +258,19 @@ sub parse_infos {
 
 	my $info = $engine->{'info'};
 
+	# Search for "multipv" first of all, since e.g. Stockfish doesn't put it first.
+	for my $i (0..$#x - 1) {
+		if ($x[$i] =~ 'multipv') {
+			$mpv = $x[$i + 1];
+			next;
+		}
+	}
+
 	while (scalar @x > 0) {
 		if ($x[0] =~ 'multipv') {
+			# Dealt with above
 			shift @x;
-			$mpv = shift @x;
+			shift @x;
 			next;
 		}
 		if ($x[0] =~ /^(currmove|currmovenumber|cpuload)$/) {
