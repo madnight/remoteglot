@@ -736,15 +736,15 @@ sub output_screen {
 			$text .= sprintf "  %u nodes, %7u nodes/sec, depth %u ply",
 				$info->{'nodes'}, $info->{'nps'}, $info->{'depth'};
 		}
+		if (exists($info->{'seldepth'})) {
+			$text .= sprintf " (%u selective)", $info->{'seldepth'};
+		}
 		if (exists($info->{'tbhits'}) && $info->{'tbhits'} > 0) {
 			if ($info->{'tbhits'} == 1) {
 				$text .= ", one Nalimov hit";
 			} else {
 				$text .= sprintf ", %u Nalimov hits", $info->{'tbhits'};
 			}
-		}
-		if (exists($info->{'seldepth'})) {
-			$text .= sprintf " (%u selective)", $info->{'seldepth'};
 		}
 		$text .= "\n\n";
 	}
