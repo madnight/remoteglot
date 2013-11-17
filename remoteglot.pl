@@ -60,8 +60,7 @@ my $engine2 = open_engine($engine2_cmdline, 'E2');
 my ($last_move, $last_tell);
 my $last_text = '';
 my $last_told_text = '';
-my ($pos_waiting, $pos_calculating, $move_calculating_second_engine);
-my %refutation_moves = ();
+my ($pos_waiting, $pos_calculating, $pos_calculating_second_engine);
 
 uciprint($engine, "setoption name UCI_AnalyseMode value true");
 # uciprint($engine, "setoption name NalimovPath value /srv/tablebase");
@@ -75,7 +74,7 @@ uciprint($engine2, "setoption name UCI_AnalyseMode value true");
 uciprint($engine2, "setoption name NalimovUsage value Rarely");
 uciprint($engine2, "setoption name Hash value 1024");
 uciprint($engine2, "setoption name Threads value 8");
-# uciprint($engine2, "setoption name MultiPV value 2");
+uciprint($engine2, "setoption name MultiPV value 500");
 uciprint($engine2, "ucinewgame");
 
 print "Chess engine ready.\n";
@@ -145,12 +144,12 @@ while (1) {
 				$pos_calculating = $pos;
 			}
 
-			%refutation_moves = calculate_refutation_moves($pos);
-			if (defined($move_calculating_second_engine)) {
+			if (defined($pos_calculating_second_engine)) {
 				uciprint($engine2, "stop");
-				$move_calculating_second_engine = undef;
 			} else {
-				give_new_move_to_second_engine($pos);
+				uciprint($engine2, "position fen " . $pos->{'fen'});
+				uciprint($engine2, "go infinite");
+				$pos_calculating_second_engine = $pos;
 			}
 
 			$engine->{'info'} = {};
@@ -240,14 +239,10 @@ sub handle_uci {
 				$pos_waiting = undef;
 			}
 		} else {
-			if (defined($move_calculating_second_engine)) {	
-				my $move = $refutation_moves{$move_calculating_second_engine};
-				$move->{'pv'} = $engine->{'info'}{'pv'} // $engine->{'info'}{'pv1'};
-				$move->{'score_cp'} = $engine->{'info'}{'score_cp'} // $engine->{'info'}{'score_cp1'} // 0;
-				$move->{'score_mate'} = $engine->{'info'}{'score_mate'} // $engine->{'info'}{'score_mate1'};
-				$move->{'toplay'} = $pos_calculating->{'toplay'};
-			}
-			give_new_move_to_second_engine($pos_waiting // $pos_calculating);
+			my $pos = $pos_waiting // $pos_calculating;
+			uciprint($engine2, "position fen " . $pos->{'fen'});
+			uciprint($engine2, "go infinite");
+			$pos_calculating_second_engine = $pos;
 		}
 	}
 }
@@ -761,22 +756,23 @@ sub output_screen {
 	#$text .= book_info($pos_calculating->{'fen'}, $pos_calculating->{'board'}, $pos_calculating->{'toplay'});
 
 	my @refutation_lines = ();
-	for my $move (keys %refutation_moves) {
+	for (my $mpv = 1; $mpv < 500; ++$mpv) {
+		my $info = $engine2->{'info'};
+		last if (!exists($info->{'pv' . $mpv}));
 		eval {
-			my $m = $refutation_moves{$move};
-			die if ($m->{'depth'} < $second_engine_start_depth);
-			my $pretty_move = join('', prettyprint_pv($pos_calculating->{'board'}, $move));
-			my @pretty_pv = prettyprint_pv($pos_calculating->{'board'}, $move, @{$m->{'pv'}});
+			my $pv = $info->{'pv' . $mpv};
+
+			my $pretty_move = join('', prettyprint_pv($pos_calculating_second_engine->{'board'}, $pv->[0]));
+			my @pretty_pv = prettyprint_pv($pos_calculating_second_engine->{'board'}, @$pv);
 			if (scalar @pretty_pv > 5) {
 				@pretty_pv = @pretty_pv[0..4];
 				push @pretty_pv, "...";
 			}
-			#my $key = score_sort_key($refutation_moves{$move}, $pos_calculating, '', 1);
 			my $key = $pretty_move;
 			my $line = sprintf("  %-6s %6s %3s  %s",
 				$pretty_move,
-				short_score($refutation_moves{$move}, $pos_calculating, '', 1),
-				"d" . $m->{'depth'},
+				short_score($info, $pos_calculating_second_engine, $mpv, 1),
+				"d" . $info->{'depth' . $mpv},
 				join(', ', @pretty_pv));
 			push @refutation_lines, [ $key, $line ];
 		};
@@ -874,24 +870,26 @@ sub output_json {
 	$json->{'pv_pretty'} = [ prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv'}}) ];
 
 	my %refutation_lines = ();
-	for my $move (keys %refutation_moves) {
-		my $m = $refutation_moves{$move};
+	my @refutation_lines = ();
+	for (my $mpv = 1; $mpv < 500; ++$mpv) {
+		my $info = $engine2->{'info'};
 		my $pretty_move = "";
 		my @pretty_pv = ();
+		last if (!exists($info->{'pv' . $mpv}));
+
 		eval {
-			$pretty_move = join('', prettyprint_pv($pos_calculating->{'board'}, $move));
-			@pretty_pv = prettyprint_pv($pos_calculating->{'board'}, $move, @{$m->{'pv'}});
-		};
-		$refutation_lines{$move} = {
-			sort_key => $pretty_move,
-			depth => $m->{'depth'},
-			score_sort_key => score_sort_key($refutation_moves{$move}, $pos_calculating, '', 1),
-			pretty_score => short_score($refutation_moves{$move}, $pos_calculating, '', 1),
-			pretty_move => $pretty_move,
-			pv_pretty => \@pretty_pv,
-		};
-		eval {
-			$refutation_lines{$move}->{'pv_uci'} = [ $move, @{$m->{'pv'}} ];
+			my $pv = $info->{'pv' . $mpv};
+			my $pretty_move = join('', prettyprint_pv($pos_calculating->{'board'}, $pv->[0]));
+			my @pretty_pv = prettyprint_pv($pos_calculating->{'board'}, @$pv);
+			$refutation_lines{$pv->[0]} = {
+				sort_key => $pretty_move,
+				depth => $info->{'depth' . $mpv},
+				score_sort_key => score_sort_key($info, $pos_calculating, $mpv, 0),
+				pretty_score => short_score($info, $pos_calculating, $mpv, 0),
+				pretty_move => $pretty_move,
+				pv_pretty => \@pretty_pv,
+			};
+			$refutation_lines{$pv->[0]}->{'pv_uci'} = $pv;
 		};
 	}
 	$json->{'refutation_lines'} = \%refutation_lines;
@@ -1292,74 +1290,6 @@ sub read_lines {
 		push @lines, $line;
 	}
 	return @lines;
-}
-
-# Find all possible legal moves.
-sub calculate_refutation_moves {
-	my $pos = shift;
-	my $board = $pos->{'board'};
-	my %refutation_moves = ();
-	for my $col (0..7) {
-		for my $row (0..7) {
-			my $piece = substr($board->[$row], $col, 1);
-
-			# Check that there's a piece of the right color on this square.
-			next if ($piece eq '-');
-			if ($pos->{'toplay'} eq 'W') {
-				next if ($piece ne uc($piece));
-			} else {
-				next if ($piece ne lc($piece));
-			}
-
-			for my $to_col (0..7) {
-				for my $to_row (0..7) {
-					next if ($col == $to_col && $row == $to_row);
-					next unless (can_reach($board, $piece, $row, $col, $to_row, $to_col));
-
-					my $promo = "";  # FIXME
-					my $nb = make_move($board, $row, $col, $to_row, $to_col, $promo);
-					my $check = in_check($nb);
-					next if ($check eq 'both');
-					if ($pos->{'toplay'} eq 'W') {
-						next if ($check eq 'white');
-					} else {
-						next if ($check eq 'black');
-					}
-					my $move = move_to_uci_notation($row, $col, $to_row, $to_col, $promo);
-					$refutation_moves{$move} = { depth => $second_engine_start_depth - 1, score_cp => 0, pv => '' };
-				}
-			}
-		}
-	}
-	return %refutation_moves;
-}
-
-sub give_new_move_to_second_engine {
-	my $pos = shift;
-				
-	# Find the move that's been analyzed the shortest but is most promising.
-	# Tie-break on UCI move representation.
-	my $best_move = undef;
-	for my $move (sort keys %refutation_moves) {
-		if (!defined($best_move)) {
-			$best_move = $move;
-			next;
-		}
-		my $best = $refutation_moves{$best_move};
-		my $this = $refutation_moves{$move};
-
-		if ($this->{'depth'} < $best->{'depth'} ||
-		    ($this->{'depth'} == $best->{'depth'} && score_sort_key($this, $pos, '', 1) > score_sort_key($best, $pos, '', 1))) {
-			$best_move = $move;
-			next;
-		}
-	}
-
-	my $m = $refutation_moves{$best_move};
-	++$m->{'depth'};
-	uciprint($engine2, "position fen " . $pos->{'fen'} . " moves " . $best_move);
-	uciprint($engine2, "go depth " . $m->{'depth'});
-	$move_calculating_second_engine = $best_move;
 }
 
 sub col_letter_to_num {
