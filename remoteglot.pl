@@ -13,6 +13,7 @@ use Net::Telnet;
 use FileHandle;
 use IPC::Open2;
 use Time::HiRes;
+use JSON::XS;
 use strict;
 use warnings;
 
@@ -35,7 +36,7 @@ my @masters = (
 );
 
 # Program starts here
-$SIG{ALRM} = sub { output_screen(); };
+$SIG{ALRM} = sub { output(); };
 my $latest_update = undef;
 
 $| = 1;
@@ -193,7 +194,7 @@ while (1) {
 		}
 		$sleep = 0;
 
-		output_screen();
+		output();
 	}
 	if ($nfound > 0 && vec($rout, fileno($engine2->{'read'}), 1) == 1) {
 		my @lines = read_lines($engine2);
@@ -203,7 +204,7 @@ while (1) {
 		}
 		$sleep = 0;
 
-		output_screen();
+		output();
 	}
 
 	sleep $sleep;
@@ -619,7 +620,7 @@ sub prettyprint_pv {
 	return ($pretty, prettyprint_pv($nb, @pvs));
 }
 
-sub output_screen {
+sub output {
 	#return;
 
 	return if (!defined($pos_calculating));
@@ -630,11 +631,22 @@ sub output_screen {
 		Time::HiRes::alarm($update_max_interval + 0.01 - $age);
 		return;
 	}
-	$latest_update = [Time::HiRes::gettimeofday];
-
+	
 	my $info = $engine->{'info'};
-	my $id = $engine->{'id'};
-
+	
+	#
+	# Some programs _always_ report MultiPV, even with only one PV.
+	# In this case, we simply use that data as if MultiPV was never
+	# specified.
+	#
+	if (exists($info->{'pv1'}) && !exists($info->{'pv2'})) {
+		for my $key (qw(pv score_cp score_mate nodes nps depth seldepth tbhits)) {
+			if (exists($info->{$key . '1'})) {
+				$info->{$key} = $info->{$key . '1'};
+			}
+		}
+	}
+	
 	#
 	# Check the PVs first. if they're invalid, just wait, as our data
 	# is most likely out of sync. This isn't a very good solution, as
@@ -657,6 +669,15 @@ sub output_screen {
 		return;
 	}
 
+	output_screen();
+	output_json();
+	$latest_update = [Time::HiRes::gettimeofday];
+}
+
+sub output_screen {
+	my $info = $engine->{'info'};
+	my $id = $engine->{'id'};
+
 	my $text = 'Analysis';
 	if ($pos_calculating->{'last_move'} ne 'none') {
 		if ($pos_calculating->{'toplay'} eq 'W') {
@@ -677,19 +698,6 @@ sub output_screen {
 
 	return unless (exists($pos_calculating->{'board'}));
 		
-	#
-	# Some programs _always_ report MultiPV, even with only one PV.
-	# In this case, we simply use that data as if MultiPV was never
-	# specified.
-	#
-	if (exists($info->{'pv1'}) && !exists($info->{'pv2'})) {
-		for my $key (qw(pv score_cp score_mate nodes nps depth seldepth tbhits)) {
-			if (exists($info->{$key . '1'})) {
-				$info->{$key} = $info->{$key . '1'};
-			}
-		}
-	}
-
 	if (exists($info->{'pv1'}) && exists($info->{'pv2'})) {
 		# multi-PV
 		my $mpv = 1;
@@ -836,6 +844,54 @@ sub output_screen {
 			last;
 		}
 	}
+}
+
+sub output_json {
+	my $info = $engine->{'info'};
+
+	my $json = {};
+	$json->{'position'} = $pos_calculating;
+	$json->{'id'} = $engine->{'id'};
+	$json->{'score'} = long_score($info, $pos_calculating, '');
+
+	$json->{'nodes'} = $info->{'nodes'};
+	$json->{'nps'} = $info->{'nps'};
+	$json->{'depth'} = $info->{'depth'};
+	$json->{'tbhits'} = $info->{'tbhits'};
+	$json->{'seldepth'} = $info->{'seldepth'};
+
+	# single-PV only for now
+	$json->{'pv_uci'} = $info->{'pv'};
+	$json->{'pv_pretty'} = [ prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv'}}) ];
+
+	my %refutation_lines = ();
+	for my $move (keys %refutation_moves) {
+		my $m = $refutation_moves{$move};
+		my $pretty_move = "";
+		my @pretty_pv = ();
+		eval {
+			$pretty_move = join('', prettyprint_pv($pos_calculating->{'board'}, $move));
+			@pretty_pv = prettyprint_pv($pos_calculating->{'board'}, $move, @{$m->{'pv'}});
+		};
+		$refutation_lines{$move} = {
+			sort_key => $pretty_move,
+			depth => $m->{'depth'},
+			score_sort_key => score_sort_key($refutation_moves{$move}, $pos_calculating, '', 1),
+			pretty_score => short_score($refutation_moves{$move}, $pos_calculating, '', 1),
+			pretty_move => $pretty_move,
+			pv_pretty => \@pretty_pv,
+		};
+		eval {
+			$refutation_lines{$move}->{'pv_uci'} = [ $move, @{$m->{'pv'}} ];
+		};
+	}
+	$json->{'refutation_lines'} = \%refutation_lines;
+
+	open my $fh, ">analysis.json.tmp"
+		or return;
+	print $fh JSON::XS::encode_json($json);
+	close $fh;
+	rename("analysis.json.tmp", "analysis.json");	
 }
 
 sub find_kings {
@@ -1051,9 +1107,9 @@ sub short_score {
 
 	if (defined($info->{'score_mate' . $mpv})) {
 		if ($invert) {
-			return sprintf "M%3d", $info->{'score_mate' . $mpv};
-		} else {
 			return sprintf "M%3d", -$info->{'score_mate' . $mpv};
+		} else {
+			return sprintf "M%3d", $info->{'score_mate' . $mpv};
 		}
 	} else {
 		if (exists($info->{'score_cp' . $mpv})) {
