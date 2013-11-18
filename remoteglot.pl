@@ -26,7 +26,6 @@ my $telltarget = undef;   # undef to be silent
 my @tell_intervals = (5, 20, 60, 120, 240, 480, 960);  # after each move
 my $uci_assume_full_compliance = 0;                    # dangerous :-)
 my $update_max_interval = 1.0;
-my $second_engine_start_depth = 8;
 my @masters = (
 	'Sesse',
 	'Sessse',
