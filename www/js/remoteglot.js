@@ -241,16 +241,8 @@ var update_board = function(board, data) {
 			headline += '… ';
 		}
 		headline += data.position.last_move;
-		if (data.id.name) {
-			headline += ', ';
-		}
 	}
 
-	if (data.id.name) {
-		headline += ' by ' + data.id.name;  // + ':';
-	} else {
-		//headline += ':';
-	}
 	$("#headline").text(headline);
 
 	// The score.
