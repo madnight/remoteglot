@@ -10,22 +10,15 @@
 </head>
 <body>
 <h1 id="headline">Analysis</h1>
-<table>
-<tr>
-<td>
-<div id="board" style="width: 400px"></div>
-</td>
-<td>
+<div id="board"></div>
+<div id="analysis">
   <p id="score">Score:</p>
   <p><strong>PV:</strong> <span id="pv"></span></p>
   <p id="searchstats"></p>
-  <h3 style="margin-top: 1em; margin-bottom: 0;">Shallow search of all legal moves (multi-PV)</h3>
-  <table id="refutationlines">
-  </table>
-</td>
-</tr>
-</table>
-<h2>Symbol explanation</h2>
+  <h3>Shallow search of all legal moves (multi-PV)</h3>
+  <table id="refutationlines"></table>
+</div>
+<h2 style="clear: both;">Symbol explanation</h2>
 <ul>
   <li><strong>Score:</strong> 1.00 is the value of one pawn (in the opening). Positive values are better for white.</li>
   <li><strong>PV:</strong> Principal Variation, the series of moves the engine thinks is the best.</li>

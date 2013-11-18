@@ -1,6 +1,10 @@
 body {
 	font-family: sans-serif;
 }
+h3 {
+	margin-top: 1em;
+	margin-bottom: 0;
+}
 .window {
 	position: absolute;    
 	width: 0px;
@@ -52,4 +56,15 @@ p {
 }
 .black-3c85d.nonuglyhighlight {
 	background-color: #9ab6a6;
+}
+#board {
+	display: block;
+	float: left;
+	width: 400px;
+	height: 400px;
+}
+#analysis {
+	display: block;
+	min-width: 400px;
+	overflow: hidden;
 }
