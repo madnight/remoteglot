@@ -777,7 +777,7 @@ sub output_screen {
 			my $key = $pretty_move;
 			my $line = sprintf("  %-6s %6s %3s  %s",
 				$pretty_move,
-				short_score($info, $pos_calculating_second_engine, $mpv, 1),
+				short_score($info, $pos_calculating_second_engine, $mpv, 0),
 				"d" . $info->{'depth' . $mpv},
 				join(', ', @pretty_pv));
 			push @refutation_lines, [ $key, $line ];
