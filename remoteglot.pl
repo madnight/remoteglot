@@ -239,6 +239,7 @@ sub handle_uci {
 				$pos_waiting = undef;
 			}
 		} else {
+			$engine2->{'info'} = {};
 			my $pos = $pos_waiting // $pos_calculating;
 			uciprint($engine2, "position fen " . $pos->{'fen'});
 			uciprint($engine2, "go infinite");
