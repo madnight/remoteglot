@@ -19,7 +19,7 @@ if ($File::pushd::VERSION < 1.005) {
 	print STDERR "Do not run in production!\n\n";
 }
 
-my $cgi = CGI::Compile->compile('/srv/analysis.sesse.net/analysis.pl');
+my $cgi = CGI::Compile->compile('/srv/analysis.sesse.net/www/analysis.pl');
 my $handler = CGI::Emulate::PSGI->handler($cgi);
 
 sub {

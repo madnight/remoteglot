@@ -7,7 +7,7 @@ use AnyEvent;
 use strict;
 use warnings;
 
-my $json_filename = "/srv/analysis.sesse.net/www/analysis.json";
+our $json_filename = "/srv/analysis.sesse.net/www/analysis.json";
 
 my $cv = AnyEvent->condvar;
 my $updated = 0;
