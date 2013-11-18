@@ -7,11 +7,13 @@ use AnyEvent;
 use strict;
 use warnings;
 
+my $json_filename = "/srv/analysis.sesse.net/www/analysis.json";
+
 my $cv = AnyEvent->condvar;
 my $updated = 0;
 my $cgi = CGI->new;
 my $inotify = Linux::Inotify2->new;
-$inotify->watch("/srv/analysis.sesse.net/analysis.json", IN_MODIFY, sub {
+$inotify->watch($json_filename, IN_MODIFY, sub {
 	$updated = 1;
 	$cv->send;
 });
@@ -30,7 +32,7 @@ if (exists($ENV{'HTTP_IF_MODIFIED_SINCE'})) {
 	$date->parse($ENV{'HTTP_IF_MODIFIED_SINCE'});
 	$ims = $date->printf("%s");
 }
-my $time = (stat("/srv/analysis.sesse.net/analysis.json"))[9];
+my $time = (stat($json_filename))[9];
 
 # If we have something that's modified since IMS, send it out at once
 if ($time > $ims) {
@@ -45,15 +47,15 @@ if (defined($cgi->param('first')) && $cgi->param('first') != 1) {
 output();
 
 sub output {
-	my $time = (stat("/srv/analysis.sesse.net/analysis.json"))[9];
+	my $time = (stat($json_filename))[9];
 	my $lm_str = POSIX::strftime("%a, %d %b %Y %H:%M:%S %z", localtime($time));
 
 	print CGI->header(-type=>'text/json',
 			  -last_modified=>$lm_str,
 	                  -access_control_allow_origin=>'http://analysis.sesse.net',
 	                  -expires=>'now');
-	open my $fh, "<", "/srv/analysis.sesse.net/analysis.json"
-		or die "/srv/analysis.sesse.net/analysis.json: $!";
+	open my $fh, "<", $json_filename
+		or die "$json_filename: $!";
 	my $data;
 	{
 		local $/ = undef;
