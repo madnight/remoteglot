@@ -2,6 +2,8 @@ var board = [];
 var arrows = [];
 var arrow_targets = [];
 var occupied_by_arrows = [];
+var highlight_from = undefined;
+var highlight_to = undefined;
 
 var request_update = function(board, first) {
 	$.ajax({
@@ -264,6 +266,14 @@ var compare_by_sort_key = function(data, a, b) {
 	if (ska > skb) return 1;
 	return 0;
 };
+	
+var update_highlight = function()  {
+	$("#board").find('.square-55d63').removeClass('nonuglyhighlight');
+	if (highlight_from !== undefined && highlight_to !== undefined) {
+		$("#board").find('.square-' + highlight_from).addClass('nonuglyhighlight');
+		$("#board").find('.square-' + highlight_to).addClass('nonuglyhighlight');
+	}
+}
 
 var update_board = function(board, data) {
 	// The headline.
@@ -304,13 +314,13 @@ var update_board = function(board, data) {
 	// Update the board itself.
 	board.position(data.position.fen);
 
-	$("#board").find('.square-55d63').removeClass('nonuglyhighlight');
 	if (data.position.last_move_uci) {
-		var from = data.position.last_move_uci.substr(0, 2);
-		var to = data.position.last_move_uci.substr(2, 4);
-		$("#board").find('.square-' + from).addClass('nonuglyhighlight');
-		$("#board").find('.square-' + to).addClass('nonuglyhighlight');
+		highlight_from = data.position.last_move_uci.substr(0, 2);
+		highlight_to = data.position.last_move_uci.substr(2, 4);
+	} else {
+		highlight_from = highlight_to = undefined;
 	}
+	update_highlight();
 
 	// Print the PV.
 	var pv = print_pv(data.pv_pretty, data.position.move_num, data.position.toplay);
@@ -416,6 +426,7 @@ var init = function() {
 	request_update(board, 1);
 	$(window).resize(function() {
 		board.resize();
+		update_highlight();
 		redraw_arrows();
 	});
 };
