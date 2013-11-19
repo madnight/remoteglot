@@ -96,18 +96,18 @@ var position_arrow = function(arrow) {
 	var line_width = arrow.line_width * zoom_factor;
 	var arrow_size = arrow.arrow_size * zoom_factor;
 
-	var square_width = Math.floor(($("#board").width() - 1) / 8);
-	var from_y = (7 - arrow.from_row + 0.5)*square_width + 1;
-	var to_y = (7 - arrow.to_row + 0.5)*square_width + 1;
-	var from_x = (arrow.from_col + 0.5)*square_width + 1;
-	var to_x = (arrow.to_col + 0.5)*square_width + 1;
+	var square_width = $(".square-a8").width();
+	var from_y = (7 - arrow.from_row + 0.5)*square_width;
+	var to_y = (7 - arrow.to_row + 0.5)*square_width;
+	var from_x = (arrow.from_col + 0.5)*square_width;
+	var to_x = (arrow.to_col + 0.5)*square_width;
 
 	var dx = to_x - from_x;
 	var dy = to_y - from_y;
 	var len = Math.sqrt(dx * dx + dy * dy);
 	dx /= len;
 	dy /= len;
-	var pos = $("#board").position();
+	var pos = $(".square-a8").position();
 	$("#" + arrow.s1).css({ top: pos.top + from_y + (0.5 * arrow_size) * dy, left: pos.left + from_x + (0.5 * arrow_size) * dx });
 	$("#" + arrow.d1).css({ top: pos.top + to_y - (0.5 * arrow_size) * dy, left: pos.left + to_x - (0.5 * arrow_size) * dx });
 	$("#" + arrow.s1v).css({ top: pos.top + from_y - 0 * dy, left: pos.left + from_x - 0 * dx });
