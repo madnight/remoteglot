@@ -5,6 +5,9 @@ h3 {
 	margin-top: 1em;
 	margin-bottom: 0;
 }
+#score {
+	font-size: x-large;
+}
 .window {
 	position: absolute;    
 	width: 0px;
