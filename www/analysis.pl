@@ -1,7 +1,6 @@
 #! /usr/bin/perl
 use CGI;
 use POSIX;
-use Date::Manip;
 use Linux::Inotify2;
 use AnyEvent;
 use strict;
@@ -26,11 +25,11 @@ my $wait = AnyEvent->timer (
 	cb    => sub { $cv->send; },
 );
 
+# Yes, this is reinventing If-Modified-Since, but browsers are so incredibly
+# unpredictable on this, so blargh.
 my $ims = 0;
-if (exists($ENV{'HTTP_IF_MODIFIED_SINCE'})) {
-	my $date = Date::Manip::Date->new;
-	$date->parse($ENV{'HTTP_IF_MODIFIED_SINCE'});
-	$ims = $date->printf("%s");
+if (defined($cgi->param('ims')) && $cgi->param('ims') ne '') {
+	$ims = $cgi->param('ims');
 }
 my $time = (stat($json_filename))[9];
 
@@ -40,20 +39,11 @@ if ($time > $ims) {
 	exit;
 }
 
-# If not, wait, then send. Apache will deal with the 304-ing.
-if (defined($cgi->param('first')) && $cgi->param('first') != 1) {
-	$cv->recv;
-}
+# If not, wait, then send.
+$cv->recv;
 output();
 
 sub output {
-	my $time = (stat($json_filename))[9];
-	my $lm_str = POSIX::strftime("%a, %d %b %Y %H:%M:%S %z", localtime($time));
-
-	print CGI->header(-type=>'text/json',
-			  -last_modified=>$lm_str,
-	                  -access_control_allow_origin=>'http://analysis.sesse.net',
-	                  -expires=>'now');
 	open my $fh, "<", $json_filename
 		or die "$json_filename: $!";
 	my $data;
@@ -61,5 +51,13 @@ sub output {
 		local $/ = undef;
 		$data = <$fh>;
 	}
+	my $time = (stat($fh))[9];
+	close $fh;
+
+	print CGI->header(-type=>'text/json',
+			  -x_remoteglot_last_modified=>$time,
+	                  -access_control_allow_origin=>'http://analysis.sesse.net',
+	                  -access_control_expose_headers=>'X-Remoteglot-Last-Modified',
+	                  -expires=>'now');
 	print $data;
 }

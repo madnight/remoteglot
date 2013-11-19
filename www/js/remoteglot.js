@@ -2,14 +2,16 @@ var board = [];
 var arrows = [];
 var arrow_targets = [];
 var occupied_by_arrows = [];
+var ims = 0;
 var highlight_from = undefined;
 var highlight_to = undefined;
 
 var request_update = function(board, first) {
 	$.ajax({
 		//url: "http://analysis.sesse.net/analysis.pl?first=" + first
-		url: "http://analysis.sesse.net:5000/analysis.pl?first=" + first
-	}).done(function(data) {
+		url: "http://analysis.sesse.net:5000/analysis.pl?ims=" + ims
+	}).done(function(data, textstatus, xhr) {
+		ims = xhr.getResponseHeader('X-Remoteglot-Last-Modified');
 		update_board(board, data);
 	});
 }
