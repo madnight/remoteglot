@@ -61,12 +61,35 @@ p {
 	display: block;
 	float: left;
 	width: 400px;
-	height: 400px;
 	margin-right: 1em;
 	margin-bottom: 1em;
+	padding: 0;
 }
 #analysis {
 	display: block;
 	min-width: 400px;
 	overflow: hidden;
+}
+
+/* If the board is too wide for the screen, shrink it to fit,
+ * and then put the analysis below. */
+@media all and (max-width: 400px) {
+	#board {
+		width: 100%;
+		float: none;
+	}
+	#analysis {
+		min-width: 0;
+	}
+}
+
+/* If there is almost space for the analysis, shrink the board a bit, too. */
+@media all and (min-width: 500px) and (max-width: 810px) {
+	#board {
+		float: left;
+		width: 50%;
+	}
+	#analysis {
+		min-width: 0;
+	}
 }

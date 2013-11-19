@@ -1,3 +1,4 @@
+var board = [];
 var arrows = [];
 var arrow_targets = [];
 var occupied_by_arrows = [];
@@ -85,10 +86,15 @@ var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_
 	var to_col   = to_square.charCodeAt(0) - "a1".charCodeAt(0);
 	var to_row   = to_square.charCodeAt(1) - "a1".charCodeAt(1);
 
-	var from_y = (7 - from_row)*49 + 25;
-	var to_y = (7 - to_row)*49 + 25;
-	var from_x = from_col*49 + 25;
-	var to_x = to_col*49 + 25;
+	var zoom_factor = $("#board").width() / 400.0;
+	line_width *= zoom_factor;
+	arrow_size *= zoom_factor;
+
+	var square_width = Math.floor(($("#board").width() - 1) / 8);
+	var from_y = (7 - from_row + 0.5)*square_width + 1;
+	var to_y = (7 - to_row + 0.5)*square_width + 1;
+	var from_x = (from_col + 0.5)*square_width + 1;
+	var to_x = (to_col + 0.5)*square_width + 1;
 
 	var dx = to_x - from_x;
 	var dy = to_y - from_y;
@@ -140,7 +146,8 @@ var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_
 			["Arrow", {
 				cssClass:"l1arrow",
 				location:1.0,
-				width: arrow_size, length: arrow_size,
+				width: arrow_size,
+				length: arrow_size,
 				paintStyle:{ 
 					lineWidth:line_width,
 					strokeStyle:"#000",
@@ -378,7 +385,7 @@ var update_board = function(board, data) {
 
 var init = function() {
 	// Create board.
-	var board = new ChessBoard('board', 'start');
+	board = new ChessBoard('board', 'start');
 
 	request_update(board, 1);
 
