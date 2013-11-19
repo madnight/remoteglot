@@ -14,7 +14,8 @@ var request_update = function(board, first) {
 
 var clear_arrows = function() {
 	for (var i = 0; i < arrows.length; ++i) {
-		jsPlumb.detach(arrows[i]);
+		jsPlumb.detach(arrows[i].connection1);
+		jsPlumb.detach(arrows[i].connection2);
 	}
 	arrows = [];
 
@@ -26,6 +27,12 @@ var clear_arrows = function() {
 	occupied_by_arrows = [];	
 	for (var y = 0; y < 8; ++y) {
 		occupied_by_arrows.push([false, false, false, false, false, false, false, false]);
+	}
+}
+
+var redraw_arrows = function() {
+	for (var i = 0; i < arrows.length; ++i) {
+		position_arrow(arrows[i]);
 	}
 }
 
@@ -79,42 +86,38 @@ var add_target = function() {
 	arrow_targets.push(elem);
 	return elem.id;
 }
-
-var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_size) {
-	var from_col = from_square.charCodeAt(0) - "a1".charCodeAt(0);
-	var from_row = from_square.charCodeAt(1) - "a1".charCodeAt(1);
-	var to_col   = to_square.charCodeAt(0) - "a1".charCodeAt(0);
-	var to_row   = to_square.charCodeAt(1) - "a1".charCodeAt(1);
-
+	
+var position_arrow = function(arrow) {
 	var zoom_factor = $("#board").width() / 400.0;
-	line_width *= zoom_factor;
-	arrow_size *= zoom_factor;
+	var line_width = arrow.line_width * zoom_factor;
+	var arrow_size = arrow.arrow_size * zoom_factor;
 
 	var square_width = Math.floor(($("#board").width() - 1) / 8);
-	var from_y = (7 - from_row + 0.5)*square_width + 1;
-	var to_y = (7 - to_row + 0.5)*square_width + 1;
-	var from_x = (from_col + 0.5)*square_width + 1;
-	var to_x = (to_col + 0.5)*square_width + 1;
+	var from_y = (7 - arrow.from_row + 0.5)*square_width + 1;
+	var to_y = (7 - arrow.to_row + 0.5)*square_width + 1;
+	var from_x = (arrow.from_col + 0.5)*square_width + 1;
+	var to_x = (arrow.to_col + 0.5)*square_width + 1;
 
 	var dx = to_x - from_x;
 	var dy = to_y - from_y;
 	var len = Math.sqrt(dx * dx + dy * dy);
 	dx /= len;
 	dy /= len;
-
-	// Create arrow.
-	var s1 = add_target();
-	var d1 = add_target();
-	var s1v = add_target();
-	var d1v = add_target();
 	var pos = $("#board").position();
-	$("#" + s1).css({ top: pos.top + from_y + (0.5 * arrow_size) * dy, left: pos.left + from_x + (0.5 * arrow_size) * dx });
-	$("#" + d1).css({ top: pos.top + to_y - (0.5 * arrow_size) * dy, left: pos.left + to_x - (0.5 * arrow_size) * dx });
-	$("#" + s1v).css({ top: pos.top + from_y - 0 * dy, left: pos.left + from_x - 0 * dx });
-	$("#" + d1v).css({ top: pos.top + to_y + 0 * dy, left: pos.left + to_x + 0 * dx });
-	var connection1 = jsPlumb.connect({
-		source: s1,
-		target: d1,
+	$("#" + arrow.s1).css({ top: pos.top + from_y + (0.5 * arrow_size) * dy, left: pos.left + from_x + (0.5 * arrow_size) * dx });
+	$("#" + arrow.d1).css({ top: pos.top + to_y - (0.5 * arrow_size) * dy, left: pos.left + to_x - (0.5 * arrow_size) * dx });
+	$("#" + arrow.s1v).css({ top: pos.top + from_y - 0 * dy, left: pos.left + from_x - 0 * dx });
+	$("#" + arrow.d1v).css({ top: pos.top + to_y + 0 * dy, left: pos.left + to_x + 0 * dx });
+
+	if (arrow.connection1) {
+		jsPlumb.detach(arrow.connection1);
+	}
+	if (arrow.connection2) {
+		jsPlumb.detach(arrow.connection2);
+	}
+	arrow.connection1 = jsPlumb.connect({
+		source: arrow.s1,
+		target: arrow.d1,
 		connector:["Straight"],
 		cssClass:"c1",
 		endpoint:"Blank",
@@ -122,15 +125,15 @@ var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_
 		anchor:"Continuous",
 		paintStyle:{ 
 			lineWidth:line_width,
-			strokeStyle:fg_color,
+			strokeStyle:arrow.fg_color,
 			outlineWidth:1,
 			outlineColor:"#666",
 			opacity:"60%"
 		}
-	});            
-	var connection2 = jsPlumb.connect({
-		source: s1v,
-		target: d1v,
+	});
+	arrow.connection2 = jsPlumb.connect({
+		source: arrow.s1v,
+		target: arrow.d1v,
 		connector:["Straight"],
 		cssClass:"vir",
 		endpoint:"Blank",
@@ -138,7 +141,7 @@ var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_
 		anchor:"Continuous",
 		paintStyle:{ 
 			lineWidth:0,
-			strokeStyle:fg_color,
+			strokeStyle:arrow.fg_color,
 			outlineWidth:0,
 			outlineColor:"#666",
 		},
@@ -148,15 +151,38 @@ var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_
 				location:1.0,
 				width: arrow_size,
 				length: arrow_size,
-				paintStyle:{ 
+				paintStyle: { 
 					lineWidth:line_width,
 					strokeStyle:"#000",
 				},
 			}]
 		]
 	});
-	arrows.push(connection1);
-	arrows.push(connection2);
+}
+
+var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_size) {
+	var from_col = from_square.charCodeAt(0) - "a1".charCodeAt(0);
+	var from_row = from_square.charCodeAt(1) - "a1".charCodeAt(1);
+	var to_col   = to_square.charCodeAt(0) - "a1".charCodeAt(0);
+	var to_row   = to_square.charCodeAt(1) - "a1".charCodeAt(1);
+
+	// Create arrow.
+	var arrow = {
+		s1: add_target(),
+		d1: add_target(),
+		s1v: add_target(),
+		d1v: add_target(),
+		from_col: from_col,
+		from_row: from_row,
+		to_col: to_col,
+		to_row: to_row,
+		line_width: line_width,
+		arrow_size: arrow_size,	
+		fg_color: fg_color
+	};
+
+	position_arrow(arrow);
+	arrows.push(arrow);
 }
 
 // Fake multi-PV using the refutation lines. Find all “relevant” moves,
@@ -388,6 +414,9 @@ var init = function() {
 	board = new ChessBoard('board', 'start');
 
 	request_update(board, 1);
-
+	$(window).resize(function() {
+		board.resize();
+		redraw_arrows();
+	});
 };
 $(document).ready(init);
