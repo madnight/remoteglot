@@ -198,7 +198,7 @@ var find_nonstupid_moves = function(data, margin) {
 	var best_score = undefined;
 	var pv_score = undefined;
 	for (var move in data.refutation_lines) {
-		var score = data.refutation_lines[move].score_sort_key;
+		var score = parseInt(data.refutation_lines[move].score_sort_key);
 		if (move == data.pv_uci[0]) {
 			pv_score = score;
 		}
@@ -218,12 +218,12 @@ var find_nonstupid_moves = function(data, margin) {
 	// The PV move will always be first.
 	var moves = [];
 	for (var move in data.refutation_lines) {
-		var score = data.refutation_lines[move].score_sort_key;
+		var score = parseInt(data.refutation_lines[move].score_sort_key);
 		if (move != data.pv_uci[0] && best_score - score <= margin) {
 			moves.push(move);
 		}
 	}
-	moves = moves.sort(function(a, b) { return data.refutation_lines[b].score_sort_key - data.refutation_lines[a].score_sort_key; });
+	moves = moves.sort(function(a, b) { return parseInt(data.refutation_lines[b].score_sort_key) - parseInt(data.refutation_lines[a].score_sort_key); });
 	moves.unshift(data.pv_uci[0]);
 
 	return moves;
