@@ -1,3 +1,5 @@
+(function() {
+
 var board = [];
 var arrows = [];
 var arrow_targets = [];
@@ -443,3 +445,5 @@ var init = function() {
 	});
 };
 $(document).ready(init);
+
+})();
