@@ -7,7 +7,7 @@ var highlight_from = undefined;
 var highlight_to = undefined;
 var unique = Math.random();
 
-var request_update = function(board, first) {
+var request_update = function(board) {
 	$.ajax({
 		url: "http://analysis.sesse.net/analysis.pl?ims=" + ims + "&unique=" + unique
 		//url: "http://analysis.sesse.net:5000/analysis.pl?ims=" + ims + "&unique=" + unique
@@ -428,14 +428,14 @@ var update_board = function(board, data, num_viewers) {
 	}
 
 	// Next update.
-	setTimeout(function() { request_update(board, 0); }, 100);
+	setTimeout(function() { request_update(board); }, 100);
 }
 
 var init = function() {
 	// Create board.
 	board = new ChessBoard('board', 'start');
 
-	request_update(board, 1);
+	request_update(board);
 	$(window).resize(function() {
 		board.resize();
 		update_highlight();
