@@ -1,6 +1,5 @@
 #! /usr/bin/perl
 use CGI;
-use POSIX;
 use Linux::Inotify2;
 use AnyEvent;
 use strict;
