@@ -2,6 +2,8 @@
 use CGI;
 use Linux::Inotify2;
 use AnyEvent;
+use IPC::ShareLite;
+use Storable;
 use strict;
 use warnings;
 
@@ -24,6 +26,9 @@ my $wait = AnyEvent->timer (
 	cb    => sub { $cv->send; },
 );
 
+my $unique = $cgi->param('unique');
+our $num_viewers = count_viewers($unique);
+
 # Yes, this is reinventing If-Modified-Since, but browsers are so incredibly
 # unpredictable on this, so blargh.
 my $ims = 0;
@@ -42,6 +47,38 @@ if ($time > $ims) {
 $cv->recv;
 output();
 
+sub count_viewers {
+	my $unique = shift;
+	my $time = time;
+	my $share = IPC::ShareLite->new(
+		-key => 'RGLT',
+		-create  => 'yes',
+		-destroy => 'no',
+		-size => 1048576,
+	) or die "IPC::ShareLite: $!";
+        $share->lock(IPC::ShareLite::LOCK_EX);
+	my $viewers = {};
+	eval {
+        	$viewers = Storable::thaw($share->fetch());
+	};
+	$viewers->{$unique} = time;
+
+	# Go through and remove old viewers, and count them at the same time.
+	my $num_viewers = 0;
+	while (my ($key, $value) = each %$viewers) {
+		if ($time - $value > 60) {
+			delete $viewers->{$key};
+		} else {
+			++$num_viewers;
+		}
+	}
+
+        $share->store(Storable::freeze($viewers));
+        $share->unlock();
+
+	return $num_viewers;
+}
+
 sub output {
 	open my $fh, "<", $json_filename
 		or die "$json_filename: $!";
@@ -55,8 +92,9 @@ sub output {
 
 	print CGI->header(-type=>'text/json',
 			  -x_remoteglot_last_modified=>$time,
+			  -x_remoteglot_num_viewers=>$num_viewers,
 	                  -access_control_allow_origin=>'http://analysis.sesse.net',
-	                  -access_control_expose_headers=>'X-Remoteglot-Last-Modified',
+	                  -access_control_expose_headers=>'X-Remoteglot-Last-Modified, X-Remoteglot-Num-Viewers',
 	                  -expires=>'now');
 	print $data;
 }

@@ -5,14 +5,16 @@ var occupied_by_arrows = [];
 var ims = 0;
 var highlight_from = undefined;
 var highlight_to = undefined;
+var unique = Math.random();
 
 var request_update = function(board, first) {
 	$.ajax({
-		//url: "http://analysis.sesse.net/analysis.pl?first=" + first
-		url: "http://analysis.sesse.net:5000/analysis.pl?ims=" + ims
+		url: "http://analysis.sesse.net/analysis.pl?ims=" + ims + "&unique=" + unique
+		//url: "http://analysis.sesse.net:5000/analysis.pl?ims=" + ims + "&unique=" + unique
 	}).done(function(data, textstatus, xhr) {
 		ims = xhr.getResponseHeader('X-Remoteglot-Last-Modified');
-		update_board(board, data);
+		var num_viewers = xhr.getResponseHeader('X-Remoteglot-Num-Viewers');
+		update_board(board, data, num_viewers);
 	});
 }
 
@@ -277,7 +279,7 @@ var update_highlight = function()  {
 	}
 }
 
-var update_board = function(board, data) {
+var update_board = function(board, data, num_viewers) {
 	// The headline.
 	var headline = 'Analysis';
 	if (data.position.last_move !== 'none') {
@@ -289,6 +291,14 @@ var update_board = function(board, data) {
 	}
 
 	$("#headline").text(headline);
+
+	if (num_viewers === null) {
+		$("#numviewers").text("");
+	} else if (num_viewers == 1) {
+		$("#numviewers").text("You are the only current viewer");
+	} else {
+		$("#numviewers").text(num_viewers + " current viewers");
+	}
 
 	// The score.
 	if (data.score !== null) {

@@ -7,6 +7,7 @@ h3 {
 }
 #score {
 	font-size: x-large;
+	margin-top: 0;
 }
 .window {
 	position: absolute;    
@@ -60,13 +61,24 @@ p {
 .black-3c85d.nonuglyhighlight {
 	background-color: #9ab6a6;
 }
-#board {
-	display: block;
-	float: left;
+#boardcontainer {
 	width: 400px;
 	margin-right: 1em;
 	margin-bottom: 1em;
+	float: left;
+}
+#board {
+	display: block;
+	width: 100%;
 	padding: 0;
+}
+#numviewers {
+	display: block;
+	width: 100%;
+	text-align: center;
+	font-size: smaller;
+	margin-top: 0.5em;
+	margin-bottom: 0;
 }
 #analysis {
 	display: block;
@@ -77,7 +89,7 @@ p {
 /* If the board is too wide for the screen, shrink it to fit,
  * and then put the analysis below. */
 @media all and (max-width: 400px) {
-	#board {
+	#boardcontainer {
 		width: 100%;
 		float: none;
 	}
@@ -88,7 +100,7 @@ p {
 
 /* If there is almost space for the analysis, shrink the board a bit, too. */
 @media all and (min-width: 500px) and (max-width: 810px) {
-	#board {
+	#boardcontainer {
 		float: left;
 		width: 50%;
 	}
