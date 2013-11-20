@@ -17,6 +17,9 @@ var request_update = function(board) {
 		ims = xhr.getResponseHeader('X-Remoteglot-Last-Modified');
 		var num_viewers = xhr.getResponseHeader('X-Remoteglot-Num-Viewers');
 		update_board(board, data, num_viewers);
+	}).fail(function() {
+		// Wait ten seconds, then try again.
+		setTimeout(function() { request_update(board); }, 10000);
 	});
 }
 
