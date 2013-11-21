@@ -1,4 +1,5 @@
-var board = [];
+var board = null;
+var hiddenboard = null;
 var arrows = [];
 var arrow_targets = [];
 var occupied_by_arrows = [];
@@ -10,6 +11,11 @@ var sort_refutation_lines_by_score = 0;
 var highlight_from = undefined;
 var highlight_to = undefined;
 var unique = Math.random();
+
+var fen = null;
+var display_lines = [];
+var current_display_line = null;
+var current_display_move = null;
 
 var request_update = function(board) {
 	$.ajax({
@@ -127,6 +133,11 @@ var position_arrow = function(arrow) {
 	}
 	if (arrow.connection2) {
 		jsPlumb.detach(arrow.connection2);
+	}
+	if (current_display_line !== null) {
+		delete arrow.connection1;
+		delete arrow.connection2;
+		return;
 	}
 	arrow.connection1 = jsPlumb.connect({
 		source: arrow.s1,
@@ -260,16 +271,25 @@ var thousands = function(x) {
 	return String(x).split('').reverse().join('').replace(/(\d{3}\B)/g, '$1,').split('').reverse().join('');
 }
 
-var print_pv = function(pretty_pv, move_num, toplay, limit) {
+var print_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, limit) {
+	display_lines.push({
+		start_fen: fen,
+		uci_pv: uci_pv,
+		pretty_pv: pretty_pv 
+	});
+
 	var pv = '';
 	var i = 0;
 	if (toplay == 'B') {
-		pv = move_num + '. … ' + pretty_pv[0];
+		var move = "<a class=\"move\" href=\"javascript:show_line(" + (display_lines.length - 1) + ", " + 0 + ");\">" + pretty_pv[0] + "</a>";
+		pv = move_num + '. … ' + move;
 		toplay = 'W';
 		++i;	
 	}
 	++move_num;
 	for ( ; i < pretty_pv.length; ++i) {
+		var move = "<a class=\"move\" href=\"javascript:show_line(" + (display_lines.length - 1) + ", " + i + ");\">" + pretty_pv[i] + "</a>";
+
 		if (toplay == 'W') {
 			if (i > limit) {
 				return pv + ' (…)';
@@ -277,11 +297,11 @@ var print_pv = function(pretty_pv, move_num, toplay, limit) {
 			if (pv != '') {
 				pv += ' ';
 			}
-			pv += move_num + '. ' + pretty_pv[i];
+			pv += move_num + '. ' + move;
 			++move_num;
 			toplay = 'B';
 		} else {
-			pv += ' ' + pretty_pv[i];
+			pv += ' ' + move;
 			toplay = 'W';
 		}
 	}
@@ -290,7 +310,7 @@ var print_pv = function(pretty_pv, move_num, toplay, limit) {
 
 var update_highlight = function()  {
 	$("#board").find('.square-55d63').removeClass('nonuglyhighlight');
-	if (highlight_from !== undefined && highlight_to !== undefined) {
+	if (current_display_line === null && highlight_from !== undefined && highlight_to !== undefined) {
 		$("#board").find('.square-' + highlight_from).addClass('nonuglyhighlight');
 		$("#board").find('.square-' + highlight_to).addClass('nonuglyhighlight');
 	}
@@ -314,7 +334,12 @@ var update_refutation_lines = function(board) {
 		var move_td = document.createElement("td");
 		tr.appendChild(move_td);
 		$(move_td).addClass("move");
-		$(move_td).text(line.pretty_move);
+		if (line.pv_uci.length == 0) {
+			$(move_td).text(line.pretty_move);
+		} else {
+			var move = "<a class=\"move\" href=\"javascript:show_line(" + display_lines.length + ", " + 0 + ");\">" + line.pretty_move + "</a>";
+			$(move_td).html(move);
+		}
 
 		var score_td = document.createElement("td");
 		tr.appendChild(score_td);
@@ -329,7 +354,7 @@ var update_refutation_lines = function(board) {
 		var pv_td = document.createElement("td");
 		tr.appendChild(pv_td);
 		$(pv_td).addClass("pv");
-		$(pv_td).text(print_pv(line.pv_pretty, move_num, toplay, 10));
+		$(pv_td).html(print_pv(fen, line.pv_uci, line.pv_pretty, move_num, toplay, 10));
 
 		tbl.append(tr);
 	}
@@ -389,7 +414,8 @@ var update_board = function(board, data, num_viewers) {
 	}
 
 	// Update the board itself.
-	board.position(data.position.fen);
+	fen = data.position.fen;
+	update_displayed_line();
 
 	if (data.position.last_move_uci) {
 		highlight_from = data.position.last_move_uci.substr(0, 2);
@@ -400,8 +426,7 @@ var update_board = function(board, data, num_viewers) {
 	update_highlight();
 
 	// Print the PV.
-	var pv = print_pv(data.pv_pretty, data.position.move_num, data.position.toplay);
-	$("#pv").text(pv);
+	$("#pv").html(print_pv(data.position.fen, data.pv_uci, data.pv_pretty, data.position.move_num, data.position.toplay));
 
 	// Update the PV arrow.
 	clear_arrows();
@@ -456,6 +481,7 @@ var update_board = function(board, data, num_viewers) {
 	}
 
 	// Update the refutation lines.
+	fen = data.position.fen;
 	move_num = data.position.move_num;
 	toplay = data.position.toplay;
 	refutation_lines = data.refutation_lines;
@@ -470,9 +496,64 @@ var resort_refutation_lines = function(sort_by_score) {
 	update_refutation_lines(board);
 }
 
+var show_line = function(line_num, move_num) {
+	if (line_num == -1) {
+		current_display_line = null;
+		current_display_move = null;
+	} else {
+		current_display_line = display_lines[line_num];
+		current_display_move = move_num;
+	}
+	update_displayed_line();
+	update_highlight();
+	redraw_arrows();
+}
+
+var prev_move = function() {
+	--current_display_move;
+	update_displayed_line();
+}
+
+var next_move = function() {
+	++current_display_move;
+	update_displayed_line();
+}
+
+var update_displayed_line = function() {
+	if (current_display_line === null) {
+		$("#linenav").hide();
+		$("#linemsg").show();
+		board.position(fen);
+		return;
+	}
+
+	$("#linenav").show();
+	$("#linemsg").hide();
+
+	if (current_display_move == 0) {
+		$("#prevmove").html("Previous");
+	} else {
+		$("#prevmove").html("<a href=\"javascript:prev_move();\">Previous</a></span>");
+	}
+	if (current_display_move == current_display_line.uci_pv.length - 1) {
+		$("#nextmove").html("Next");
+	} else {
+		$("#nextmove").html("<a href=\"javascript:next_move();\">Next</a></span>");
+	}
+
+	hiddenboard.position(current_display_line.start_fen, false);
+	for (var i = 0; i <= current_display_move; ++i) {
+		var move = current_display_line.uci_pv[i];
+		move = move.substr(0, 2) + "-" + move.substr(2, 4);
+		hiddenboard.move(move, false);
+	}
+	board.position(hiddenboard.position());
+}
+
 var init = function() {
 	// Create board.
 	board = new ChessBoard('board', 'start');
+	hiddenboard = new ChessBoard('hiddenboard', 'start');
 
 	request_update(board);
 	$(window).resize(function() {

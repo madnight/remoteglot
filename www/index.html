@@ -13,6 +13,7 @@
 <h1 id="headline">Analysis</h1>
 <div id="boardcontainer">
   <div id="board"></div>
+  <div id="hiddenboard"></div>
   <p id="numviewers"></p>
 </div>
 <div id="analysis">
@@ -21,7 +22,14 @@
   <p id="searchstats"></p>
   <h3>Shallow search of all legal moves (multi-PV)</h3>
   <p id="sortbyscoreholder">Sort by: <span id="sortbyscore0"><a href="javascript:resort_refutation_lines(0)">Move</a></span>
-    <span id="sortbyscore1"><a href="javascript:resort_refutation_lines(1)">Score</a></span></p>
+    <span id="sortbyscore1"><a href="javascript:resort_refutation_lines(1)">Score</a></span>
+    |
+    <span id="linemsg">Click on any move to show it on the board.</span>
+    <span id="linenav">
+      <span id="prevmove"><a href="javascript:prev_move();">Previous</a></span>,
+      <span id="nextmove"><a href="javascript:next_move();">Next</a></span>,
+      <a href="javascript:show_line(-1, -1);">Exit to main position</a>
+    </span></p>
   <table id="refutationlines"></table>
 </div>
 <h2 style="clear: both;">Symbol explanation</h2>
