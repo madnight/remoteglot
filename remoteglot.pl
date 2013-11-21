@@ -1144,9 +1144,9 @@ sub score_sort_key {
 
 	if (defined($info->{'score_mate' . $mpv})) {
 		if ($invert) {
-			return -(99999 - $info->{'score_mate' . $mpv});
-		} else {
 			return 99999 - $info->{'score_mate' . $mpv};
+		} else {
+			return -(99999 - $info->{'score_mate' . $mpv});
 		}
 	} else {
 		if (exists($info->{'score_cp' . $mpv})) {
