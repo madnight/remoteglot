@@ -317,6 +317,10 @@ var update_highlight = function()  {
 }
 
 var update_refutation_lines = function(board) {
+	if (display_lines.length > 1) {
+		display_lines = [ display_lines[0] ];
+	}
+
 	var tbl = $("#refutationlines");
 	tbl.empty();
 
@@ -370,6 +374,8 @@ var update_refutation_lines = function(board) {
 }
 
 var update_board = function(board, data, num_viewers) {
+	display_lines = [];
+
 	// The headline.
 	var headline = 'Analysis';
 	if (data.position.last_move !== 'none') {
