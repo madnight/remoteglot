@@ -261,7 +261,7 @@ var find_nonstupid_moves = function(data, margin) {
 			moves.push(move);
 		}
 	}
-	moves = moves.sort(function(a, b) { return compare_by_score(data.refutation_lines, a, b) });
+	moves = moves.sort(function(a, b) { return compare_by_score(data.refutation_lines, data.position.toplay, a, b) });
 	moves.unshift(data.pv_uci[0]);
 
 	return moves;
