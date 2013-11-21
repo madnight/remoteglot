@@ -33,8 +33,12 @@ var request_update = function(board) {
 
 var clear_arrows = function() {
 	for (var i = 0; i < arrows.length; ++i) {
-		jsPlumb.detach(arrows[i].connection1);
-		jsPlumb.detach(arrows[i].connection2);
+		if (arrows[i].connection1) {
+			jsPlumb.detach(arrows[i].connection1);
+		}
+		if (arrows[i].connection2) {
+			jsPlumb.detach(arrows[i].connection2);
+		}
 	}
 	arrows = [];
 
