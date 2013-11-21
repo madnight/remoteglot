@@ -1177,6 +1177,9 @@ sub long_score {
 	} else {
 		if (exists($info->{'score_cp' . $mpv})) {
 			my $score = $info->{'score_cp' . $mpv} * 0.01;
+			if ($score == 0) {
+				return " 0.00";
+			}
 			if ($pos->{'toplay'} eq 'B') {
 				$score = -$score;
 			}
