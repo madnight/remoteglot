@@ -213,7 +213,7 @@ var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_
 	arrows.push(arrow);
 }
 
-var compare_by_sort_key = function(refutation_lines, toplay, a, b) {
+var compare_by_sort_key = function(refutation_lines, a, b) {
 	var ska = refutation_lines[a].sort_key;
 	var skb = refutation_lines[b].sort_key;
 	if (ska < skb) return -1;
@@ -221,14 +221,10 @@ var compare_by_sort_key = function(refutation_lines, toplay, a, b) {
 	return 0;
 };
 	
-var compare_by_score = function(refutation_lines, toplay, a, b) {
+var compare_by_score = function(refutation_lines, a, b) {
 	var sa = parseInt(refutation_lines[b].score_sort_key);
 	var sb = parseInt(refutation_lines[a].score_sort_key);
-	if (toplay == 'B') {
-		return sb - sa;
-	} else {
-		return sa - sb;
-	}
+	return sa - sb;
 }
 
 // Fake multi-PV using the refutation lines. Find all “relevant” moves,
@@ -265,7 +261,7 @@ var find_nonstupid_moves = function(data, margin) {
 			moves.push(move);
 		}
 	}
-	moves = moves.sort(function(a, b) { return compare_by_score(data.refutation_lines, data.position.toplay, a, b) });
+	moves = moves.sort(function(a, b) { return compare_by_score(data.refutation_lines, a, b) });
 	moves.unshift(data.pv_uci[0]);
 
 	return moves;
@@ -333,7 +329,7 @@ var update_refutation_lines = function(board) {
 		moves.push(move);
 	}
 	var compare = sort_refutation_lines_by_score ? compare_by_score : compare_by_sort_key;
-	moves = moves.sort(function(a, b) { return compare(refutation_lines, toplay, a, b) });
+	moves = moves.sort(function(a, b) { return compare(refutation_lines, a, b) });
 	for (var i = 0; i < moves.length; ++i) {
 		var line = refutation_lines[moves[i]];
 
