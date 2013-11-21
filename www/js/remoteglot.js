@@ -285,8 +285,8 @@ var print_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, limit) {
 		pv = move_num + '. … ' + move;
 		toplay = 'W';
 		++i;	
+		++move_num;
 	}
-	++move_num;
 	for ( ; i < pretty_pv.length; ++i) {
 		var move = "<a class=\"move\" href=\"javascript:show_line(" + (display_lines.length - 1) + ", " + i + ");\">" + pretty_pv[i] + "</a>";
 
@@ -379,9 +379,11 @@ var update_board = function(board, data, num_viewers) {
 	// The headline.
 	var headline = 'Analysis';
 	if (data.position.last_move !== 'none') {
-		headline += ' after ' + data.position.move_num + '. ';
+		headline += ' after '
 		if (data.position.toplay == 'W') {
-			headline += '… ';
+			headline += (data.position.move_num-1) + '… ';
+		} else {
+			headline += data.position.move_num + '. ';
 		}
 		headline += data.position.last_move;
 	}
