@@ -1,7 +1,6 @@
 var board = null;
 var hiddenboard = null;
 var arrows = [];
-var arrow_targets = [];
 var occupied_by_arrows = [];
 var refutation_lines = [];
 var move_num = 1;
@@ -33,21 +32,14 @@ var request_update = function(board) {
 
 var clear_arrows = function() {
 	for (var i = 0; i < arrows.length; ++i) {
-		if (arrows[i].connection1) {
-			jsPlumb.detach(arrows[i].connection1);
-		}
-		if (arrows[i].connection2) {
-			jsPlumb.detach(arrows[i].connection2);
+		if (arrows[i].svg) {
+			arrows[i].svg.parentElement.removeChild(arrows[i].svg);
+			delete arrows[i].svg;
 		}
 	}
 	arrows = [];
 
-	for (var i = 0; i < arrow_targets.length; ++i) {
-		document.body.removeChild(arrow_targets[i]);
-	}
-	arrow_targets = [];
-	
-	occupied_by_arrows = [];	
+	occupied_by_arrows = [];
 	for (var y = 0; y < 8; ++y) {
 		occupied_by_arrows.push([false, false, false, false, false, false, false, false]);
 	}
@@ -101,16 +93,43 @@ var interfering_arrow = function(from, to) {
 	return false;
 }
 
-var add_target = function() {
-	var elem = document.createElement("div");
-	$(elem).addClass("window");
-	elem.id = "target" + arrow_targets.length;
-	document.body.appendChild(elem);	
-	arrow_targets.push(elem);
-	return elem.id;
+var point_from_start = function(x1, y1, x2, y2, t, u) {
+	var dx = x2 - x1;
+	var dy = y2 - y1;
+
+	var norm = 1.0 / Math.sqrt(dx * dx + dy * dy);
+	dx *= norm;
+	dy *= norm;
+
+	var x = x1 + dx * t + dy * u;
+	var y = y1 + dy * t - dx * u;
+	return x + " " + y;
 }
-	
+
+var point_from_end = function(x1, y1, x2, y2, t, u) {
+	var dx = x2 - x1;
+	var dy = y2 - y1;
+
+	var norm = 1.0 / Math.sqrt(dx * dx + dy * dy);
+	dx *= norm;
+	dy *= norm;
+
+	var x = x2 + dx * t + dy * u;
+	var y = y2 + dy * t - dx * u;
+	return x + " " + y;
+}
+
 var position_arrow = function(arrow) {
+	if (arrow.svg) {
+		arrow.svg.parentElement.removeChild(arrow.svg);
+		delete arrow.svg;
+	}
+	if (current_display_line !== null) {
+		return;
+	}
+
+	var pos = $(".square-a8").position();
+
 	var zoom_factor = $("#board").width() / 400.0;
 	var line_width = arrow.line_width * zoom_factor;
 	var arrow_size = arrow.arrow_size * zoom_factor;
@@ -121,71 +140,56 @@ var position_arrow = function(arrow) {
 	var from_x = (arrow.from_col + 0.5)*square_width;
 	var to_x = (arrow.to_col + 0.5)*square_width;
 
-	var dx = to_x - from_x;
-	var dy = to_y - from_y;
-	var len = Math.sqrt(dx * dx + dy * dy);
-	dx /= len;
-	dy /= len;
-	var pos = $(".square-a8").position();
-	$("#" + arrow.s1).css({ top: pos.top + from_y + (0.5 * arrow_size) * dy, left: pos.left + from_x + (0.5 * arrow_size) * dx });
-	$("#" + arrow.d1).css({ top: pos.top + to_y - (0.5 * arrow_size) * dy, left: pos.left + to_x - (0.5 * arrow_size) * dx });
-	$("#" + arrow.s1v).css({ top: pos.top + from_y - 0 * dy, left: pos.left + from_x - 0 * dx });
-	$("#" + arrow.d1v).css({ top: pos.top + to_y + 0 * dy, left: pos.left + to_x + 0 * dx });
+	var SVG_NS = "http://www.w3.org/2000/svg";
+	var XHTML_NS = "http://www.w3.org/1999/xhtml";
+	var svg = document.createElementNS(SVG_NS, "svg");
+	svg.setAttribute("width", $("#board").width());
+	svg.setAttribute("height", $("#board").height());
+	svg.setAttribute("style", "position: absolute");
+	svg.setAttribute("position", "absolute");
+	svg.setAttribute("version", "1.1");
+	svg.setAttribute("class", "c1");
+	svg.setAttribute("xmlns", XHTML_NS);
 
-	if (arrow.connection1) {
-		jsPlumb.detach(arrow.connection1);
-	}
-	if (arrow.connection2) {
-		jsPlumb.detach(arrow.connection2);
-	}
-	if (current_display_line !== null) {
-		delete arrow.connection1;
-		delete arrow.connection2;
-		return;
-	}
-	arrow.connection1 = jsPlumb.connect({
-		source: arrow.s1,
-		target: arrow.d1,
-		connector:["Straight"],
-		cssClass:"c1",
-		endpoint:"Blank",
-		endpointClass:"c1Endpoint",													   
-		anchor:"Continuous",
-		paintStyle:{ 
-			lineWidth:line_width,
-			strokeStyle:arrow.fg_color,
-			outlineWidth:1,
-			outlineColor:"#666",
-			opacity:"60%"
-		}
-	});
-	arrow.connection2 = jsPlumb.connect({
-		source: arrow.s1v,
-		target: arrow.d1v,
-		connector:["Straight"],
-		cssClass:"vir",
-		endpoint:"Blank",
-		endpointClass:"c1Endpoint",													   
-		anchor:"Continuous",
-		paintStyle:{ 
-			lineWidth:0,
-			strokeStyle:arrow.fg_color,
-			outlineWidth:0,
-			outlineColor:"#666"
-		},
-		overlays : [
-			["Arrow", {
-				cssClass:"l1arrow",
-				location:1.0,
-				width: arrow_size,
-				length: arrow_size,
-				paintStyle: { 
-					lineWidth:line_width,
-					strokeStyle:"#000"
-				}
-			}]
-		]
-	});
+	var x1 = from_x;
+	var y1 = from_y;
+	var x2 = to_x;
+	var y2 = to_y;
+
+	// Draw the line.
+	var outline = document.createElementNS(SVG_NS, "path");
+	outline.setAttribute("d", "M " + point_from_start(x1, y1, x2, y2, arrow_size / 2, 0) + " L " + point_from_end(x1, y1, x2, y2, -arrow_size / 2, 0));
+	outline.setAttribute("xmlns", XHTML_NS);
+	outline.setAttribute("stroke", "#666");
+	outline.setAttribute("stroke-width", line_width + 2);
+	outline.setAttribute("fill", "none");
+	svg.appendChild(outline);
+
+	var path = document.createElementNS(SVG_NS, "path");
+	path.setAttribute("d", "M " + point_from_start(x1, y1, x2, y2, arrow_size / 2, 0) + " L " + point_from_end(x1, y1, x2, y2, -arrow_size / 2, 0));
+	path.setAttribute("xmlns", XHTML_NS);
+	path.setAttribute("stroke", arrow.fg_color);
+	path.setAttribute("stroke-width", line_width);
+	path.setAttribute("fill", "none");
+	svg.appendChild(path);
+
+	// Then the arrow head.
+	var head = document.createElementNS(SVG_NS, "path");
+	head.setAttribute("d",
+		"M " +  point_from_end(x1, y1, x2, y2, 0, 0) +
+		" L " + point_from_end(x1, y1, x2, y2, -arrow_size, -arrow_size / 2) +
+		" L " + point_from_end(x1, y1, x2, y2, -arrow_size * .623, 0.0) +
+		" L " + point_from_end(x1, y1, x2, y2, -arrow_size, arrow_size / 2) +
+		" L " + point_from_end(x1, y1, x2, y2, 0, 0));
+	head.setAttribute("xmlns", XHTML_NS);
+	head.setAttribute("stroke", "#000");
+	head.setAttribute("stroke-width", "1");
+	head.setAttribute("fill", "#f66");
+	svg.appendChild(head);
+
+	$(svg).css({ top: pos.top, left: pos.left });
+	document.body.appendChild(svg);
+	arrow.svg = svg;
 }
 
 var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_size) {
@@ -196,16 +200,12 @@ var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_
 
 	// Create arrow.
 	var arrow = {
-		s1: add_target(),
-		d1: add_target(),
-		s1v: add_target(),
-		d1v: add_target(),
 		from_col: from_col,
 		from_row: from_row,
 		to_col: to_col,
 		to_row: to_row,
 		line_width: line_width,
-		arrow_size: arrow_size,	
+		arrow_size: arrow_size,
 		fg_color: fg_color
 	};
 
