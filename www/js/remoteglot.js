@@ -220,7 +220,7 @@ var compare_by_sort_key = function(refutation_lines, a, b) {
 	if (ska > skb) return 1;
 	return 0;
 };
-	
+
 var compare_by_score = function(refutation_lines, a, b) {
 	var sa = parseInt(refutation_lines[b].score_sort_key);
 	var sb = parseInt(refutation_lines[a].score_sort_key);
@@ -284,7 +284,7 @@ var print_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, limit) {
 		var move = "<a class=\"move\" href=\"javascript:show_line(" + (display_lines.length - 1) + ", " + 0 + ");\">" + pretty_pv[0] + "</a>";
 		pv = move_num + '. … ' + move;
 		toplay = 'W';
-		++i;	
+		++i;
 		++move_num;
 	}
 	for ( ; i < pretty_pv.length; ++i) {
@@ -416,7 +416,6 @@ var update_board = function(board, data, num_viewers) {
 				stats += ', ' + data.tbhits + ' Nalimov hits';
 			}
 		}
-		
 
 		$("#searchstats").text(stats);
 	}
