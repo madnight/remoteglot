@@ -324,7 +324,7 @@ var update_refutation_lines = function(board) {
 	var tbl = $("#refutationlines");
 	tbl.empty();
 
-	moves = [];
+	var moves = [];
 	for (var move in refutation_lines) {
 		moves.push(move);
 	}
