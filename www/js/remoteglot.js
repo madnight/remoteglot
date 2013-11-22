@@ -171,7 +171,7 @@ var position_arrow = function(arrow) {
 			lineWidth:0,
 			strokeStyle:arrow.fg_color,
 			outlineWidth:0,
-			outlineColor:"#666",
+			outlineColor:"#666"
 		},
 		overlays : [
 			["Arrow", {
@@ -181,8 +181,8 @@ var position_arrow = function(arrow) {
 				length: arrow_size,
 				paintStyle: { 
 					lineWidth:line_width,
-					strokeStyle:"#000",
-				},
+					strokeStyle:"#000"
+				}
 			}]
 		]
 	});
