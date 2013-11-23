@@ -21,7 +21,7 @@ use warnings;
 my $server = "freechess.org";
 my $target = "GMCarlsen";
 my $engine_cmdline = "'./Deep Rybka 4 SSE42 x64'";
-my $engine2_cmdline = "./stockfish_13111119_x64_modern_sse42";
+my $engine2_cmdline = "./stockfish_13111119_x64_modern_sse42";  # undef for none
 my $telltarget = undef;   # undef to be silent
 my @tell_intervals = (5, 20, 60, 120, 240, 480, 960);  # after each move
 my $uci_assume_full_compliance = 0;                    # dangerous :-)
@@ -68,13 +68,15 @@ uciprint($engine, "setoption name Hash value 1024");
 # uciprint($engine, "setoption name MultiPV value 2");
 uciprint($engine, "ucinewgame");
 
-uciprint($engine2, "setoption name UCI_AnalyseMode value true");
-# uciprint($engine2, "setoption name NalimovPath value /srv/tablebase");
-uciprint($engine2, "setoption name NalimovUsage value Rarely");
-uciprint($engine2, "setoption name Hash value 1024");
-uciprint($engine2, "setoption name Threads value 8");
-uciprint($engine2, "setoption name MultiPV value 500");
-uciprint($engine2, "ucinewgame");
+if (defined($engine2)) {
+	uciprint($engine2, "setoption name UCI_AnalyseMode value true");
+	# uciprint($engine2, "setoption name NalimovPath value /srv/tablebase");
+	uciprint($engine2, "setoption name NalimovUsage value Rarely");
+	uciprint($engine2, "setoption name Hash value 1024");
+	uciprint($engine2, "setoption name Threads value 8");
+	uciprint($engine2, "setoption name MultiPV value 500");
+	uciprint($engine2, "ucinewgame");
+}
 
 print "Chess engine ready.\n";
 
@@ -98,7 +100,9 @@ while (1) {
 	my $rin = '';
 	my $rout;
 	vec($rin, fileno($engine->{'read'}), 1) = 1;
-	vec($rin, fileno($engine2->{'read'}), 1) = 1;
+	if (defined($engine2)) {
+		vec($rin, fileno($engine2->{'read'}), 1) = 1;
+	}
 	vec($rin, fileno($t), 1) = 1;
 
 	my ($nfound, $timeleft) = select($rout=$rin, undef, undef, 5.0);
@@ -143,16 +147,18 @@ while (1) {
 				$pos_calculating = $pos;
 			}
 
-			if (defined($pos_calculating_second_engine)) {
-				uciprint($engine2, "stop");
-			} else {
-				uciprint($engine2, "position fen " . $pos->{'fen'});
-				uciprint($engine2, "go infinite");
-				$pos_calculating_second_engine = $pos;
+			if (defined($engine2)) {
+				if (defined($pos_calculating_second_engine)) {
+					uciprint($engine2, "stop");
+				} else {
+					uciprint($engine2, "position fen " . $pos->{'fen'});
+					uciprint($engine2, "go infinite");
+					$pos_calculating_second_engine = $pos;
+				}
+				$engine2->{'info'} = {};
 			}
 
 			$engine->{'info'} = {};
-			$engine2->{'info'} = {};
 			$last_move = time;
 
 			# 
@@ -194,7 +200,7 @@ while (1) {
 
 		output();
 	}
-	if ($nfound > 0 && vec($rout, fileno($engine2->{'read'}), 1) == 1) {
+	if (defined($engine2) && $nfound > 0 && vec($rout, fileno($engine2->{'read'}), 1) == 1) {
 		my @lines = read_lines($engine2);
 		for my $line (@lines) {
 			next if $line =~ /(upper|lower)bound/;
@@ -761,26 +767,28 @@ sub output_screen {
 	#$text .= book_info($pos_calculating->{'fen'}, $pos_calculating->{'board'}, $pos_calculating->{'toplay'});
 
 	my @refutation_lines = ();
-	for (my $mpv = 1; $mpv < 500; ++$mpv) {
-		my $info = $engine2->{'info'};
-		last if (!exists($info->{'pv' . $mpv}));
-		eval {
-			my $pv = $info->{'pv' . $mpv};
+	if (defined($engine2)) {
+		for (my $mpv = 1; $mpv < 500; ++$mpv) {
+			my $info = $engine2->{'info'};
+			last if (!exists($info->{'pv' . $mpv}));
+			eval {
+				my $pv = $info->{'pv' . $mpv};
 
-			my $pretty_move = join('', prettyprint_pv($pos_calculating_second_engine->{'board'}, $pv->[0]));
-			my @pretty_pv = prettyprint_pv($pos_calculating_second_engine->{'board'}, @$pv);
-			if (scalar @pretty_pv > 5) {
-				@pretty_pv = @pretty_pv[0..4];
-				push @pretty_pv, "...";
-			}
-			my $key = $pretty_move;
-			my $line = sprintf("  %-6s %6s %3s  %s",
-				$pretty_move,
-				short_score($info, $pos_calculating_second_engine, $mpv, 0),
-				"d" . $info->{'depth' . $mpv},
-				join(', ', @pretty_pv));
-			push @refutation_lines, [ $key, $line ];
-		};
+				my $pretty_move = join('', prettyprint_pv($pos_calculating_second_engine->{'board'}, $pv->[0]));
+				my @pretty_pv = prettyprint_pv($pos_calculating_second_engine->{'board'}, @$pv);
+				if (scalar @pretty_pv > 5) {
+					@pretty_pv = @pretty_pv[0..4];
+					push @pretty_pv, "...";
+				}
+				my $key = $pretty_move;
+				my $line = sprintf("  %-6s %6s %3s  %s",
+					$pretty_move,
+					short_score($info, $pos_calculating_second_engine, $mpv, 0),
+					"d" . $info->{'depth' . $mpv},
+					join(', ', @pretty_pv));
+				push @refutation_lines, [ $key, $line ];
+			};
+		}
 	}
 
 	if ($#refutation_lines >= 0) {
@@ -876,34 +884,36 @@ sub output_json {
 
 	my %refutation_lines = ();
 	my @refutation_lines = ();
-	for (my $mpv = 1; $mpv < 500; ++$mpv) {
-		my $info = $engine2->{'info'};
-		my $pretty_move = "";
-		my @pretty_pv = ();
-		last if (!exists($info->{'pv' . $mpv}));
+	if (defined($engine2)) {
+		for (my $mpv = 1; $mpv < 500; ++$mpv) {
+			my $info = $engine2->{'info'};
+			my $pretty_move = "";
+			my @pretty_pv = ();
+			last if (!exists($info->{'pv' . $mpv}));
 
-		eval {
-			my $pv = $info->{'pv' . $mpv};
-			my $pretty_move = join('', prettyprint_pv($pos_calculating->{'board'}, $pv->[0]));
-			my @pretty_pv = prettyprint_pv($pos_calculating->{'board'}, @$pv);
-			$refutation_lines{$pv->[0]} = {
-				sort_key => $pretty_move,
-				depth => $info->{'depth' . $mpv},
-				score_sort_key => score_sort_key($info, $pos_calculating, $mpv, 0),
-				pretty_score => short_score($info, $pos_calculating, $mpv, 0),
-				pretty_move => $pretty_move,
-				pv_pretty => \@pretty_pv,
+			eval {
+				my $pv = $info->{'pv' . $mpv};
+				my $pretty_move = join('', prettyprint_pv($pos_calculating->{'board'}, $pv->[0]));
+				my @pretty_pv = prettyprint_pv($pos_calculating->{'board'}, @$pv);
+				$refutation_lines{$pv->[0]} = {
+					sort_key => $pretty_move,
+					depth => $info->{'depth' . $mpv},
+					score_sort_key => score_sort_key($info, $pos_calculating, $mpv, 0),
+					pretty_score => short_score($info, $pos_calculating, $mpv, 0),
+					pretty_move => $pretty_move,
+					pv_pretty => \@pretty_pv,
+				};
+				$refutation_lines{$pv->[0]}->{'pv_uci'} = $pv;
 			};
-			$refutation_lines{$pv->[0]}->{'pv_uci'} = $pv;
-		};
+		}
 	}
 	$json->{'refutation_lines'} = \%refutation_lines;
 
-	open my $fh, ">analysis.json.tmp"
+	open my $fh, ">/srv/analysis.sesse.net/www/analysis.json.tmp"
 		or return;
 	print $fh JSON::XS::encode_json($json);
 	close $fh;
-	rename("analysis.json.tmp", "analysis.json");	
+	rename("/srv/analysis.sesse.net/www/analysis.json.tmp", "/srv/analysis.sesse.net/www/analysis.json");
 }
 
 sub find_kings {
@@ -1244,6 +1254,9 @@ sub book_info {
 
 sub open_engine {
 	my ($cmdline, $tag) = @_;
+
+	return undef if (!defined($cmdline));
+
 	my ($uciread, $uciwrite);
 	my $pid = IPC::Open2::open2($uciread, $uciwrite, $cmdline);
 
