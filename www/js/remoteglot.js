@@ -18,17 +18,17 @@ var display_lines = [];
 var current_display_line = null;
 var current_display_move = null;
 
-var request_update = function(board) {
+var request_update = function() {
 	$.ajax({
 		url: "http://analysis.sesse.net/analysis.pl?ims=" + ims + "&unique=" + unique
 		//url: "http://analysis.sesse.net:5000/analysis.pl?ims=" + ims + "&unique=" + unique
 	}).done(function(data, textstatus, xhr) {
 		ims = xhr.getResponseHeader('X-Remoteglot-Last-Modified');
 		var num_viewers = xhr.getResponseHeader('X-Remoteglot-Num-Viewers');
-		update_board(board, data, num_viewers);
+		update_board(data, num_viewers);
 	}).fail(function() {
 		// Wait ten seconds, then try again.
-		setTimeout(function() { request_update(board); }, 10000);
+		setTimeout(function() { request_update(); }, 10000);
 	});
 }
 
@@ -318,7 +318,7 @@ var update_highlight = function()  {
 	}
 }
 
-var update_refutation_lines = function(board) {
+var update_refutation_lines = function() {
 	if (display_lines.length > 1) {
 		display_lines = [ display_lines[0] ];
 	}
@@ -375,7 +375,7 @@ var update_refutation_lines = function(board) {
 	}
 }
 
-var update_board = function(board, data, num_viewers) {
+var update_board = function(data, num_viewers) {
 	display_lines = [];
 
 	// The headline.
@@ -494,15 +494,15 @@ var update_board = function(board, data, num_viewers) {
 	move_num = data['position']['move_num'];
 	toplay = data['position']['toplay'];
 	refutation_lines = data['refutation_lines'];
-	update_refutation_lines(board);
+	update_refutation_lines();
 
 	// Next update.
-	setTimeout(function() { request_update(board); }, 100);
+	setTimeout(function() { request_update(); }, 100);
 }
 
 var resort_refutation_lines = function(sort_by_score) {
 	sort_refutation_lines_by_score = sort_by_score;
-	update_refutation_lines(board);
+	update_refutation_lines();
 }
 window['resort_refutation_lines'] = resort_refutation_lines;
 
@@ -568,7 +568,7 @@ var init = function() {
 	board = new window.ChessBoard('board', 'start');
 	hiddenboard = new window.ChessBoard('hiddenboard', 'start');
 
-	request_update(board);
+	request_update();
 	$(window).resize(function() {
 		board.resize();
 		update_highlight();
