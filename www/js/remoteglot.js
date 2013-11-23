@@ -1,21 +1,72 @@
 (function() {
 
+/** @type {window.ChessBoard} @private */
 var board = null;
+
+/** @type {window.ChessBoard} @private */
 var hiddenboard = null;
+
+/** @type {Array.<{
+ *      from_col: number,
+ *      from_row: number,
+ *      to_col: number,
+ *      to_row: number,
+ *      line_width: number,
+ *      arrow_size: number,
+ *      fg_color: string
+ * }>}
+ * @private
+ */
 var arrows = [];
+
+/** @type {Array.<Array.<boolean>>} */
 var occupied_by_arrows = [];
+
 var refutation_lines = [];
+
+/** @type {!number} @private */
 var move_num = 1;
+
+/** @type {!string} @private */
 var toplay = 'W';
+
+/** @type {number} @private */
 var ims = 0;
-var sort_refutation_lines_by_score = 0;
+
+/** @type {boolean} @private */
+var sort_refutation_lines_by_score = false;
+
+/** @type {!string|undefined} @private */
 var highlight_from = undefined;
+
+/** @type {!string|undefined} @private */
 var highlight_to = undefined;
+
+/** @type {!number} @private */
 var unique = Math.random();
 
+/** The current position on the board, represented as a FEN string.
+ * @type {?string}
+ * @private
+ */
 var fen = null;
+
+/** @typedef {{
+ *    start_fen: string,
+ *    uci_pv: Array.<string>,
+ *    pretty_pv: Array.<string>
+ * }} DisplayLine
+ */
+
+/** @type {Array.<DisplayLine>}
+ * @private
+ */
 var display_lines = [];
+
+/** @type {?DisplayLine} @private */
 var current_display_line = null;
+
+/** @type {?number} @private */
 var current_display_move = null;
 
 var request_update = function() {
@@ -53,6 +104,9 @@ var redraw_arrows = function() {
 	}
 }
 
+/** @param {!number} x
+ * @return {!number}
+ */
 var sign = function(x) {
 	if (x > 0) {
 		return 1;
@@ -63,7 +117,11 @@ var sign = function(x) {
 	}
 }
 
-// See if drawing this arrow on the board would cause unduly amount of confusion.
+/** See if drawing this arrow on the board would cause unduly amount of confusion.
+ * @param {!string} from The square the arrow is from (e.g. e4).
+ * @param {!string} to The square the arrow is to (e.g. e4).
+ * @return {boolean}
+ */
 var interfering_arrow = function(from, to) {
 	var from_col = from.charCodeAt(0) - "a1".charCodeAt(0);
 	var from_row = from.charCodeAt(1) - "a1".charCodeAt(1);
@@ -95,6 +153,16 @@ var interfering_arrow = function(from, to) {
 	return false;
 }
 
+/** Find a point along the coordinate system given by the given line,
+ * <t> units forward from the start of the line, <u> units to the right of it.
+ * @param {!number} x1
+ * @param {!number} x2
+ * @param {!number} y1
+ * @param {!number} y2
+ * @param {!number} t
+ * @param {!number} u
+ * @return {!string} The point in "x y" form, suitable for SVG paths.
+ */
 var point_from_start = function(x1, y1, x2, y2, t, u) {
 	var dx = x2 - x1;
 	var dy = y2 - y1;
@@ -108,6 +176,16 @@ var point_from_start = function(x1, y1, x2, y2, t, u) {
 	return x + " " + y;
 }
 
+/** Find a point along the coordinate system given by the given line,
+ * <t> units forward from the end of the line, <u> units to the right of it.
+ * @param {!number} x1
+ * @param {!number} x2
+ * @param {!number} y1
+ * @param {!number} y2
+ * @param {!number} t
+ * @param {!number} u
+ * @return {!string} The point in "x y" form, suitable for SVG paths.
+ */
 var point_from_end = function(x1, y1, x2, y2, t, u) {
 	var dx = x2 - x1;
 	var dy = y2 - y1;
@@ -145,8 +223,8 @@ var position_arrow = function(arrow) {
 	var SVG_NS = "http://www.w3.org/2000/svg";
 	var XHTML_NS = "http://www.w3.org/1999/xhtml";
 	var svg = document.createElementNS(SVG_NS, "svg");
-	svg.setAttribute("width", $("#board").width());
-	svg.setAttribute("height", $("#board").height());
+	svg.setAttribute("width", /** @type{number} */ ($("#board").width()));
+	svg.setAttribute("height", /** @type{number} */ ($("#board").height()));
 	svg.setAttribute("style", "position: absolute");
 	svg.setAttribute("position", "absolute");
 	svg.setAttribute("version", "1.1");
@@ -194,6 +272,13 @@ var position_arrow = function(arrow) {
 	arrow.svg = svg;
 }
 
+/**
+ * @param {!string} from_square
+ * @param {!string} to_square
+ * @param {!string} fg_color
+ * @param {number} line_width
+ * @param {number} arrow_size
+ */
 var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_size) {
 	var from_col = from_square.charCodeAt(0) - "a1".charCodeAt(0);
 	var from_row = from_square.charCodeAt(1) - "a1".charCodeAt(1);
@@ -229,8 +314,16 @@ var compare_by_score = function(refutation_lines, a, b) {
 	return sa - sb;
 }
 
-// Fake multi-PV using the refutation lines. Find all “relevant” moves,
-// sorted by quality, descending.
+/**
+ * Fake multi-PV using the refutation lines. Find all “relevant” moves,
+ * sorted by quality, descending.
+ *
+ * @param {!Object} data
+ * @param {number} margin The maximum number of centipawns worse than the
+ *     best move can be and still be included.
+ * @return {Array.<string>} The UCI representation (e.g. e1g1) of all
+ *     moves, in score order.
+ */
 var find_nonstupid_moves = function(data, margin) {
 	// First of all, if there are any moves that are more than 0.5 ahead of
 	// the primary move, the refutation lines are probably bunk, so just
@@ -269,10 +362,22 @@ var find_nonstupid_moves = function(data, margin) {
 	return moves;
 }
 
+/**
+ * @param {number} x
+ * @return {!string}
+ */
 var thousands = function(x) {
 	return String(x).split('').reverse().join('').replace(/(\d{3}\B)/g, '$1,').split('').reverse().join('');
 }
 
+/**
+ * @param {!string} fen
+ * @param {Array.<string>} uci_pv
+ * @param {Array.<string>} pretty_pv
+ * @param {number} move_num
+ * @param {!string} toplay
+ * @param {number=} opt_limit
+ */
 var print_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, opt_limit) {
 	display_lines.push({
 		start_fen: fen,
@@ -310,7 +415,7 @@ var print_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, opt_limit) {
 	return pv;
 }
 
-var update_highlight = function()  {
+var update_highlight = function() {
 	$("#board").find('.square-55d63').removeClass('nonuglyhighlight');
 	if (current_display_line === null && highlight_from !== undefined && highlight_to !== undefined) {
 		$("#board").find('.square-' + highlight_from).addClass('nonuglyhighlight');
@@ -319,6 +424,9 @@ var update_highlight = function()  {
 }
 
 var update_refutation_lines = function() {
+	if (fen === null) {
+		return;
+	}
 	if (display_lines.length > 1) {
 		display_lines = [ display_lines[0] ];
 	}
@@ -367,14 +475,18 @@ var update_refutation_lines = function() {
 
 	// Make one of the links clickable and the other nonclickable.
 	if (sort_refutation_lines_by_score) {
-		$("#sortbyscore0").html("<a href=\"javascript:resort_refutation_lines(0)\">Move</a>");
+		$("#sortbyscore0").html("<a href=\"javascript:resort_refutation_lines(false)\">Move</a>");
 		$("#sortbyscore1").html("<strong>Score</strong>");
 	} else {
 		$("#sortbyscore0").html("<strong>Move</strong>");
-		$("#sortbyscore1").html("<a href=\"javascript:resort_refutation_lines(1)\">Score</a>");
+		$("#sortbyscore1").html("<a href=\"javascript:resort_refutation_lines(true)\">Score</a>");
 	}
 }
 
+/**
+ * @param {Object} data
+ * @param {number} num_viewers
+ */
 var update_board = function(data, num_viewers) {
 	display_lines = [];
 
@@ -500,12 +612,19 @@ var update_board = function(data, num_viewers) {
 	setTimeout(function() { request_update(); }, 100);
 }
 
+/**
+ * @param {boolean} sort_by_score
+ */
 var resort_refutation_lines = function(sort_by_score) {
 	sort_refutation_lines_by_score = sort_by_score;
 	update_refutation_lines();
 }
 window['resort_refutation_lines'] = resort_refutation_lines;
 
+/**
+ * @param {number} line_num
+ * @param {number} move_num
+ */
 var show_line = function(line_num, move_num) {
 	if (line_num == -1) {
 		current_display_line = null;

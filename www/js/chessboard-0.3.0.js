@@ -185,7 +185,11 @@ function objToFen(obj) {
   return fen;
 }
 
-window.ChessBoard = window.ChessBoard || function(containerElOrId, cfg) {
+/** @struct */
+var cfg;
+
+/** @constructor */
+window.ChessBoard = function(containerElOrId, cfg) {
 'use strict';
 
 cfg = cfg || {};
@@ -293,6 +297,11 @@ function compareSemVer(version, minimum) {
 // Validation / Errors
 //------------------------------------------------------------------------------
 
+/**
+ * @param {!number} code
+ * @param {!string} msg
+ * @param {Object=} obj
+ */
 function error(code, msg, obj) {
   // do nothing if showErrors is not set
   if (cfg.hasOwnProperty('showErrors') !== true ||
@@ -652,6 +661,11 @@ function buildPieceImgSrc(piece) {
   return '';
 }
 
+/**
+ * @param {!string} piece
+ * @param {boolean=} hidden
+ * @param {!string=} id
+ */
 function buildPiece(piece, hidden, id) {
   var html = '<img src="' + buildPieceImgSrc(piece) + '" ';
   if (id && typeof id === 'string') {
@@ -1392,6 +1406,10 @@ widget.orientation = function(arg) {
   error(5482, 'Invalid value passed to the orientation method.', arg);
 };
 
+/**
+ * @param {!string|!Object} position
+ * @param {boolean=} useAnimation
+ */
 widget.position = function(position, useAnimation) {
   // no arguments, return the current position
   if (arguments.length === 0) {
