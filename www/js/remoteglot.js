@@ -1,3 +1,5 @@
+(function() {
+
 var board = null;
 var hiddenboard = null;
 var arrows = [];
@@ -214,16 +216,16 @@ var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_
 }
 
 var compare_by_sort_key = function(refutation_lines, a, b) {
-	var ska = refutation_lines[a].sort_key;
-	var skb = refutation_lines[b].sort_key;
+	var ska = refutation_lines[a]['sort_key'];
+	var skb = refutation_lines[b]['sort_key'];
 	if (ska < skb) return -1;
 	if (ska > skb) return 1;
 	return 0;
 };
 
 var compare_by_score = function(refutation_lines, a, b) {
-	var sa = parseInt(refutation_lines[b].score_sort_key);
-	var sb = parseInt(refutation_lines[a].score_sort_key);
+	var sa = parseInt(refutation_lines[b]['score_sort_key'], 10);
+	var sb = parseInt(refutation_lines[a]['score_sort_key'], 10);
 	return sa - sb;
 }
 
@@ -235,15 +237,15 @@ var find_nonstupid_moves = function(data, margin) {
 	// kill them all. 
 	var best_score = undefined;
 	var pv_score = undefined;
-	for (var move in data.refutation_lines) {
-		var score = parseInt(data.refutation_lines[move].score_sort_key);
-		if (move == data.pv_uci[0]) {
+	for (var move in data['refutation_lines']) {
+		var score = parseInt(data['refutation_lines'][move]['score_sort_key'], 10);
+		if (move == data['pv_uci'][0]) {
 			pv_score = score;
 		}
 		if (best_score === undefined || score > best_score) {
 			best_score = score;
 		}
-		if (!(data.refutation_lines[move].depth >= 8)) {
+		if (!(data['refutation_lines'][move]['depth'] >= 8)) {
 			return [];
 		}
 	}
@@ -255,14 +257,14 @@ var find_nonstupid_moves = function(data, margin) {
 	// Now find all moves that are within “margin” of the best score.
 	// The PV move will always be first.
 	var moves = [];
-	for (var move in data.refutation_lines) {
-		var score = parseInt(data.refutation_lines[move].score_sort_key);
-		if (move != data.pv_uci[0] && best_score - score <= margin) {
+	for (var move in data['refutation_lines']) {
+		var score = parseInt(data['refutation_lines'][move]['score_sort_key'], 10);
+		if (move != data['pv_uci'][0] && best_score - score <= margin) {
 			moves.push(move);
 		}
 	}
-	moves = moves.sort(function(a, b) { return compare_by_score(data.refutation_lines, a, b) });
-	moves.unshift(data.pv_uci[0]);
+	moves = moves.sort(function(a, b) { return compare_by_score(data['refutation_lines'], a, b) });
+	moves.unshift(data['pv_uci'][0]);
 
 	return moves;
 }
@@ -271,7 +273,7 @@ var thousands = function(x) {
 	return String(x).split('').reverse().join('').replace(/(\d{3}\B)/g, '$1,').split('').reverse().join('');
 }
 
-var print_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, limit) {
+var print_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, opt_limit) {
 	display_lines.push({
 		start_fen: fen,
 		uci_pv: uci_pv,
@@ -291,7 +293,7 @@ var print_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, limit) {
 		var move = "<a class=\"move\" href=\"javascript:show_line(" + (display_lines.length - 1) + ", " + i + ");\">" + pretty_pv[i] + "</a>";
 
 		if (toplay == 'W') {
-			if (i > limit) {
+			if (i > opt_limit) {
 				return pv + ' (…)';
 			}
 			if (pv != '') {
@@ -338,27 +340,27 @@ var update_refutation_lines = function(board) {
 		var move_td = document.createElement("td");
 		tr.appendChild(move_td);
 		$(move_td).addClass("move");
-		if (line.pv_uci.length == 0) {
-			$(move_td).text(line.pretty_move);
+		if (line['pv_uci'].length == 0) {
+			$(move_td).text(line['pretty_move']);
 		} else {
-			var move = "<a class=\"move\" href=\"javascript:show_line(" + display_lines.length + ", " + 0 + ");\">" + line.pretty_move + "</a>";
+			var move = "<a class=\"move\" href=\"javascript:show_line(" + display_lines.length + ", " + 0 + ");\">" + line['pretty_move'] + "</a>";
 			$(move_td).html(move);
 		}
 
 		var score_td = document.createElement("td");
 		tr.appendChild(score_td);
 		$(score_td).addClass("score");
-		$(score_td).text(line.pretty_score);
+		$(score_td).text(line['pretty_score']);
 
 		var depth_td = document.createElement("td");
 		tr.appendChild(depth_td);
 		$(depth_td).addClass("depth");
-		$(depth_td).text("d" + line.depth);
+		$(depth_td).text("d" + line['depth']);
 
 		var pv_td = document.createElement("td");
 		tr.appendChild(pv_td);
 		$(pv_td).addClass("pv");
-		$(pv_td).html(print_pv(fen, line.pv_uci, line.pv_pretty, move_num, toplay, 10));
+		$(pv_td).html(print_pv(fen, line['pv_uci'], line['pv_pretty'], move_num, toplay, 10));
 
 		tbl.append(tr);
 	}
@@ -378,14 +380,14 @@ var update_board = function(board, data, num_viewers) {
 
 	// The headline.
 	var headline = 'Analysis';
-	if (data.position.last_move !== 'none') {
+	if (data['position']['last_move'] !== 'none') {
 		headline += ' after '
-		if (data.position.toplay == 'W') {
-			headline += (data.position.move_num-1) + '… ';
+		if (data['position']['toplay'] == 'W') {
+			headline += (data['position']['move_num']-1) + '… ';
 		} else {
-			headline += data.position.move_num + '. ';
+			headline += data['position']['move_num'] + '. ';
 		}
-		headline += data.position.last_move;
+		headline += data['position']['last_move'];
 	}
 
 	$("#headline").text(headline);
@@ -399,21 +401,21 @@ var update_board = function(board, data, num_viewers) {
 	}
 
 	// The score.
-	if (data.score !== null) {
-		$("#score").text(data.score);
+	if (data['score'] !== null) {
+		$("#score").text(data['score']);
 	}
 
 	// The search stats.
-	if (data.nodes && data.nps && data.depth) {
-		var stats = thousands(data.nodes) + ' nodes, ' + thousands(data.nps) + ' nodes/sec, depth ' + data.depth + ' ply';
-		if (data.seldepth) {
-			stats += ' (' + data.seldepth + ' selective)';
+	if (data['nodes'] && data['nps'] && data['depth']) {
+		var stats = thousands(data['nodes']) + ' nodes, ' + thousands(data['nps']) + ' nodes/sec, depth ' + data['depth'] + ' ply';
+		if (data['seldepth']) {
+			stats += ' (' + data['seldepth'] + ' selective)';
 		}
-		if (data.tbhits && data.tbhits > 0) {
-			if (data.tbhits == 1) {
+		if (data['tbhits'] && data['tbhits'] > 0) {
+			if (data['tbhits'] == 1) {
 				stats += ', one Nalimov hit';
 			} else {
-				stats += ', ' + data.tbhits + ' Nalimov hits';
+				stats += ', ' + data['tbhits'] + ' Nalimov hits';
 			}
 		}
 
@@ -421,28 +423,28 @@ var update_board = function(board, data, num_viewers) {
 	}
 
 	// Update the board itself.
-	fen = data.position.fen;
+	fen = data['position']['fen'];
 	update_displayed_line();
 
-	if (data.position.last_move_uci) {
-		highlight_from = data.position.last_move_uci.substr(0, 2);
-		highlight_to = data.position.last_move_uci.substr(2, 4);
+	if (data['position'].last_move_uci) {
+		highlight_from = data['position']['last_move_uci'].substr(0, 2);
+		highlight_to = data['position']['last_move_uci'].substr(2, 4);
 	} else {
 		highlight_from = highlight_to = undefined;
 	}
 	update_highlight();
 
 	// Print the PV.
-	$("#pv").html(print_pv(data.position.fen, data.pv_uci, data.pv_pretty, data.position.move_num, data.position.toplay));
+	$("#pv").html(print_pv(data['position']['fen'], data['pv_uci'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay']));
 
 	// Update the PV arrow.
 	clear_arrows();
-	if (data.pv_uci.length >= 1) {
+	if (data['pv_uci'].length >= 1) {
 		// draw a continuation arrow as long as it's the same piece
-		for (var i = 0; i < data.pv_uci.length; i += 2) {
-			var from = data.pv_uci[i].substr(0, 2);
-			var to = data.pv_uci[i].substr(2,4);
-			if ((i >= 2 && from != data.pv_uci[i - 2].substr(2, 4)) ||
+		for (var i = 0; i < data['pv_uci'].length; i += 2) {
+			var from = data['pv_uci'][i].substr(0, 2);
+			var to = data['pv_uci'][i].substr(2,4);
+			if ((i >= 2 && from != data['pv_uci'][i - 2].substr(2, 4)) ||
 			     interfering_arrow(from, to)) {
 				break;
 			}
@@ -457,23 +459,23 @@ var update_board = function(board, data, num_viewers) {
 	}
 
 	// See if all semi-reasonable moves have only one possible response.
-	if (data.pv_uci.length >= 2) {
+	if (data['pv_uci'].length >= 2) {
 		var nonstupid_moves = find_nonstupid_moves(data, 300);
-		var response = data.pv_uci[1];
+		var response = data['pv_uci'][1];
 		for (var i = 0; i < nonstupid_moves.length; ++i) {
-			if (nonstupid_moves[i] == data.pv_uci[0]) {
+			if (nonstupid_moves[i] == data['pv_uci'][0]) {
 				// ignore the PV move for refutation lines.
 				continue;
 			}
-			if (!data.refutation_lines ||
-			    !data.refutation_lines[nonstupid_moves[i]] ||
-			    !data.refutation_lines[nonstupid_moves[i]].pv_uci ||
-			    data.refutation_lines[nonstupid_moves[i]].pv_uci.length < 1) {
+			if (!data['refutation_lines'] ||
+			    !data['refutation_lines'][nonstupid_moves[i]] ||
+			    !data['refutation_lines'][nonstupid_moves[i]]['pv_uci'] ||
+			    data['refutation_lines'][nonstupid_moves[i]]['pv_uci'].length < 1) {
 				// Incomplete PV, abort.
 				response = undefined;
 				break;
 			}
-			var this_response = data.refutation_lines[nonstupid_moves[i]].pv_uci[1];
+			var this_response = data['refutation_lines'][nonstupid_moves[i]]['pv_uci'][1];
 			if (response !== this_response) {
 				// Different response depending on lines, abort.
 				response = undefined;
@@ -488,10 +490,10 @@ var update_board = function(board, data, num_viewers) {
 	}
 
 	// Update the refutation lines.
-	fen = data.position.fen;
-	move_num = data.position.move_num;
-	toplay = data.position.toplay;
-	refutation_lines = data.refutation_lines;
+	fen = data['position']['fen'];
+	move_num = data['position']['move_num'];
+	toplay = data['position']['toplay'];
+	refutation_lines = data['refutation_lines'];
 	update_refutation_lines(board);
 
 	// Next update.
@@ -502,6 +504,7 @@ var resort_refutation_lines = function(sort_by_score) {
 	sort_refutation_lines_by_score = sort_by_score;
 	update_refutation_lines(board);
 }
+window['resort_refutation_lines'] = resort_refutation_lines;
 
 var show_line = function(line_num, move_num) {
 	if (line_num == -1) {
@@ -515,16 +518,19 @@ var show_line = function(line_num, move_num) {
 	update_highlight();
 	redraw_arrows();
 }
+window['show_line'] = show_line;
 
 var prev_move = function() {
 	--current_display_move;
 	update_displayed_line();
 }
+window['prev_move'] = prev_move;
 
 var next_move = function() {
 	++current_display_move;
 	update_displayed_line();
 }
+window['next_move'] = prev_move;
 
 var update_displayed_line = function() {
 	if (current_display_line === null) {
@@ -559,8 +565,8 @@ var update_displayed_line = function() {
 
 var init = function() {
 	// Create board.
-	board = new ChessBoard('board', 'start');
-	hiddenboard = new ChessBoard('hiddenboard', 'start');
+	board = new window.ChessBoard('board', 'start');
+	hiddenboard = new window.ChessBoard('hiddenboard', 'start');
 
 	request_update(board);
 	$(window).resize(function() {
@@ -570,3 +576,5 @@ var init = function() {
 	});
 };
 $(document).ready(init);
+
+})();

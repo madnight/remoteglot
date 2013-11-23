@@ -185,7 +185,7 @@ function objToFen(obj) {
   return fen;
 }
 
-window['ChessBoard'] = window['ChessBoard'] || function(containerElOrId, cfg) {
+window.ChessBoard = window.ChessBoard || function(containerElOrId, cfg) {
 'use strict';
 
 cfg = cfg || {};
@@ -202,7 +202,6 @@ var MINIMUM_JQUERY_VERSION = '1.7.0',
 // and simplify selectors
 var CSS = {
   alpha: 'alpha-d2270',
-  black: 'black-3c85d',
   board: 'board-b72b1',
   chessboard: 'chessboard-63f37',
   clearfix: 'clearfix-7da63',
@@ -215,9 +214,11 @@ var CSS = {
   sparePieces: 'spare-pieces-7492f',
   sparePiecesBottom: 'spare-pieces-bottom-ae20f',
   sparePiecesTop: 'spare-pieces-top-4028b',
-  square: 'square-55d63',
-  white: 'white-1e1d7'
+  square: 'square-55d63'
 };
+var CSSColor = {};
+CSSColor['white'] = 'white-1e1d7';
+CSSColor['black'] = 'black-3c85d';
 
 //------------------------------------------------------------------------------
 // Module Scope Variables
@@ -562,7 +563,7 @@ function buildBoardContainer() {
 
 /*
 var buildSquare = function(color, size, id) {
-  var html = '<div class="' + CSS.square + ' ' + CSS[color] + '" ' +
+  var html = '<div class="' + CSS.square + ' ' + CSSColor[color] + '" ' +
   'style="width: ' + size + 'px; height: ' + size + 'px" ' +
   'id="' + id + '">';
 
@@ -597,7 +598,7 @@ function buildBoard(orientation) {
     for (var j = 0; j < 8; j++) {
       var square = alpha[j] + row;
 
-      html += '<div class="' + CSS.square + ' ' + CSS[squareColor] + ' ' +
+      html += '<div class="' + CSS.square + ' ' + CSSColor[squareColor] + ' ' +
         'square-' + square + '" ' +
         'style="width: ' + SQUARE_SIZE + 'px; height: ' + SQUARE_SIZE + 'px" ' +
         'id="' + SQUARE_ELS_IDS[square] + '" ' +
