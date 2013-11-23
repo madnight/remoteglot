@@ -426,7 +426,7 @@ var update_board = function(board, data, num_viewers) {
 	fen = data['position']['fen'];
 	update_displayed_line();
 
-	if (data['position'].last_move_uci) {
+	if (data['position']['last_move_uci']) {
 		highlight_from = data['position']['last_move_uci'].substr(0, 2);
 		highlight_to = data['position']['last_move_uci'].substr(2, 4);
 	} else {
