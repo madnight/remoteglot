@@ -264,7 +264,7 @@ var position_arrow = function(arrow) {
 	head.setAttribute("xmlns", XHTML_NS);
 	head.setAttribute("stroke", "#000");
 	head.setAttribute("stroke-width", "1");
-	head.setAttribute("fill", "#f66");
+	head.setAttribute("fill", arrow.fg_color);
 	svg.appendChild(head);
 
 	$(svg).css({ top: pos.top, left: pos.left });
