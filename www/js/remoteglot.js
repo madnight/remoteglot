@@ -649,7 +649,7 @@ var next_move = function() {
 	++current_display_move;
 	update_displayed_line();
 }
-window['next_move'] = prev_move;
+window['next_move'] = next_move;
 
 var update_displayed_line = function() {
 	if (current_display_line === null) {
