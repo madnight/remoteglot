@@ -491,7 +491,13 @@ var update_board = function(data, num_viewers) {
 	display_lines = [];
 
 	// The headline.
-	var headline = 'Analysis';
+	var headline;
+	if (data['position']['player_w'] && data['position']['player_b']) {
+		headline = data['position']['player_w'] + '–' +
+			data['position']['player_b'] + ', analysis';
+	} else {
+		headline = 'Analysis';
+	}
 	if (data['position']['last_move'] !== 'none') {
 		headline += ' after '
 		if (data['position']['toplay'] == 'W') {

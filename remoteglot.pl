@@ -349,6 +349,10 @@ sub style12_to_pos {
 	$pos{'black_castle_k'} = $x[13];
 	$pos{'black_castle_q'} = $x[14];
 	$pos{'time_to_100move_rule'} = $x[15];
+	$pos{'player_w'} = $x[17];
+	$pos{'player_b'} = $x[18];
+	$pos{'player_w'} =~ s/^[IG]M//;
+	$pos{'player_b'} =~ s/^[IG]M//;
 	$pos{'move_num'} = $x[26];
 	if ($x[27] =~ /([a-h][1-8])-([a-h][1-8])/) {
 		$pos{'last_move_uci'} = $1 . $2;
