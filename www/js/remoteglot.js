@@ -684,6 +684,18 @@ var update_displayed_line = function() {
 		var move = current_display_line.uci_pv[i];
 		move = move.substr(0, 2) + "-" + move.substr(2, 4);
 		hiddenboard.move(move, false);
+
+		// chessboard.js does not automatically move the rook on castling
+		// (issue #51; marked as won't fix), so update it ourselves.
+		if (move == "e1-g1" && hiddenboard.position().g1 == "wK") {  // white O-O
+			hiddenboard.move("h1-f1", false);
+		} else if (move == "e1-c1" && hiddenboard.position().c1 == "wK") {  // white O-O-O
+			hiddenboard.move("a1-d1", false);
+		} else if (move == "e8-g8" && hiddenboard.position().g8 == "bK") {  // black O-O
+			hiddenboard.move("h8-f8", false);
+		} else if (move == "e8-c8" && hiddenboard.position().c8 == "bK") {  // black O-O-O
+			hiddenboard.move("a8-d8", false);
+		}
 	}
 	board.position(hiddenboard.position());
 }
