@@ -525,9 +525,9 @@ var update_board = function(data, num_viewers) {
 		}
 		if (data['tbhits'] && data['tbhits'] > 0) {
 			if (data['tbhits'] == 1) {
-				stats += ', one Nalimov hit';
+				stats += ', one Syzygy hit';
 			} else {
-				stats += ', ' + data['tbhits'] + ' Nalimov hits';
+				stats += ', ' + thousands(data['tbhits']) + ' Syzygy hits';
 			}
 		}
 

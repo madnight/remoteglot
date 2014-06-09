@@ -756,9 +756,9 @@ sub output_screen {
 		}
 		if (exists($info->{'tbhits'}) && $info->{'tbhits'} > 0) {
 			if ($info->{'tbhits'} == 1) {
-				$text .= ", one Nalimov hit";
+				$text .= ", one Syzygy hit";
 			} else {
-				$text .= sprintf ", %u Nalimov hits", $info->{'tbhits'};
+				$text .= sprintf ", %u Syzygy hits", $info->{'tbhits'};
 			}
 		}
 		$text .= "\n\n";
