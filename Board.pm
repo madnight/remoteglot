@@ -109,7 +109,7 @@ sub make_move {
 				}
 			}
 		} else {
-			if ($promo ne '') {
+			if (defined($promo) && $promo ne '') {
 				if ($piece eq 'p') {
 					$piece = $promo;
 				} else {
@@ -131,10 +131,76 @@ sub _pos_to_square {
 	return sprintf("%c%d", ord('a') + $col, 8 - $row);
 }
 
+sub _col_letter_to_num {
+        return ord(shift) - ord('a');
+}
+
+sub _row_letter_to_num {
+        return 7 - (ord(shift) - ord('1'));
+}
+
+sub _square_to_pos {
+	my ($square) = @_;
+	$square =~ /^([a-h])([1-8])$/ or die "Invalid square $square";	
+	return (_row_letter_to_num($2), _col_letter_to_num($1));
+}
+
 sub _move_to_uci_notation {
 	my ($from_row, $from_col, $to_row, $to_col, $promo) = @_;
 	$promo //= "";
 	return _pos_to_square($from_row, $from_col) . _pos_to_square($to_row, $to_col) . $promo;
+}
+
+sub parse_pretty_move {
+	my ($board, $move, $toplay) = @_;
+
+	# Strip check or mate
+	$move =~ s/[+#]$//;
+
+	if ($move eq '0-0' or $move eq 'O-O') {
+		if ($toplay eq 'W') {
+			return (_square_to_pos('e1'), _square_to_pos('g1'));
+		} else {
+			return (_square_to_pos('e8'), _square_to_pos('g8'));
+		}
+	} elsif ($move eq '0-0-0' or $move eq 'O-O-O') {
+		if ($toplay eq 'W') {
+			return (_square_to_pos('e1'), _square_to_pos('c1'));
+		} else {
+			return (_square_to_pos('e8'), _square_to_pos('c8'));
+		}
+	}
+
+	# Parse promo
+	my $promo;
+	if ($move =~ s/=([QRNB])$//) {
+		$promo = $1;
+	}
+
+	$move =~ /^([KQRBN])?([a-h])?([1-8])?x?([a-h][1-8])$/ or die "Invalid move $move";
+	my $piece = $1 // 'P';
+	my $from_col = defined($2) ? _col_letter_to_num($2) : undef;
+	my $from_row = defined($3) ? _row_letter_to_num($3) : undef;
+	my ($to_row, $to_col) = _square_to_pos($4);
+	
+	# Find all possible from-squares that could have been meant.
+	my @squares = ();
+	if ($toplay eq 'B') {
+		$piece = lc($piece);
+	}
+	for my $row (0..7) {
+		next if (defined($from_row) && $from_row != $row);
+		for my $col (0..7) {
+			next if (defined($from_col) && $from_col != $col);
+			next if ($board->[$row][$col] ne $piece);
+			next if (!$board->can_reach($piece, $row, $col, $to_row, $to_col));
+			push @squares, [ $row, $col ];
+		}
+	}
+	if (scalar @squares != 1) {
+		die "Ambigious or impossible move $move";
+	}
+	return (@{$squares[0]}, $to_row, $to_col, $promo);
 }
 
 sub fen {
