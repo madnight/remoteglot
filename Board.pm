@@ -103,9 +103,9 @@ sub make_move {
 			# en passant?
 			if ($board->[$to_row][$to_col] eq '-') {
 				if ($piece eq 'p') {
-					$nb->[$to_row + 1][$to_col] = '-';
-				} else {
 					$nb->[$to_row - 1][$to_col] = '-';
+				} else {
+					$nb->[$to_row + 1][$to_col] = '-';
 				}
 			}
 		} else {
@@ -298,7 +298,6 @@ sub can_reach {
 		        can_reach($board, 'B', $from_row, $from_col, $to_row, $to_col));
 	}
 
-	# TODO: en passant
 	if ($piece eq 'p') {
 		# black pawn
 		if ($to_col == $from_col && $to_row == $from_row + 1) {
@@ -309,7 +308,12 @@ sub can_reach {
 			return ($dest_piece eq '-' && $middle_piece eq '-');
 		}
 		if (abs($to_col - $from_col) == 1 && $to_row == $from_row + 1) {
-			return ($dest_piece ne '-');
+			if ($dest_piece eq '-') {
+				# En passant. TODO: check that the last move was indeed an EP move
+				return ($to_row == 5 && $board->[4][$to_col] eq 'P');
+			} else {
+				return 1;
+			}
 		}
 		return 0;
 	}
@@ -323,7 +327,12 @@ sub can_reach {
 			return ($dest_piece eq '-' && $middle_piece eq '-');
 		}
 		if (abs($to_col - $from_col) == 1 && $to_row == $from_row - 1) {
-			return ($dest_piece ne '-');
+			if ($dest_piece eq '-') {
+				# En passant. TODO: check that the last move was indeed an EP move
+				return ($to_row == 2 && $board->[3][$to_col] eq 'p');
+			} else {
+				return 1;
+			}
 		}
 		return 0;
 	}
