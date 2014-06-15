@@ -23,8 +23,6 @@ my $server = "freechess.org";
 my $target = "GMCarlsen";
 my $engine_cmdline = "'./Deep Rybka 4 SSE42 x64'";
 my $engine2_cmdline = "./stockfish_13111119_x64_modern_sse42";  # undef for none
-my $telltarget = undef;   # undef to be silent
-my @tell_intervals = (5, 20, 60, 120, 240, 480, 960);  # after each move
 my $uci_assume_full_compliance = 0;                    # dangerous :-)
 my $update_max_interval = 1.0;
 my @masters = (
@@ -57,9 +55,8 @@ select(STDOUT);
 # open the chess engine
 my $engine = open_engine($engine_cmdline, 'E1');
 my $engine2 = open_engine($engine2_cmdline, 'E2');
-my ($last_move, $last_tell);
+my $last_move;
 my $last_text = '';
-my $last_told_text = '';
 my ($pos_waiting, $pos_calculating, $pos_calculating_second_engine);
 
 uciprint($engine, "setoption name UCI_AnalyseMode value true");
@@ -621,64 +618,6 @@ sub output_screen {
 		print "[H[2J"; # clear the screen
 		print $text;
 		$last_text = $text;
-	}
-
-	# Now construct the tell text, if any
-	return if (!defined($telltarget));
-
-	my $tell_text = '';
-
-	if (exists($id->{'name'})) {
-		$tell_text .= "Analysis by $id->{'name'} -- see http://analysis.sesse.net/ for more information\n";
-	} else {
-		$tell_text .= "Computer analysis -- http://analysis.sesse.net/ for more information\n";
-	}
-
-	if (exists($info->{'pv1'}) && exists($info->{'pv2'})) {
-		# multi-PV
-		my $mpv = 1;
-		while (exists($info->{'pv' . $mpv})) {
-			$tell_text .= sprintf "  PV%2u", $mpv;
-			my $score = short_score($info, $pos_calculating, $mpv);
-			$tell_text .= "  ($score)" if (defined($score));
-
-			if (exists($info->{'depth' . $mpv})) {
-				$tell_text .= sprintf " (%2u ply)", $info->{'depth' . $mpv};
-			}
-
-			$tell_text .= ": ";
-			$tell_text .= join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv' . $mpv}}));
-			$tell_text .= "\n";
-			++$mpv;
-		}
-	} else {
-		# single-PV
-		my $score = long_score($info, $pos_calculating, '');
-		$tell_text .= "  $score\n" if defined($score);
-		$tell_text .= "  PV: " . join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv'}}));
-		if (exists($info->{'depth'})) {
-			$tell_text .= sprintf " (depth %u ply)", $info->{'depth'};
-		}
-		$tell_text .=  "\n";
-	}
-
-	# see if a new tell is called for -- it is if the delay has expired _and_
-	# this is not simply a repetition of the last one
-	if ($last_told_text ne $tell_text) {
-		my $now = time;
-		for my $iv (@tell_intervals) {
-			last if ($now - $last_move < $iv);
-			next if ($last_tell - $last_move >= $iv);
-
-			for my $line (split /\n/, $tell_text) {
-				$t->print("tell $telltarget [$target] $line");
-			}
-
-			$last_told_text = $text;
-			$last_tell = $now;
-
-			last;
-		}
 	}
 }
 
