@@ -22,17 +22,12 @@ sub new {
 	$pos->{'white_castle_q'} = $x[12];
 	$pos->{'black_castle_k'} = $x[13];
 	$pos->{'black_castle_q'} = $x[14];
-	$pos->{'time_to_100move_rule'} = $x[15];
+	$pos->{'time_since_100move_rule_reset'} = $x[15];
 	$pos->{'player_w'} = $x[17];
 	$pos->{'player_b'} = $x[18];
-	$pos->{'player_w'} =~ s/^[IG]M//;
-	$pos->{'player_b'} =~ s/^[IG]M//;
+	$pos->{'player_w'} =~ s/^W?[FCIG]M//;
+	$pos->{'player_b'} =~ s/^W?[FCIG]M//;
 	$pos->{'move_num'} = $x[26];
-	if ($x[27] =~ /([a-h][1-8])-([a-h][1-8])/) {
-		$pos->{'last_move_uci'} = $1 . $2;
-	} else {
-		$pos->{'last_move_uci'} = undef;
-	}
 	$pos->{'last_move'} = $x[29];
 
 	bless $pos, $class;
@@ -92,7 +87,7 @@ sub fen {
 
 	# half-move clock
 	$fen .= " ";
-	$fen .= $pos->{'time_to_100move_rule'};
+	$fen .= $pos->{'time_since_100move_rule_reset'};
 
 	# full-move clock
 	$fen .= " ";
