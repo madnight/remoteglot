@@ -15,7 +15,6 @@ sub new {
 	my $pos = {};
 	my (@x) = split / /, $str;
 
-	# TODO: Not all of this stuff really belongs in this module.
 	$pos->{'board'} = Board->new(@x[1..8]);
 	$pos->{'toplay'} = $x[9];
 	$pos->{'ep_file_num'} = $x[10];
@@ -81,11 +80,11 @@ sub fen {
 		# "right" thing as per the standard, though.
 		#
 		if ($pos->{'toplay'} eq 'B') {
-			$ep = $nep if ($col > 0 && substr($pos->{'board'}[4], $col-1, 1) eq 'p');
-			$ep = $nep if ($col < 7 && substr($pos->{'board'}[4], $col+1, 1) eq 'p');
+			$ep = $nep if ($col > 0 && $pos->{'board'}[4][$col-1] eq 'p');
+			$ep = $nep if ($col < 7 && $pos->{'board'}[4][$col+1] eq 'p');
 		} else {
-			$ep = $nep if ($col > 0 && substr($pos->{'board'}[3], $col-1, 1) eq 'P');
-			$ep = $nep if ($col < 7 && substr($pos->{'board'}[3], $col+1, 1) eq 'P');
+			$ep = $nep if ($col > 0 && $pos->{'board'}[3][$col-1] eq 'P');
+			$ep = $nep if ($col < 7 && $pos->{'board'}[3][$col+1] eq 'P');
 		}
 	}
 	$fen .= " ";
