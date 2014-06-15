@@ -194,6 +194,14 @@ sub parse_pretty_move {
 			next if (defined($from_col) && $from_col != $col);
 			next if ($board->[$row][$col] ne $piece);
 			next if (!$board->can_reach($piece, $row, $col, $to_row, $to_col));
+
+			# See if doing this move would put us in check
+			# (yes, there are clients that expect us to do this).
+			my $check = $board->make_move($row, $col, $to_row, $to_col, $promo)->in_check();
+			next if ($check eq 'both' ||
+			         ($toplay eq 'W' && $check eq 'white') ||
+			         ($toplay eq 'B' && $check eq 'black'));
+
 			push @squares, [ $row, $col ];
 		}
 	}
