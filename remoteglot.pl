@@ -14,6 +14,7 @@ use FileHandle;
 use IPC::Open2;
 use Time::HiRes;
 use JSON::XS;
+require 'Position.pm';
 use strict;
 use warnings;
 
@@ -115,15 +116,15 @@ while (1) {
 		chomp $line;
 		$line =~ tr/\r//d;
 		if ($line =~ /^<12> /) {
-			my $pos = style12_to_pos($line);
+			my $pos = Position->new($line);
 			
 			# if this is already in the queue, ignore it
-			next if (defined($pos_waiting) && $pos->{'fen'} eq $pos_waiting->{'fen'});
+			next if (defined($pos_waiting) && $pos->fen() eq $pos_waiting->fen());
 
 			# if we're already chewing on this and there's nothing else in the queue,
 			# also ignore it
 			next if (!defined($pos_waiting) && defined($pos_calculating) &&
-			         $pos->{'fen'} eq $pos_calculating->{'fen'});
+			         $pos->fen() eq $pos_calculating->fen());
 
 			# if we're already thinking on something, stop and wait for the engine
 			# to approve
@@ -134,7 +135,7 @@ while (1) {
 				if ($uci_assume_full_compliance) {
 					$pos_waiting = $pos;
 				} else {
-					uciprint($engine, "position fen " . $pos->{'fen'});
+					uciprint($engine, "position fen " . $pos->fen());
 					uciprint($engine, "go infinite");
 					$pos_calculating = $pos;
 				}
@@ -142,7 +143,7 @@ while (1) {
 				# it's wrong just to give the FEN (the move history is useful,
 				# and per the UCI spec, we should really have sent "ucinewgame"),
 				# but it's easier
-				uciprint($engine, "position fen " . $pos->{'fen'});
+				uciprint($engine, "position fen " . $pos->fen());
 				uciprint($engine, "go infinite");
 				$pos_calculating = $pos;
 			}
@@ -151,7 +152,7 @@ while (1) {
 				if (defined($pos_calculating_second_engine)) {
 					uciprint($engine2, "stop");
 				} else {
-					uciprint($engine2, "position fen " . $pos->{'fen'});
+					uciprint($engine2, "position fen " . $pos->fen());
 					uciprint($engine2, "go infinite");
 					$pos_calculating_second_engine = $pos;
 				}
@@ -237,7 +238,7 @@ sub handle_uci {
 		if ($primary) {
 			return if (!$uci_assume_full_compliance);
 			if (defined($pos_waiting)) {
-				uciprint($engine, "position fen " . $pos_waiting->{'fen'});
+				uciprint($engine, "position fen " . $pos_waiting->fen());
 				uciprint($engine, "go infinite");
 
 				$pos_calculating = $pos_waiting;
@@ -246,7 +247,7 @@ sub handle_uci {
 		} else {
 			$engine2->{'info'} = {};
 			my $pos = $pos_waiting // $pos_calculating;
-			uciprint($engine2, "position fen " . $pos->{'fen'});
+			uciprint($engine2, "position fen " . $pos->fen());
 			uciprint($engine2, "go infinite");
 			$pos_calculating_second_engine = $pos;
 		}
@@ -336,193 +337,6 @@ sub parse_ids {
 	}
 }
 
-sub style12_to_pos {
-	my $str = shift;
-	my %pos = ();
-	my (@x) = split / /, $str;
-	
-	$pos{'board'} = [ @x[1..8] ];
-	$pos{'toplay'} = $x[9];
-	$pos{'ep_file_num'} = $x[10];
-	$pos{'white_castle_k'} = $x[11];
-	$pos{'white_castle_q'} = $x[12];
-	$pos{'black_castle_k'} = $x[13];
-	$pos{'black_castle_q'} = $x[14];
-	$pos{'time_to_100move_rule'} = $x[15];
-	$pos{'player_w'} = $x[17];
-	$pos{'player_b'} = $x[18];
-	$pos{'player_w'} =~ s/^[IG]M//;
-	$pos{'player_b'} =~ s/^[IG]M//;
-	$pos{'move_num'} = $x[26];
-	if ($x[27] =~ /([a-h][1-8])-([a-h][1-8])/) {
-		$pos{'last_move_uci'} = $1 . $2;
-	} else {
-		$pos{'last_move_uci'} = undef;
-	}
-	$pos{'last_move'} = $x[29];
-	$pos{'fen'} = make_fen(\%pos);
-
-	return \%pos;
-}
-
-sub make_fen {
-	my $pos = shift;
-
-	# the board itself
-	my (@board) = @{$pos->{'board'}};
-	for my $rank (0..7) {
-		$board[$rank] =~ s/(-+)/length($1)/ge;
-	}
-	my $fen = join('/', @board);
-
-	# white/black to move
-	$fen .= " ";
-	$fen .= lc($pos->{'toplay'});
-
-	# castling
-	my $castling = "";
-	$castling .= "K" if ($pos->{'white_castle_k'} == 1);
-	$castling .= "Q" if ($pos->{'white_castle_q'} == 1);
-	$castling .= "k" if ($pos->{'black_castle_k'} == 1);
-	$castling .= "q" if ($pos->{'black_castle_q'} == 1);
-	$castling = "-" if ($castling eq "");
-	# $castling = "-"; # chess960
-	$fen .= " ";
-	$fen .= $castling;
-
-	# en passant
-	my $ep = "-";
-	if ($pos->{'ep_file_num'} != -1) {
-		my $col = $pos->{'ep_file_num'};
-		my $nep = (qw(a b c d e f g h))[$col];
-
-		if ($pos->{'toplay'} eq 'B') {
-			$nep .= "3";
-		} else {
-			$nep .= "6";
-		}
-
-		#
-		# Showing the en passant square when actually no capture can be made
-		# seems to confuse at least Rybka. Thus, check if there's actually
-		# a pawn of the opposite side that can do the en passant move, and if
-		# not, just lie -- it doesn't matter anyway. I'm unsure what's the
-		# "right" thing as per the standard, though.
-		#
-		if ($pos->{'toplay'} eq 'B') {
-			$ep = $nep if ($col > 0 && substr($pos->{'board'}[4], $col-1, 1) eq 'p');
-			$ep = $nep if ($col < 7 && substr($pos->{'board'}[4], $col+1, 1) eq 'p');
-		} else {
-			$ep = $nep if ($col > 0 && substr($pos->{'board'}[3], $col-1, 1) eq 'P');
-			$ep = $nep if ($col < 7 && substr($pos->{'board'}[3], $col+1, 1) eq 'P');
-		}
-	}
-	$fen .= " ";
-	$fen .= $ep;
-
-	# half-move clock
-	$fen .= " ";
-	$fen .= $pos->{'time_to_100move_rule'};
-
-	# full-move clock
-	$fen .= " ";
-	$fen .= $pos->{'move_num'};
-
-	return $fen;
-}
-
-sub make_move {
-	my ($board, $from_row, $from_col, $to_row, $to_col, $promo) = @_;
-	my $move = move_to_uci_notation($from_row, $from_col, $to_row, $to_col, $promo);
-	my $piece = substr($board->[$from_row], $from_col, 1);
-	my @nb = @$board;
-
-	if ($piece eq '-') {
-		die "Invalid move $move";
-	}
-
-	# white short castling
-	if ($move eq 'e1g1' && $piece eq 'K') {
-		# king
-		substr($nb[7], 4, 1, '-');
-		substr($nb[7], 6, 1, $piece);
-		
-		# rook
-		substr($nb[7], 7, 1, '-');
-		substr($nb[7], 5, 1, 'R');
-				
-		return \@nb;
-	}
-
-	# white long castling
-	if ($move eq 'e1c1' && $piece eq 'K') {
-		# king
-		substr($nb[7], 4, 1, '-');
-		substr($nb[7], 2, 1, $piece);
-		
-		# rook
-		substr($nb[7], 0, 1, '-');
-		substr($nb[7], 3, 1, 'R');
-				
-		return \@nb;
-	}
-
-	# black short castling
-	if ($move eq 'e8g8' && $piece eq 'k') {
-		# king
-		substr($nb[0], 4, 1, '-');
-		substr($nb[0], 6, 1, $piece);
-		
-		# rook
-		substr($nb[0], 7, 1, '-');
-		substr($nb[0], 5, 1, 'r');
-				
-		return \@nb;
-	}
-
-	# black long castling
-	if ($move eq 'e8c8' && $piece eq 'k') {
-		# king
-		substr($nb[0], 4, 1, '-');
-		substr($nb[0], 2, 1, $piece);
-		
-		# rook
-		substr($nb[0], 0, 1, '-');
-		substr($nb[0], 3, 1, 'r');
-				
-		return \@nb;
-	}
-
-	# check if the from-piece is a pawn
-	if (lc($piece) eq 'p') {
-		# attack?
-		if ($from_col != $to_col) {
-			# en passant?
-			if (substr($board->[$to_row], $to_col, 1) eq '-') {
-				if ($piece eq 'p') {
-					substr($nb[$to_row + 1], $to_col, 1, '-');
-				} else {
-					substr($nb[$to_row - 1], $to_col, 1, '-');
-				}
-			}
-		} else {
-			if ($promo ne '') {
-				if ($piece eq 'p') {
-					$piece = $promo;
-				} else {
-					$piece = uc($promo);
-				}
-			}
-		}
-	}
-
-	# update the board
-	substr($nb[$from_row], $from_col, 1, '-');
-	substr($nb[$to_row], $to_col, 1, $piece);
-
-	return \@nb;
-}
-
 sub prettyprint_pv {
 	my ($board, @pvs) = @_;
 
@@ -537,8 +351,8 @@ sub prettyprint_pv {
 	my $to_row   = row_letter_to_num(substr($pv, 3, 1));
 	my $promo    = substr($pv, 4, 1);
 
-	my $nb = make_move($board, $from_row, $from_col, $to_row, $to_col, $promo);
-	my $piece = substr($board->[$from_row], $from_col, 1);
+	my $nb = $board->make_move($from_row, $from_col, $to_row, $to_col, $promo);
+	my $piece = $board->[$from_row][$from_col];
 
 	if ($piece eq '-') {
 		die "Invalid move $pv";
@@ -593,23 +407,23 @@ sub prettyprint_pv {
 		my $num_total = 0;
 		for my $col (0..7) {
 			for my $row (0..7) {
-				next unless (substr($board->[$row], $col, 1) eq $piece);
-				++$num_total if (can_reach($board, $piece, $row, $col, $to_row, $to_col));
+				next unless ($board->[$row][$col] eq $piece);
+				++$num_total if ($board->can_reach($piece, $row, $col, $to_row, $to_col));
 			}
 		}
 
 		# see how many of these pieces from the given row could go here
 		my $num_row = 0;
 		for my $col (0..7) {
-			next unless (substr($board->[$from_row], $col, 1) eq $piece);
-			++$num_row if (can_reach($board, $piece, $from_row, $col, $to_row, $to_col));
+			next unless ($board->[$from_row][$col] eq $piece);
+			++$num_row if ($board->can_reach($piece, $from_row, $col, $to_row, $to_col));
 		}
 		
 		# and same for columns
 		my $num_col = 0;
 		for my $row (0..7) {
-			next unless (substr($board->[$row], $from_col, 1) eq $piece);
-			++$num_col if (can_reach($board, $piece, $row, $from_col, $to_row, $to_col));
+			next unless ($board->[$row][$from_col] eq $piece);
+			++$num_col if ($board->can_reach($piece, $row, $from_col, $to_row, $to_col));
 		}
 		
 		# see if we need to disambiguate
@@ -624,16 +438,16 @@ sub prettyprint_pv {
 		}
 
 		# attack?
-		if (substr($board->[$to_row], $to_col, 1) ne '-') {
+		if ($board->[$to_row][$to_col] ne '-') {
 			$pretty .= 'x';
 		}
 
 		$pretty .= substr($pv, 2, 2);
 	}
 
-	if (in_mate($nb)) {
+	if ($nb->in_mate()) {
 		$pretty .= '#';
-	} elsif (in_check($nb) ne 'none') {
+	} elsif ($nb->in_check() ne 'none') {
 		$pretty .= '+';
 	}
 	return ($pretty, prettyprint_pv($nb, @pvs));
@@ -768,7 +582,7 @@ sub output_screen {
 		$text .= "\n\n";
 	}
 
-	#$text .= book_info($pos_calculating->{'fen'}, $pos_calculating->{'board'}, $pos_calculating->{'toplay'});
+	#$text .= book_info($pos_calculating->fen(), $pos_calculating->{'board'}, $pos_calculating->{'toplay'});
 
 	my @refutation_lines = ();
 	if (defined($engine2)) {
@@ -872,7 +686,7 @@ sub output_json {
 	my $info = $engine->{'info'};
 
 	my $json = {};
-	$json->{'position'} = $pos_calculating;
+	$json->{'position'} = $pos_calculating->to_json_hash();
 	$json->{'id'} = $engine->{'id'};
 	$json->{'score'} = long_score($info, $pos_calculating, '');
 
@@ -918,203 +732,6 @@ sub output_json {
 	print $fh JSON::XS::encode_json($json);
 	close $fh;
 	rename("/srv/analysis.sesse.net/www/analysis.json.tmp", "/srv/analysis.sesse.net/www/analysis.json");
-}
-
-sub find_kings {
-	my $board = shift;
-	my ($wkr, $wkc, $bkr, $bkc);
-
-	for my $row (0..7) {
-		for my $col (0..7) {
-			my $piece = substr($board->[$row], $col, 1);
-			if ($piece eq 'K') {
-				($wkr, $wkc) = ($row, $col);
-			} elsif ($piece eq 'k') {
-				($bkr, $bkc) = ($row, $col);
-			}
-		}
-	}
-
-	return ($wkr, $wkc, $bkr, $bkc);
-}
-
-sub in_mate {
-	my $board = shift;
-	my $check = in_check($board);
-	return 0 if ($check eq 'none');
-
-	# try all possible moves for the side in check
-	for my $row (0..7) {
-		for my $col (0..7) {
-			my $piece = substr($board->[$row], $col, 1);
-			next if ($piece eq '-');
-
-			if ($check eq 'white') {
-				next if ($piece eq lc($piece));
-			} else {
-				next if ($piece eq uc($piece));
-			}
-
-			for my $dest_row (0..7) {
-				for my $dest_col (0..7) {
-					next if ($row == $dest_row && $col == $dest_col);
-					next unless (can_reach($board, $piece, $row, $col, $dest_row, $dest_col));
-
-					my @nb = @$board;
-					substr($nb[$row], $col, 1, '-');
-					substr($nb[$dest_row], $dest_col, 1, $piece);
-
-					my $new_check = in_check(\@nb);
-					return 0 if ($new_check ne $check && $new_check ne 'both');
-				}
-			}
-		}
-	}
-
-	# nothing to do; mate
-	return 1;
-}
-
-sub in_check {
-	my $board = shift;
-	my ($black_check, $white_check) = (0, 0);
-
-	my ($wkr, $wkc, $bkr, $bkc) = find_kings($board);
-
-	# check all pieces for the possibility of threatening the two kings
-	for my $row (0..7) {
-		for my $col (0..7) {
-			my $piece = substr($board->[$row], $col, 1);
-			next if ($piece eq '-');
-		
-			if (uc($piece) eq $piece) {
-				# white piece
-				$black_check = 1 if (can_reach($board, $piece, $row, $col, $bkr, $bkc));
-			} else {
-				# black piece
-				$white_check = 1 if (can_reach($board, $piece, $row, $col, $wkr, $wkc));
-			}
-		}
-	}
-
-	if ($black_check && $white_check) {
-		return 'both';
-	} elsif ($black_check) {
-		return 'black';
-	} elsif ($white_check) {
-		return 'white';
-	} else {
-		return 'none';
-	}
-}
-
-sub can_reach {
-	my ($board, $piece, $from_row, $from_col, $to_row, $to_col) = @_;
-	
-	# can't eat your own piece
-	my $dest_piece = substr($board->[$to_row], $to_col, 1);
-	if ($dest_piece ne '-') {
-		return 0 if (($piece eq lc($piece)) == ($dest_piece eq lc($dest_piece)));
-	}
-
-	if (lc($piece) eq 'k') {
-		return (abs($from_row - $to_row) <= 1 && abs($from_col - $to_col) <= 1);
-	}
-	if (lc($piece) eq 'r') {
-		return 0 unless ($from_row == $to_row || $from_col == $to_col);
-
-		# check that there's a clear passage
-		if ($from_row == $to_row) {
-			if ($from_col > $to_col) {
-				($to_col, $from_col) = ($from_col, $to_col);
-			}
-
-			for my $c (($from_col+1)..($to_col-1)) {
-				my $middle_piece = substr($board->[$to_row], $c, 1);
-				return 0 if ($middle_piece ne '-');	
-			}
-
-			return 1;
-		} else {
-			if ($from_row > $to_row) {
-				($to_row, $from_row) = ($from_row, $to_row);
-			}
-
-			for my $r (($from_row+1)..($to_row-1)) {
-				my $middle_piece = substr($board->[$r], $to_col, 1);
-				return 0 if ($middle_piece ne '-');	
-			}
-
-			return 1;
-		}
-	}
-	if (lc($piece) eq 'b') {
-		return 0 unless (abs($from_row - $to_row) == abs($from_col - $to_col));
-
-		my $dr = ($to_row - $from_row) / abs($to_row - $from_row);
-		my $dc = ($to_col - $from_col) / abs($to_col - $from_col);
-
-		my $r = $from_row + $dr;
-		my $c = $from_col + $dc;
-
-		while ($r != $to_row) {
-			my $middle_piece = substr($board->[$r], $c, 1);
-			return 0 if ($middle_piece ne '-');
-			
-			$r += $dr;
-			$c += $dc;
-		}
-
-		return 1;
-	}
-	if (lc($piece) eq 'n') {
-		my $diff_r = abs($from_row - $to_row);
-		my $diff_c = abs($from_col - $to_col);
-		return 1 if ($diff_r == 2 && $diff_c == 1);
-		return 1 if ($diff_r == 1 && $diff_c == 2);
-		return 0;
-	}
-	if ($piece eq 'q') {
-		return (can_reach($board, 'r', $from_row, $from_col, $to_row, $to_col) ||
-		        can_reach($board, 'b', $from_row, $from_col, $to_row, $to_col));
-	}
-	if ($piece eq 'Q') {
-		return (can_reach($board, 'R', $from_row, $from_col, $to_row, $to_col) ||
-		        can_reach($board, 'B', $from_row, $from_col, $to_row, $to_col));
-	}
-
-	# TODO: en passant
-	if ($piece eq 'p') {
-		# black pawn
-		if ($to_col == $from_col && $to_row == $from_row + 1) {
-			return ($dest_piece eq '-');
-		}
-		if ($to_col == $from_col && $from_row == 1 && $to_row == 3) {
-			my $middle_piece = substr($board->[2], $to_col, 1);
-			return ($dest_piece eq '-' && $middle_piece eq '-');
-		}
-		if (abs($to_col - $from_col) == 1 && $to_row == $from_row + 1) {
-			return ($dest_piece ne '-');
-		}
-		return 0;
-	}
-	if ($piece eq 'P') {
-		# white pawn
-		if ($to_col == $from_col && $to_row == $from_row - 1) {
-			return ($dest_piece eq '-');
-		}
-		if ($to_col == $from_col && $from_row == 6 && $to_row == 4) {
-			my $middle_piece = substr($board->[5], $to_col, 1);
-			return ($dest_piece eq '-' && $middle_piece eq '-');
-		}
-		if (abs($to_col - $from_col) == 1 && $to_row == $from_row - 1) {
-			return ($dest_piece ne '-');
-		}
-		return 0;
-	}
-	
-	# unknown piece
-	return 0;
 }
 
 sub uciprint {
@@ -1325,8 +942,3 @@ sub row_letter_to_num {
 	return 7 - (ord(shift) - ord('1'));
 }
 
-sub move_to_uci_notation {
-	my ($from_row, $from_col, $to_row, $to_col, $promo) = @_;
-	$promo //= "";
-	return sprintf("%c%d%c%d%s", ord('a') + $from_col, 8 - $from_row, ord('a') + $to_col, 8 - $to_row, $promo);
-}
