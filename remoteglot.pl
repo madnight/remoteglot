@@ -343,12 +343,7 @@ sub prettyprint_pv {
 	}
 
 	my $pv = shift @pvs;
-	my $from_col = col_letter_to_num(substr($pv, 0, 1));
-	my $from_row = row_letter_to_num(substr($pv, 1, 1));
-	my $to_col   = col_letter_to_num(substr($pv, 2, 1));
-	my $to_row   = row_letter_to_num(substr($pv, 3, 1));
-	my $promo    = substr($pv, 4, 1);
-
+	my ($from_col, $from_row, $to_col, $to_row, $promo) = parse_uci_move($pv);
 	my ($pretty, $nb) = $board->prettyprint_move($from_row, $from_col, $to_row, $to_col, $promo);
 	return ($pretty, prettyprint_pv($nb, @pvs));
 }
@@ -744,3 +739,12 @@ sub row_letter_to_num {
 	return 7 - (ord(shift) - ord('1'));
 }
 
+sub parse_uci_move {
+	my $move = shift;
+	my $from_col = col_letter_to_num(substr($move, 0, 1));
+	my $from_row = row_letter_to_num(substr($move, 1, 1));
+	my $to_col   = col_letter_to_num(substr($move, 2, 1));
+	my $to_row   = row_letter_to_num(substr($move, 3, 1));
+	my $promo    = substr($move, 4, 1);
+	return ($from_col, $from_row, $to_col, $to_row, $promo);
+}
