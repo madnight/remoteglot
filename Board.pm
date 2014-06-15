@@ -126,10 +126,15 @@ sub make_move {
 	return $nb;
 }
 
+sub _pos_to_square {
+	my ($row, $col) = @_;
+	return sprintf("%c%d", ord('a') + $col, 8 - $row);
+}
+
 sub _move_to_uci_notation {
 	my ($from_row, $from_col, $to_row, $to_col, $promo) = @_;
 	$promo //= "";
-	return sprintf("%c%d%c%d%s", ord('a') + $from_col, 8 - $from_row, ord('a') + $to_col, 8 - $to_row, $promo);
+	return _pos_to_square($from_row, $from_col) . _pos_to_square($to_row, $to_col) . $promo;
 }
 
 sub fen {
@@ -341,6 +346,113 @@ sub in_mate {
 
 	# nothing to do; mate
 	return 1;
+}
+
+# Returns the short algebraic form of the move, as well as the new position.
+sub prettyprint_move {
+	my ($board, $from_row, $from_col, $to_row, $to_col, $promo) = @_;
+	my $pretty = $board->_prettyprint_move_no_check_or_mate($from_row, $from_col, $to_row, $to_col, $promo);
+
+	my $nb = $board->make_move($from_row, $from_col, $to_row, $to_col, $promo);
+	if ($nb->in_mate()) {
+		$pretty .= '#';
+	} elsif ($nb->in_check() ne 'none') {
+		$pretty .= '+';
+	}
+	return ($pretty, $nb);
+}
+
+sub _prettyprint_move_no_check_or_mate {
+        my ($board, $from_row, $from_col, $to_row, $to_col, $promo) = @_;
+	my $piece = $board->[$from_row][$from_col];
+	my $move = _move_to_uci_notation($from_row, $from_col, $to_row, $to_col, $promo);
+
+	if ($piece eq '-') {
+		die "Invalid move $move";
+	}
+
+	# white short castling
+	if ($move eq 'e1g1' && $piece eq 'K') {
+		return '0-0';
+	}
+
+	# white long castling
+	if ($move eq 'e1c1' && $piece eq 'K') {
+		return '0-0-0';
+	}
+
+	# black short castling
+	if ($move eq 'e8g8' && $piece eq 'k') {
+		return '0-0';
+	}
+
+	# black long castling
+	if ($move eq 'e8c8' && $piece eq 'k') {
+		return '0-0-0';
+	}
+
+	my $pretty;
+
+	# check if the from-piece is a pawn
+	if (lc($piece) eq 'p') {
+		# attack?
+		if ($from_col != $to_col) {
+			$pretty = substr($move, 0, 1) . 'x' . _pos_to_square($to_row, $to_col);
+		} else {
+			$pretty = _pos_to_square($to_row, $to_col);
+
+			if (defined($promo) && $promo ne '') {
+				# promotion
+				$pretty .= "=";
+				$pretty .= $promo;
+			}
+		}
+		return $pretty;
+	}
+
+	$pretty = uc($piece);
+
+	# see how many of these pieces could go here, in all
+	my $num_total = 0;
+	for my $col (0..7) {
+		for my $row (0..7) {
+			next unless ($board->[$row][$col] eq $piece);
+			++$num_total if ($board->can_reach($piece, $row, $col, $to_row, $to_col));
+		}
+	}
+
+	# see how many of these pieces from the given row could go here
+	my $num_row = 0;
+	for my $col (0..7) {
+		next unless ($board->[$from_row][$col] eq $piece);
+		++$num_row if ($board->can_reach($piece, $from_row, $col, $to_row, $to_col));
+	}
+
+	# and same for columns
+	my $num_col = 0;
+	for my $row (0..7) {
+		next unless ($board->[$row][$from_col] eq $piece);
+		++$num_col if ($board->can_reach($piece, $row, $from_col, $to_row, $to_col));
+	}
+
+	# see if we need to disambiguate
+	if ($num_total > 1) {
+		if ($num_col == 1) {
+			$pretty .= substr($move, 0, 1);
+		} elsif ($num_row == 1) {
+			$pretty .= substr($move, 1, 1);
+		} else {
+			$pretty .= substr($move, 0, 2);
+		}
+	}
+
+	# attack?
+	if ($board->[$to_row][$to_col] ne '-') {
+		$pretty .= 'x';
+	}
+
+	$pretty .= _pos_to_square($to_row, $to_col);
+	return $pretty;
 }
 
 1;
