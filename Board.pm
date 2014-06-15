@@ -108,13 +108,12 @@ sub make_move {
 					$nb->[$to_row + 1][$to_col] = '-';
 				}
 			}
-		} else {
-			if (defined($promo) && $promo ne '') {
-				if ($piece eq 'p') {
-					$piece = $promo;
-				} else {
-					$piece = uc($promo);
-				}
+		}
+		if (defined($promo) && $promo ne '') {
+			if ($piece eq 'p') {
+				$piece = lc($promo);
+			} else {
+				$piece = uc($promo);
 			}
 		}
 	}
