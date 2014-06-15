@@ -15,6 +15,7 @@ use IPC::Open2;
 use Time::HiRes;
 use JSON::XS;
 require 'Position.pm';
+require 'Engine.pm';
 use strict;
 use warnings;
 
@@ -189,7 +190,7 @@ while (1) {
 	
 	# any fun on the UCI channel?
 	if ($nfound > 0 && vec($rout, fileno($engine->{'read'}), 1) == 1) {
-		my @lines = read_lines($engine);
+		my @lines = $engine->read_lines();
 		for my $line (@lines) {
 			next if $line =~ /(upper|lower)bound/;
 			handle_uci($engine, $line, 1);
@@ -199,7 +200,7 @@ while (1) {
 		output();
 	}
 	if (defined($engine2) && $nfound > 0 && vec($rout, fileno($engine2->{'read'}), 1) == 1) {
-		my @lines = read_lines($engine2);
+		my @lines = $engine2->read_lines();
 		for my $line (@lines) {
 			next if $line =~ /(upper|lower)bound/;
 			handle_uci($engine2, $line, 0);
@@ -577,7 +578,7 @@ sub output_json {
 
 sub uciprint {
 	my ($engine, $msg) = @_;
-	print { $engine->{'write'} } "$msg\n";
+	$engine->print($msg);
 	print UCILOG localtime() . " $engine->{'tag'} => $msg\n";
 }
 
@@ -716,63 +717,23 @@ sub book_info {
 
 sub open_engine {
 	my ($cmdline, $tag) = @_;
-
 	return undef if (!defined($cmdline));
-
-	my ($uciread, $uciwrite);
-	my $pid = IPC::Open2::open2($uciread, $uciwrite, $cmdline);
-
-	my $engine = {
-		pid => $pid,
-		read => $uciread,
-		readbuf => '',
-		write => $uciwrite,
-		info => {},
-		ids => {},
-		tag => $tag,
-	};
+	my $engine = Engine->open($cmdline, $tag);
 
 	uciprint($engine, "uci");
 
 	# gobble the options
-	while (<$uciread>) {
-		/uciok/ && last;
-		handle_uci($engine, $_);
+	my $seen_uciok = 0;
+	while (!$seen_uciok) {
+		for my $line ($engine->read_lines()) {
+			if ($line =~ /uciok/) {
+				$seen_uciok = 1;
+			}
+			handle_uci($engine, $line);
+		}
 	}
 	
 	return $engine;
-}
-
-sub read_lines {
-	my $engine = shift;
-
-	# 
-	# Read until we've got a full line -- if the engine sends part of
-	# a line and then stops we're pretty much hosed, but that should
-	# never happen.
-	#
-	while ($engine->{'readbuf'} !~ /\n/) {
-		my $tmp;
-		my $ret = sysread $engine->{'read'}, $tmp, 4096;
-
-		if (!defined($ret)) {
-			next if ($!{EINTR});
-			die "error in reading from the UCI engine: $!";
-		} elsif ($ret == 0) {
-			die "EOF from UCI engine";
-		}
-
-		$engine->{'readbuf'} .= $tmp;
-	}
-
-	# Blah.
-	my @lines = ();
-	while ($engine->{'readbuf'} =~ s/^([^\n]*)\n//) {
-		my $line = $1;
-		$line =~ tr/\r\n//d;
-		push @lines, $line;
-	}
-	return @lines;
 }
 
 sub col_letter_to_num {
