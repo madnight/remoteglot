@@ -177,6 +177,9 @@ sub handle_fics {
 			AnyEvent::HTTP::http_get($url, sub {
 				handle_pgn(@_, $url);
 			});
+		} elsif ($msg =~ /^stoppgn$/) {
+			$t->cmd("tell $who Stopping poll.");
+			$http_timer = undef;
 		} else {
 			$t->cmd("tell $who Couldn't understand '$msg', sorry.");
 		}
