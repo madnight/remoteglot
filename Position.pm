@@ -176,4 +176,34 @@ sub _pos_to_square {
         return sprintf("%c%d", ord('a') + $col, 8 - $row);
 }
 
+sub apply_uci_pv {
+	my ($pos, @pv) = @_;
+
+	my $pvpos = $pos;
+	for my $pv_move (@pv) {
+		my ($from_row, $from_col, $to_row, $to_col, $promo) = _parse_uci_move($pv_move);
+		$pvpos = $pvpos->make_move($from_row, $from_col, $to_row, $to_col, $promo);
+	}
+
+	return $pvpos;
+}
+
+sub _col_letter_to_num {
+	return ord(shift) - ord('a');
+}
+
+sub _row_letter_to_num {
+	return 7 - (ord(shift) - ord('1'));
+}
+
+sub _parse_uci_move {
+        my $move = shift;
+        my $from_col = _col_letter_to_num(substr($move, 0, 1));
+        my $from_row = _row_letter_to_num(substr($move, 1, 1));
+        my $to_col   = _col_letter_to_num(substr($move, 2, 1));
+        my $to_row   = _row_letter_to_num(substr($move, 3, 1));
+        my $promo    = substr($move, 4, 1);
+        return ($from_row, $from_col, $to_row, $to_col, $promo);
+}
+
 1;
