@@ -167,7 +167,8 @@ sub make_move {
 	}
 	$np->{'player_w'} = $pos->{'player_w'};
 	$np->{'player_b'} = $pos->{'player_b'};
-	$np->{'last_move'} = '(move)';  # FIXME
+	my ($move, $nb) = $pos->{'board'}->prettyprint_move($from_row, $from_col, $to_row, $to_col, $promo);
+	$np->{'last_move'} = $move;
 	return bless $np;
 }
 
