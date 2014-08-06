@@ -113,78 +113,7 @@ while (1) {
 
 		chomp $line;
 		$line =~ tr/\r//d;
-		if ($line =~ /^<12> /) {
-			my $pos = Position->new($line);
-			
-			# if this is already in the queue, ignore it
-			next if (defined($pos_waiting) && $pos->fen() eq $pos_waiting->fen());
-
-			# if we're already chewing on this and there's nothing else in the queue,
-			# also ignore it
-			next if (!defined($pos_waiting) && defined($pos_calculating) &&
-			         $pos->fen() eq $pos_calculating->fen());
-
-			# if we're already thinking on something, stop and wait for the engine
-			# to approve
-			if (defined($pos_calculating)) {
-				if (!defined($pos_waiting)) {
-					uciprint($engine, "stop");
-				}
-				if ($uci_assume_full_compliance) {
-					$pos_waiting = $pos;
-				} else {
-					uciprint($engine, "position fen " . $pos->fen());
-					uciprint($engine, "go infinite");
-					$pos_calculating = $pos;
-				}
-			} else {
-				# it's wrong just to give the FEN (the move history is useful,
-				# and per the UCI spec, we should really have sent "ucinewgame"),
-				# but it's easier
-				uciprint($engine, "position fen " . $pos->fen());
-				uciprint($engine, "go infinite");
-				$pos_calculating = $pos;
-			}
-
-			if (defined($engine2)) {
-				if (defined($pos_calculating_second_engine)) {
-					uciprint($engine2, "stop");
-				} else {
-					uciprint($engine2, "position fen " . $pos->fen());
-					uciprint($engine2, "go infinite");
-					$pos_calculating_second_engine = $pos;
-				}
-				$engine2->{'info'} = {};
-			}
-
-			$engine->{'info'} = {};
-			$last_move = time;
-
-			# 
-			# Output a command every move to note that we're
-			# still paying attention -- this is a good tradeoff,
-			# since if no move has happened in the last half
-			# hour, the analysis/relay has most likely stopped
-			# and we should stop hogging server resources.
-			#
-			$t->cmd("date");
-		}
-		if ($line =~ /^([A-Za-z]+)(?:\([A-Z]+\))* tells you: (.*)$/) {
-			my ($who, $msg) = ($1, $2);
-
-			next if (grep { $_ eq $who } (@masters) == 0);
-	
-			if ($msg =~ /^fics (.*?)$/) {
-				$t->cmd("tell $who Executing '$1' on FICS.");
-				$t->cmd($1);
-			} elsif ($msg =~ /^uci (.*?)$/) {
-				$t->cmd("tell $who Sending '$1' to the engine.");
-				print { $engine->{'write'} } "$1\n";
-			} else {
-				$t->cmd("tell $who Couldn't understand '$msg', sorry.");
-			}
-		}
-		#print "FICS: [$line]\n";
+		handle_fics($line);
 		$sleep = 0;
 	}
 	
@@ -250,6 +179,82 @@ sub handle_uci {
 			$pos_calculating_second_engine = $pos;
 		}
 	}
+}
+
+sub handle_fics {
+	my $line = shift;
+	if ($line =~ /^<12> /) {
+		my $pos = Position->new($line);
+		
+		# if this is already in the queue, ignore it
+		next if (defined($pos_waiting) && $pos->fen() eq $pos_waiting->fen());
+
+		# if we're already chewing on this and there's nothing else in the queue,
+		# also ignore it
+		next if (!defined($pos_waiting) && defined($pos_calculating) &&
+			 $pos->fen() eq $pos_calculating->fen());
+
+		# if we're already thinking on something, stop and wait for the engine
+		# to approve
+		if (defined($pos_calculating)) {
+			if (!defined($pos_waiting)) {
+				uciprint($engine, "stop");
+			}
+			if ($uci_assume_full_compliance) {
+				$pos_waiting = $pos;
+			} else {
+				uciprint($engine, "position fen " . $pos->fen());
+				uciprint($engine, "go infinite");
+				$pos_calculating = $pos;
+			}
+		} else {
+			# it's wrong just to give the FEN (the move history is useful,
+			# and per the UCI spec, we should really have sent "ucinewgame"),
+			# but it's easier
+			uciprint($engine, "position fen " . $pos->fen());
+			uciprint($engine, "go infinite");
+			$pos_calculating = $pos;
+		}
+
+		if (defined($engine2)) {
+			if (defined($pos_calculating_second_engine)) {
+				uciprint($engine2, "stop");
+			} else {
+				uciprint($engine2, "position fen " . $pos->fen());
+				uciprint($engine2, "go infinite");
+				$pos_calculating_second_engine = $pos;
+			}
+			$engine2->{'info'} = {};
+		}
+
+		$engine->{'info'} = {};
+		$last_move = time;
+
+		# 
+		# Output a command every move to note that we're
+		# still paying attention -- this is a good tradeoff,
+		# since if no move has happened in the last half
+		# hour, the analysis/relay has most likely stopped
+		# and we should stop hogging server resources.
+		#
+		$t->cmd("date");
+	}
+	if ($line =~ /^([A-Za-z]+)(?:\([A-Z]+\))* tells you: (.*)$/) {
+		my ($who, $msg) = ($1, $2);
+
+		next if (grep { $_ eq $who } (@masters) == 0);
+
+		if ($msg =~ /^fics (.*?)$/) {
+			$t->cmd("tell $who Executing '$1' on FICS.");
+			$t->cmd($1);
+		} elsif ($msg =~ /^uci (.*?)$/) {
+			$t->cmd("tell $who Sending '$1' to the engine.");
+			print { $engine->{'write'} } "$1\n";
+		} else {
+			$t->cmd("tell $who Couldn't understand '$msg', sorry.");
+		}
+	}
+	#print "FICS: [$line]\n";
 }
 
 sub parse_infos {
