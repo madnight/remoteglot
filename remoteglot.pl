@@ -9,6 +9,9 @@
 # Licensed under the GNU General Public License, version 2.
 #
 
+use AnyEvent;
+use AnyEvent::Handle;
+use AnyEvent::Loop;
 use Net::Telnet;
 use FileHandle;
 use IPC::Open2;
@@ -54,8 +57,8 @@ $| = 1;
 select(STDOUT);
 
 # open the chess engine
-my $engine = open_engine($engine_cmdline, 'E1');
-my $engine2 = open_engine($engine2_cmdline, 'E2');
+my $engine = open_engine($engine_cmdline, 'E1', sub { handle_uci(@_, 1); });
+my $engine2 = open_engine($engine2_cmdline, 'E2', sub { handle_uci(@_, 0); });
 my $last_move;
 my $last_text = '';
 my ($pos_waiting, $pos_calculating, $pos_calculating_second_engine);
@@ -92,61 +95,28 @@ $t->cmd("set shout 0");
 $t->cmd("set seek 0");
 $t->cmd("set style 12");
 $t->cmd("observe $target");
-
-# main loop
 print "FICS ready.\n";
-while (1) {
-	my $rin = '';
-	my $rout;
-	vec($rin, fileno($engine->{'read'}), 1) = 1;
-	if (defined($engine2)) {
-		vec($rin, fileno($engine2->{'read'}), 1) = 1;
-	}
-	vec($rin, fileno($t), 1) = 1;
 
-	my ($nfound, $timeleft) = select($rout=$rin, undef, undef, 5.0);
-	my $sleep = 1.0;
+my $ev1 = AnyEvent->io(
+	fh => fileno($t),
+	poll => 'r',
+	cb => sub {    # what callback to execute
+		while (1) {
+			my $line = $t->getline(Timeout => 0, errmode => 'return');
+			return if (!defined($line));
 
-	while (1) {
-		my $line = $t->getline(Timeout => 0, errmode => 'return');
-		last if (!defined($line));
-
-		chomp $line;
-		$line =~ tr/\r//d;
-		handle_fics($line);
-		$sleep = 0;
-	}
-	
-	# any fun on the UCI channel?
-	if ($nfound > 0 && vec($rout, fileno($engine->{'read'}), 1) == 1) {
-		my @lines = $engine->read_lines();
-		for my $line (@lines) {
-			next if $line =~ /(upper|lower)bound/;
-			handle_uci($engine, $line, 1);
+			chomp $line;
+			$line =~ tr/\r//d;
+			handle_fics($line);
 		}
-		$sleep = 0;
-
-		output();
 	}
-	if (defined($engine2) && $nfound > 0 && vec($rout, fileno($engine2->{'read'}), 1) == 1) {
-		my @lines = $engine2->read_lines();
-		for my $line (@lines) {
-			next if $line =~ /(upper|lower)bound/;
-			handle_uci($engine2, $line, 0);
-		}
-		$sleep = 0;
-
-		output();
-	}
-
-	sleep $sleep;
-}
+);
+# Engine events have already been set up by Engine.pm.
+AnyEvent::Loop::run;
 
 sub handle_uci {
 	my ($engine, $line, $primary) = @_;
 
-	chomp $line;
-	$line =~ tr/\r//d;
 	$line =~ s/  / /g;  # Sometimes needed for Zappa Mexico
 	print UCILOG localtime() . " $engine->{'tag'} <= $line\n";
 	if ($line =~ /^info/) {
@@ -179,6 +149,7 @@ sub handle_uci {
 			$pos_calculating_second_engine = $pos;
 		}
 	}
+	output();
 }
 
 sub handle_fics {
@@ -716,24 +687,9 @@ sub book_info {
 }
 
 sub open_engine {
-	my ($cmdline, $tag) = @_;
+	my ($cmdline, $tag, $cb) = @_;
 	return undef if (!defined($cmdline));
-	my $engine = Engine->open($cmdline, $tag);
-
-	uciprint($engine, "uci");
-
-	# gobble the options
-	my $seen_uciok = 0;
-	while (!$seen_uciok) {
-		for my $line ($engine->read_lines()) {
-			if ($line =~ /uciok/) {
-				$seen_uciok = 1;
-			}
-			handle_uci($engine, $line);
-		}
-	}
-	
-	return $engine;
+	return Engine->open($cmdline, $tag, $cb);
 }
 
 sub col_letter_to_num {

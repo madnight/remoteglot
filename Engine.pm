@@ -6,11 +6,18 @@ use IPC::Open2;
 package Engine;
 
 sub open {
-	my ($class, $cmdline, $tag) = @_;
+	my ($class, $cmdline, $tag, $cb) = @_;
 
 	my ($uciread, $uciwrite);
 	my $pid = IPC::Open2::open2($uciread, $uciwrite, $cmdline);
 
+	my $ev = AnyEvent::Handle->new(
+		fh => $uciread,
+		on_error => sub {
+			my ($handle, $fatal, $msg) = @_;
+			die "Error in reading from the UCI engine: $msg";
+		}
+	);
 	my $engine = {
 		pid => $pid,
 		read => $uciread,
@@ -19,8 +26,13 @@ sub open {
 		info => {},
 		ids => {},
 		tag => $tag,
+		ev => $ev,
+		cb => $cb,
+		seen_uciok => 0,
 	};
 
+	print $uciwrite "uci\n";
+	$ev->push_read(line => sub { $engine->_anyevent_handle_line(@_) });
 	return bless $engine;
 }
 
@@ -29,38 +41,18 @@ sub print {
 	print { $engine->{'write'} } "$msg\n";
 }
 
-sub read_lines {
-	my $engine = shift;
+sub _anyevent_handle_line {
+	my ($engine, $handle, $line) = @_;
 
-	# 
-	# Read until we've got a full line -- if the engine sends part of
-	# a line and then stops we're pretty much hosed, but that should
-	# never happen.
-	#
-	while ($engine->{'readbuf'} !~ /\n/) {
-		my $tmp;
-		my $ret = sysread $engine->{'read'}, $tmp, 4096;
-
-		if (!defined($ret)) {
-			next if ($!{EINTR});
-			die "error in reading from the UCI engine: $!";
-		} elsif ($ret == 0) {
-			die "EOF from UCI engine";
+	if (!$engine->{'seen_uciok'}) {
+		# Gobble up lines until we see uciok.
+		if ($line =~ /^uciok$/) {
+			$engine->{'seen_uciok'} = 1;
 		}
-
-		$engine->{'readbuf'} .= $tmp;
+	} else {
+		$engine->{'cb'}($engine, $line);
 	}
-
-	# Blah.
-	my @lines = ();
-	while ($engine->{'readbuf'} =~ s/^([^\n]*)\n//) {
-		my $line = $1;
-		$line =~ tr/\r\n//d;
-		push @lines, $line;
-	}
-	return @lines;
+	$engine->{'ev'}->push_read(line => sub { $engine->_anyevent_handle_line(@_) });
 }
-
-
 
 1;
