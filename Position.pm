@@ -4,6 +4,7 @@
 #
 use strict;
 use warnings;
+use MIME::Base64;
 
 require 'Board.pm';
 
@@ -36,6 +37,8 @@ sub new {
 
 sub start_pos {
 	my ($class, $white, $black) = @_;
+	$white = "base64:" . MIME::Base64::encode_base64($white);
+	$black = "base64:" . MIME::Base64::encode_base64($black);
 	return $class->new("<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 dummygamenum $white $black -2 dummytime dummyincrement 39 39 dummytime dummytime 1 none (0:00) none 0 0 0");
 }
 
@@ -103,7 +106,14 @@ sub fen {
 
 sub to_json_hash {
 	my $pos = shift;
-	return { %$pos, board => undef, fen => $pos->fen() };
+	my $json = { %$pos, board => undef, fen => $pos->fen() };
+	if ($json->{'player_w'} =~ /^base64:(.*)$/) {
+		$json->{'player_w'} = MIME::Base64::decode_base64($1);
+	}
+	if ($json->{'player_b'} =~ /^base64:(.*)$/) {
+		$json->{'player_b'} = MIME::Base64::decode_base64($1);
+	}
+	return $json;
 }
 
 sub parse_pretty_move {
