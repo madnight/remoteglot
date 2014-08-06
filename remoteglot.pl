@@ -11,6 +11,8 @@
 
 use AnyEvent;
 use AnyEvent::Handle;
+use AnyEvent::HTTP;
+use Chess::PGN::Parse;
 use EV;
 use Net::Telnet;
 use FileHandle;
@@ -40,6 +42,7 @@ my @masters = (
 # Program starts here
 $SIG{ALRM} = sub { output(); };
 my $latest_update = undef;
+my $http_timer = undef;
 
 $| = 1;
 
@@ -155,60 +158,7 @@ sub handle_uci {
 sub handle_fics {
 	my $line = shift;
 	if ($line =~ /^<12> /) {
-		my $pos = Position->new($line);
-		
-		# if this is already in the queue, ignore it
-		next if (defined($pos_waiting) && $pos->fen() eq $pos_waiting->fen());
-
-		# if we're already chewing on this and there's nothing else in the queue,
-		# also ignore it
-		next if (!defined($pos_waiting) && defined($pos_calculating) &&
-			 $pos->fen() eq $pos_calculating->fen());
-
-		# if we're already thinking on something, stop and wait for the engine
-		# to approve
-		if (defined($pos_calculating)) {
-			if (!defined($pos_waiting)) {
-				uciprint($engine, "stop");
-			}
-			if ($uci_assume_full_compliance) {
-				$pos_waiting = $pos;
-			} else {
-				uciprint($engine, "position fen " . $pos->fen());
-				uciprint($engine, "go infinite");
-				$pos_calculating = $pos;
-			}
-		} else {
-			# it's wrong just to give the FEN (the move history is useful,
-			# and per the UCI spec, we should really have sent "ucinewgame"),
-			# but it's easier
-			uciprint($engine, "position fen " . $pos->fen());
-			uciprint($engine, "go infinite");
-			$pos_calculating = $pos;
-		}
-
-		if (defined($engine2)) {
-			if (defined($pos_calculating_second_engine)) {
-				uciprint($engine2, "stop");
-			} else {
-				uciprint($engine2, "position fen " . $pos->fen());
-				uciprint($engine2, "go infinite");
-				$pos_calculating_second_engine = $pos;
-			}
-			$engine2->{'info'} = {};
-		}
-
-		$engine->{'info'} = {};
-		$last_move = time;
-
-		# 
-		# Output a command every move to note that we're
-		# still paying attention -- this is a good tradeoff,
-		# since if no move has happened in the last half
-		# hour, the analysis/relay has most likely stopped
-		# and we should stop hogging server resources.
-		#
-		$t->cmd("date");
+		handle_position(Position->new($line));
 	}
 	if ($line =~ /^([A-Za-z]+)(?:\([A-Z]+\))* tells you: (.*)$/) {
 		my ($who, $msg) = ($1, $2);
@@ -221,11 +171,97 @@ sub handle_fics {
 		} elsif ($msg =~ /^uci (.*?)$/) {
 			$t->cmd("tell $who Sending '$1' to the engine.");
 			print { $engine->{'write'} } "$1\n";
+		} elsif ($msg =~ /^pgn (.*?)$/) {
+			my $url = $1;
+			$t->cmd("tell $who Starting to poll '$url'.");
+			AnyEvent::HTTP::http_get($url, sub {
+				handle_pgn(@_, $url);
+			});
 		} else {
 			$t->cmd("tell $who Couldn't understand '$msg', sorry.");
 		}
 	}
 	#print "FICS: [$line]\n";
+}
+
+sub handle_pgn {
+	my ($body, $header, $url) = @_;
+	my $pgn = Chess::PGN::Parse->new(undef, $body);
+	if (!defined($pgn) || !$pgn->read_game()) {
+		warn "Error in parsing PGN from $url\n";
+	} else {
+		$pgn->quick_parse_game;
+		my $pos = Position->start_pos($pgn->white, $pgn->black);
+		my $moves = $pgn->moves;
+		for my $move (@$moves) {
+			my ($from_row, $from_col, $to_row, $to_col, $promo) = $pos->parse_pretty_move($move);
+			$pos = $pos->make_move($from_row, $from_col, $to_row, $to_col, $promo);
+		}
+		handle_position($pos);
+	}
+	
+	$http_timer = AnyEvent->timer(after => 1.0, cb => sub {
+		AnyEvent::HTTP::http_get($url, sub {
+			handle_pgn(@_, $url);
+		});
+	});
+}
+
+sub handle_position {
+	my ($pos) = @_;
+		
+	# if this is already in the queue, ignore it
+	return if (defined($pos_waiting) && $pos->fen() eq $pos_waiting->fen());
+
+	# if we're already chewing on this and there's nothing else in the queue,
+	# also ignore it
+	return if (!defined($pos_waiting) && defined($pos_calculating) &&
+		 $pos->fen() eq $pos_calculating->fen());
+
+	# if we're already thinking on something, stop and wait for the engine
+	# to approve
+	if (defined($pos_calculating)) {
+		if (!defined($pos_waiting)) {
+			uciprint($engine, "stop");
+		}
+		if ($uci_assume_full_compliance) {
+			$pos_waiting = $pos;
+		} else {
+			uciprint($engine, "position fen " . $pos->fen());
+			uciprint($engine, "go infinite");
+			$pos_calculating = $pos;
+		}
+	} else {
+		# it's wrong just to give the FEN (the move history is useful,
+		# and per the UCI spec, we should really have sent "ucinewgame"),
+		# but it's easier
+		uciprint($engine, "position fen " . $pos->fen());
+		uciprint($engine, "go infinite");
+		$pos_calculating = $pos;
+	}
+
+	if (defined($engine2)) {
+		if (defined($pos_calculating_second_engine)) {
+			uciprint($engine2, "stop");
+		} else {
+			uciprint($engine2, "position fen " . $pos->fen());
+			uciprint($engine2, "go infinite");
+			$pos_calculating_second_engine = $pos;
+		}
+		$engine2->{'info'} = {};
+	}
+
+	$engine->{'info'} = {};
+	$last_move = time;
+
+	# 
+	# Output a command every move to note that we're
+	# still paying attention -- this is a good tradeoff,
+	# since if no move has happened in the last half
+	# hour, the analysis/relay has most likely stopped
+	# and we should stop hogging server resources.
+	#
+	$t->cmd("date");
 }
 
 sub parse_infos {
