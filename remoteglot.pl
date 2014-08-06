@@ -11,7 +11,7 @@
 
 use AnyEvent;
 use AnyEvent::Handle;
-use AnyEvent::Loop;
+use EV;
 use Net::Telnet;
 use FileHandle;
 use IPC::Open2;
@@ -112,7 +112,7 @@ my $ev1 = AnyEvent->io(
 	}
 );
 # Engine events have already been set up by Engine.pm.
-AnyEvent::Loop::run;
+EV::run;
 
 sub handle_uci {
 	my ($engine, $line, $primary) = @_;
