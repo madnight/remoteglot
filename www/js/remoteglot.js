@@ -711,6 +711,13 @@ var init = function() {
 		update_highlight();
 		redraw_arrows();
 	});
+	$(window).keyup(function(event) {
+		if (event.which == 39) {
+			next_move();
+		} else if (event.which == 37) {
+			prev_move();
+		}
+	});
 };
 $(document).ready(init);
 
