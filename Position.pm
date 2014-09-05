@@ -29,6 +29,11 @@ sub new {
 	$pos->{'player_w'} =~ s/^W?[FCIG]M//;
 	$pos->{'player_b'} =~ s/^W?[FCIG]M//;
 	$pos->{'move_num'} = $x[26];
+	if ($x[27] =~ /([a-h][1-8])-([a-h][1-8])/) {
+		$pos->{'last_move_uci'} = $1 . $2;
+	} else {
+		$pos->{'last_move_uci'} = undef;
+	}
 	$pos->{'last_move'} = $x[29];
 
 	bless $pos, $class;
@@ -179,6 +184,8 @@ sub make_move {
 	$np->{'player_b'} = $pos->{'player_b'};
 	my ($move, $nb) = $pos->{'board'}->prettyprint_move($from_row, $from_col, $to_row, $to_col, $promo);
 	$np->{'last_move'} = $move;
+	$np->{'last_move_uci'} = Board::move_to_uci_notation($from_row, $from_col, $to_row, $to_col, $promo);
+
 	return bless $np;
 }
 

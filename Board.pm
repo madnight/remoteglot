@@ -36,7 +36,7 @@ sub clone {
 # Returns a new board.
 sub make_move {
 	my ($board, $from_row, $from_col, $to_row, $to_col, $promo) = @_;
-	my $move = _move_to_uci_notation($from_row, $from_col, $to_row, $to_col, $promo);
+	my $move = move_to_uci_notation($from_row, $from_col, $to_row, $to_col, $promo);
 	my $piece = $board->[$from_row][$from_col];
 	my $nb = $board->clone();
 
@@ -144,7 +144,7 @@ sub _square_to_pos {
 	return (_row_letter_to_num($2), _col_letter_to_num($1));
 }
 
-sub _move_to_uci_notation {
+sub move_to_uci_notation {
 	my ($from_row, $from_col, $to_row, $to_col, $promo) = @_;
 	$promo //= "";
 	return _pos_to_square($from_row, $from_col) . _pos_to_square($to_row, $to_col) . $promo;
@@ -447,7 +447,7 @@ sub prettyprint_move {
 sub _prettyprint_move_no_check_or_mate {
         my ($board, $from_row, $from_col, $to_row, $to_col, $promo) = @_;
 	my $piece = $board->[$from_row][$from_col];
-	my $move = _move_to_uci_notation($from_row, $from_col, $to_row, $to_col, $promo);
+	my $move = move_to_uci_notation($from_row, $from_col, $to_row, $to_col, $promo);
 
 	if ($piece eq '-') {
 		die "Invalid move $move";
