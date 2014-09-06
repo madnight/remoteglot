@@ -6,6 +6,7 @@ var http = require('http');
 var fs = require('fs');
 var url = require('url');
 var querystring = require('querystring');
+var path = require('path');
 
 // Constants.
 var json_filename = '/srv/analysis.sesse.net/www/analysis.json';
@@ -24,7 +25,11 @@ var request_id = 0;
 // Used to show a viewer count to the user.
 var last_seen_clients = {};
 
-var reread_file = function() {
+var reread_file = function(event, filename) {
+	if (filename != path.basename(json_filename)) {
+		return;
+	}
+	console.log("Rereading " + json_filename);
 	fs.open(json_filename, 'r+', function(err, fd) {
 		if (err) throw err;
 		fs.fstat(fd, function(err, st) {
@@ -89,7 +94,7 @@ var count_viewers = function() {
 
 // Set up a watcher to catch changes to the file, then do an initial read
 // to make sure we have a copy.
-fs.watch(json_filename, reread_file);
+fs.watch(path.dirname(json_filename), reread_file);
 reread_file();
 
 http.createServer(function(request, response) {
