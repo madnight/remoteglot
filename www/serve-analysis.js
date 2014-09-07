@@ -12,8 +12,8 @@ var path = require('path');
 var json_filename = '/srv/analysis.sesse.net/www/analysis.json';
 
 // The current contents of the file to hand out, and its last modified time.
-var json_contents = null;
-var json_last_modified = null;
+var json_contents = undefined;
+var json_last_modified = undefined;
 
 // The list of clients that are waiting for new data to show up,
 // and their associated timers. Uniquely keyed by request_id
@@ -95,7 +95,7 @@ var count_viewers = function() {
 // Set up a watcher to catch changes to the file, then do an initial read
 // to make sure we have a copy.
 fs.watch(path.dirname(json_filename), reread_file);
-reread_file();
+reread_file(null, path.basename(json_filename));
 
 http.createServer(function(request, response) {
 	var u = url.parse(request.url, true);
@@ -116,7 +116,7 @@ http.createServer(function(request, response) {
 
 	// If we already have something newer than what the user has,
 	// just send it out and be done with it.
-	if (!ims || json_last_modified > ims) {
+	if (json_last_modified !== undefined && (!ims || json_last_modified > ims)) {
 		send_json(response);
 		return;
 	}
