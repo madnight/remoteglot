@@ -226,10 +226,46 @@ sub can_reach {
 	if ($dest_piece ne '-') {
 		return 0 if (($piece eq lc($piece)) == ($dest_piece eq lc($dest_piece)));
 	}
-
-	if (lc($piece) eq 'k') {
-		return (abs($from_row - $to_row) <= 1 && abs($from_col - $to_col) <= 1);
+	
+	if ($piece eq 'p') {
+		# black pawn
+		if ($to_col == $from_col && $to_row == $from_row + 1) {
+			return ($dest_piece eq '-');
+		}
+		if ($to_col == $from_col && $from_row == 1 && $to_row == 3) {
+			my $middle_piece = $board->[2][$to_col];
+			return ($dest_piece eq '-' && $middle_piece eq '-');
+		}
+		if (abs($to_col - $from_col) == 1 && $to_row == $from_row + 1) {
+			if ($dest_piece eq '-') {
+				# En passant. TODO: check that the last move was indeed an EP move
+				return ($to_row == 5 && $board->[4][$to_col] eq 'P');
+			} else {
+				return 1;
+			}
+		}
+		return 0;
 	}
+	if ($piece eq 'P') {
+		# white pawn
+		if ($to_col == $from_col && $to_row == $from_row - 1) {
+			return ($dest_piece eq '-');
+		}
+		if ($to_col == $from_col && $from_row == 6 && $to_row == 4) {
+			my $middle_piece = $board->[5][$to_col];
+			return ($dest_piece eq '-' && $middle_piece eq '-');
+		}
+		if (abs($to_col - $from_col) == 1 && $to_row == $from_row - 1) {
+			if ($dest_piece eq '-') {
+				# En passant. TODO: check that the last move was indeed an EP move
+				return ($to_row == 2 && $board->[3][$to_col] eq 'p');
+			} else {
+				return 1;
+			}
+		}
+		return 0;
+	}
+	
 	if (lc($piece) eq 'r') {
 		return 0 unless ($from_row == $to_row || $from_col == $to_col);
 
@@ -292,46 +328,10 @@ sub can_reach {
 		return (can_reach($board, 'R', $from_row, $from_col, $to_row, $to_col) ||
 		        can_reach($board, 'B', $from_row, $from_col, $to_row, $to_col));
 	}
+	if (lc($piece) eq 'k') {
+		return (abs($from_row - $to_row) <= 1 && abs($from_col - $to_col) <= 1);
+	}
 
-	if ($piece eq 'p') {
-		# black pawn
-		if ($to_col == $from_col && $to_row == $from_row + 1) {
-			return ($dest_piece eq '-');
-		}
-		if ($to_col == $from_col && $from_row == 1 && $to_row == 3) {
-			my $middle_piece = $board->[2][$to_col];
-			return ($dest_piece eq '-' && $middle_piece eq '-');
-		}
-		if (abs($to_col - $from_col) == 1 && $to_row == $from_row + 1) {
-			if ($dest_piece eq '-') {
-				# En passant. TODO: check that the last move was indeed an EP move
-				return ($to_row == 5 && $board->[4][$to_col] eq 'P');
-			} else {
-				return 1;
-			}
-		}
-		return 0;
-	}
-	if ($piece eq 'P') {
-		# white pawn
-		if ($to_col == $from_col && $to_row == $from_row - 1) {
-			return ($dest_piece eq '-');
-		}
-		if ($to_col == $from_col && $from_row == 6 && $to_row == 4) {
-			my $middle_piece = $board->[5][$to_col];
-			return ($dest_piece eq '-' && $middle_piece eq '-');
-		}
-		if (abs($to_col - $from_col) == 1 && $to_row == $from_row - 1) {
-			if ($dest_piece eq '-') {
-				# En passant. TODO: check that the last move was indeed an EP move
-				return ($to_row == 2 && $board->[3][$to_col] eq 'p');
-			} else {
-				return 1;
-			}
-		}
-		return 0;
-	}
-	
 	# unknown piece
 	return 0;
 }
