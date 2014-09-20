@@ -180,6 +180,9 @@ sub handle_fics {
 		} elsif ($msg =~ /^stoppgn$/) {
 			$t->cmd("tell $who Stopping poll.");
 			$http_timer = undef;
+		} elsif ($msg =~ /^quit$/) {
+			$t->cmd("tell $who Bye bye.");
+			exit;
 		} else {
 			$t->cmd("tell $who Couldn't understand '$msg', sorry.");
 		}
