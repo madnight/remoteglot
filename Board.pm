@@ -336,13 +336,19 @@ sub can_reach {
 	return 0;
 }
 
+my %pieces_against_side = (
+	k => { K => 1, Q => 1, R => 1, N => 1, B => 1, P => 1 },
+	K => { k => 1, q => 1, r => 1, n => 1, b => 1, p => 1 },
+);
+
 # Returns whether the given side (given as k or K for black and white) is in check.
 sub in_check {
-	my ($board, $piece) = @_;
-	my ($kr, $kc) = _find_piece($board, $piece);
+	my ($board, $side) = @_;
+	my ($kr, $kc) = _find_piece($board, $side);
 
 	# check all pieces for the possibility of threatening this king
 	for my $row (0..7) {
+		next unless grep { exists($pieces_against_side{$side}{$_}) } @{$board->[$row]};
 		for my $col (0..7) {
 			my $piece = $board->[$row][$col];
 			next if ($piece eq '-');
