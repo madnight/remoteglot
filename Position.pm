@@ -35,6 +35,7 @@ sub new {
 		$pos->{'last_move_uci'} = undef;
 	}
 	$pos->{'last_move'} = $x[29];
+	$pos->{'prettyprint_cache'} = {};
 
 	bless $pos, $class;
 	return $pos;

@@ -353,7 +353,7 @@ sub parse_ids {
 	}
 }
 
-sub prettyprint_pv {
+sub prettyprint_pv_no_cache {
 	my ($board, @pvs) = @_;
 
 	if (scalar @pvs == 0 || !defined($pvs[0])) {
@@ -363,7 +363,20 @@ sub prettyprint_pv {
 	my $pv = shift @pvs;
 	my ($from_col, $from_row, $to_col, $to_row, $promo) = parse_uci_move($pv);
 	my ($pretty, $nb) = $board->prettyprint_move($from_row, $from_col, $to_row, $to_col, $promo);
-	return ($pretty, prettyprint_pv($nb, @pvs));
+	return ( $pretty, prettyprint_pv_no_cache($nb, @pvs) );
+}
+
+sub prettyprint_pv {
+	my ($pos, @pvs) = @_;
+
+	my $cachekey = join('', @pvs);
+	if (exists($pos->{'prettyprint_cache'}{$cachekey})) {
+		return @{$pos->{'prettyprint_cache'}{$cachekey}};
+	} else {
+		my @res = prettyprint_pv_no_cache($pos->{'board'}, @pvs);
+		$pos->{'prettyprint_cache'}{$cachekey} = \@res;
+		return @res;
+	}
 }
 
 sub output {
@@ -401,12 +414,12 @@ sub output {
 	eval {
 		my $dummy;
 		if (exists($info->{'pv'})) {
-			$dummy = prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv'}});
+			$dummy = prettyprint_pv($pos_calculating, @{$info->{'pv'}});
 		}
 	
 		my $mpv = 1;
 		while (exists($info->{'pv' . $mpv})) {
-			$dummy = prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv' . $mpv}});
+			$dummy = prettyprint_pv($pos_calculating, @{$info->{'pv' . $mpv}});
 			++$mpv;
 		}
 	};
@@ -467,7 +480,7 @@ sub output_screen {
 			}
 
 			$text .= ":\n";
-			$text .= "  " . join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv' . $mpv}})) . "\n";
+			$text .= "  " . join(', ', prettyprint_pv($pos_calculating, @{$info->{'pv' . $mpv}})) . "\n";
 			$text .= "\n";
 			++$mpv;
 		}
@@ -475,7 +488,7 @@ sub output_screen {
 		# single-PV
 		my $score = long_score($info, $pos_calculating, '');
 		$text .= "  $score\n" if defined($score);
-		$text .=  "  PV: " . join(', ', prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv'}}));
+		$text .=  "  PV: " . join(', ', prettyprint_pv($pos_calculating, @{$info->{'pv'}}));
 		$text .=  "\n";
 
 		if (exists($info->{'nodes'}) && exists($info->{'nps'}) && exists($info->{'depth'})) {
@@ -505,8 +518,8 @@ sub output_screen {
 			eval {
 				my $pv = $info->{'pv' . $mpv};
 
-				my $pretty_move = join('', prettyprint_pv($pos_calculating_second_engine->{'board'}, $pv->[0]));
-				my @pretty_pv = prettyprint_pv($pos_calculating_second_engine->{'board'}, @$pv);
+				my $pretty_move = join('', prettyprint_pv($pos_calculating_second_engine, $pv->[0]));
+				my @pretty_pv = prettyprint_pv($pos_calculating_second_engine, @$pv);
 				if (scalar @pretty_pv > 5) {
 					@pretty_pv = @pretty_pv[0..4];
 					push @pretty_pv, "...";
@@ -553,7 +566,7 @@ sub output_json {
 
 	# single-PV only for now
 	$json->{'pv_uci'} = $info->{'pv'};
-	$json->{'pv_pretty'} = [ prettyprint_pv($pos_calculating->{'board'}, @{$info->{'pv'}}) ];
+	$json->{'pv_pretty'} = [ prettyprint_pv($pos_calculating, @{$info->{'pv'}}) ];
 
 	my %refutation_lines = ();
 	my @refutation_lines = ();
@@ -566,8 +579,8 @@ sub output_json {
 
 			eval {
 				my $pv = $info->{'pv' . $mpv};
-				my $pretty_move = join('', prettyprint_pv($pos_calculating->{'board'}, $pv->[0]));
-				my @pretty_pv = prettyprint_pv($pos_calculating->{'board'}, @$pv);
+				my $pretty_move = join('', prettyprint_pv($pos_calculating, $pv->[0]));
+				my @pretty_pv = prettyprint_pv($pos_calculating, @$pv);
 				$refutation_lines{$pv->[0]} = {
 					sort_key => $pretty_move,
 					depth => $info->{'depth' . $mpv},
@@ -696,7 +709,7 @@ sub book_info {
 		if ($move eq '')  {
 			$pmove = '(current)';
 		} else {
-			($pmove) = prettyprint_pv($board, $move);
+			($pmove) = prettyprint_pv_no_cache($board, $move);
 			$pmove .= $annotation;
 		}
 
