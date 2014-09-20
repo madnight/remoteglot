@@ -278,26 +278,28 @@ sub parse_infos {
 
 	# Search for "multipv" first of all, since e.g. Stockfish doesn't put it first.
 	for my $i (0..$#x - 1) {
-		if ($x[$i] =~ 'multipv') {
+		if ($x[$i] eq 'multipv') {
 			$mpv = $x[$i + 1];
 			next;
 		}
 	}
 
 	while (scalar @x > 0) {
-		if ($x[0] =~ 'multipv') {
+		if ($x[0] eq 'multipv') {
 			# Dealt with above
 			shift @x;
 			shift @x;
 			next;
 		}
-		if ($x[0] =~ /^(currmove|currmovenumber|cpuload)$/) {
+		if ($x[0] eq 'currmove' || $x[0] eq 'currmovenumber' || $x[0] eq 'cpuload') {
 			my $key = shift @x;
 			my $value = shift @x;
 			$info->{$key} = $value;
 			next;
 		}
-		if ($x[0] =~ /^(depth|seldepth|hashfull|time|nodes|nps|tbhits)$/) {
+		if ($x[0] eq 'depth' || $x[0] eq 'seldepth' || $x[0] eq 'hashfull' ||
+		    $x[0] eq 'time' || $x[0] eq 'nodes' || $x[0] eq 'nps' ||
+		    $x[0] eq 'tbhits') {
 			my $key = shift @x;
 			my $value = shift @x;
 			$info->{$key . $mpv} = $value;
@@ -309,7 +311,7 @@ sub parse_infos {
 			delete $info->{'score_cp' . $mpv};
 			delete $info->{'score_mate' . $mpv};
 
-			while ($x[0] =~ /^(cp|mate|lowerbound|upperbound)$/) {
+			while ($x[0] eq 'cp' || $x[0] eq 'mate' || $x[0] eq 'lowerbound' || $x[0] eq 'upperbound') {
 				if ($x[0] eq 'cp') {
 					shift @x;
 					$info->{'score_cp' . $mpv} = shift @x;
