@@ -182,8 +182,10 @@ sub parse_pretty_move {
 	
 	# Find all possible from-squares that could have been meant.
 	my @squares = ();
+	my $side = 'K';
 	if ($toplay eq 'B') {
 		$piece = lc($piece);
+		$side = 'k';
 	}
 	for my $row (0..7) {
 		next if (defined($from_row) && $from_row != $row);
@@ -194,11 +196,7 @@ sub parse_pretty_move {
 
 			# See if doing this move would put us in check
 			# (yes, there are clients that expect us to do this).
-			my $check = $board->make_move($row, $col, $to_row, $to_col, $promo)->in_check();
-			next if ($check eq 'both' ||
-			         ($toplay eq 'W' && $check eq 'white') ||
-			         ($toplay eq 'B' && $check eq 'black'));
-
+			next if ($board->make_move($row, $col, $to_row, $to_col, $promo)->in_check($side));
 			push @squares, [ $row, $col ];
 		}
 	}
@@ -338,64 +336,42 @@ sub can_reach {
 	return 0;
 }
 
-# Returns 'none', 'white', 'black' or 'both', depending on which sides are in check.
-# The latter naturally indicates an invalid position.
+# Returns whether the given side (given as k or K for black and white) is in check.
 sub in_check {
-	my $board = shift;
-	my ($black_check, $white_check) = (0, 0);
+	my ($board, $piece) = @_;
+	my ($kr, $kc) = _find_piece($board, $piece);
 
-	my ($wkr, $wkc, $bkr, $bkc) = _find_kings($board);
-
-	# check all pieces for the possibility of threatening the two kings
+	# check all pieces for the possibility of threatening this king
 	for my $row (0..7) {
 		for my $col (0..7) {
 			my $piece = $board->[$row][$col];
 			next if ($piece eq '-');
-		
-			if (uc($piece) eq $piece) {
-				# white piece
-				$black_check = 1 if ($board->can_reach($piece, $row, $col, $bkr, $bkc));
-			} else {
-				# black piece
-				$white_check = 1 if ($board->can_reach($piece, $row, $col, $wkr, $wkc));
-			}
+			return 1 if ($board->can_reach($piece, $row, $col, $kr, $kc));
 		}
 	}
 
-	if ($black_check && $white_check) {
-		return 'both';
-	} elsif ($black_check) {
-		return 'black';
-	} elsif ($white_check) {
-		return 'white';
-	} else {
-		return 'none';
-	}
+	return 0;
 }
 
-sub _find_kings {
-	my $board = shift;
-	my ($wkr, $wkc, $bkr, $bkc);
+sub _find_piece {
+	my ($board, $piece) = @_;
 
 	for my $row (0..7) {
-		next unless grep { $_ eq 'K' || $_ eq 'k' } @{$board->[$row]};
+		next unless grep { $_ eq $piece } @{$board->[$row]};
 		for my $col (0..7) {
-			my $piece = $board->[$row][$col];
-			if ($piece eq 'K') {
-				($wkr, $wkc) = ($row, $col);
-			} elsif ($piece eq 'k') {
-				($bkr, $bkc) = ($row, $col);
+			if ($board->[$row][$col] eq $piece) {
+				return ($row, $col);
 			}
 		}
 	}
 
-	return ($wkr, $wkc, $bkr, $bkc);
+	return (undef, undef);
 }
 
-# Returns if any side is in mate.
+# Returns if the given side (given as k or K) is in mate.
 sub in_mate {
-	my ($board, $check) = @_;
-	return 0 if ($check eq 'none');
+	my ($board, $side, $in_check) = @_;
+	return 0 if (!$in_check);
 
 	# try all possible moves for the side in check
 	for my $row (0..7) {
@@ -403,7 +379,7 @@ sub in_mate {
 			my $piece = $board->[$row][$col];
 			next if ($piece eq '-');
 
-			if ($check eq 'white') {
+			if ($side eq 'K') {
 				next if ($piece eq lc($piece));
 			} else {
 				next if ($piece eq uc($piece));
@@ -414,11 +390,8 @@ sub in_mate {
 					next if ($row == $dest_row && $col == $dest_col);
 					next unless ($board->can_reach($piece, $row, $col, $dest_row, $dest_col));
 
-					my $nb = $board->clone();
-					$nb->[$row][$col] = '-';
-					$nb->[$dest_row][$dest_col] = $piece;
-					my $new_check = $nb->in_check();
-					return 0 if ($new_check ne $check && $new_check ne 'both');
+					my $nb = $board->make_move($row, $col, $dest_row, $dest_col);
+					return 0 if (!$nb->in_check($side));
 				}
 			}
 		}
@@ -434,10 +407,13 @@ sub prettyprint_move {
 	my $pretty = $board->_prettyprint_move_no_check_or_mate($from_row, $from_col, $to_row, $to_col, $promo);
 
 	my $nb = $board->make_move($from_row, $from_col, $to_row, $to_col, $promo);
-	my $check = $nb->in_check();
-	if ($nb->in_mate($check)) {
+
+	my $piece = $board->[$from_row][$from_col];
+	my $other_side = (uc($piece) eq $piece) ? 'k' : 'K';
+	my $in_check = $nb->in_check($other_side);
+	if ($nb->in_mate($other_side, $in_check)) {
 		$pretty .= '#';
-	} elsif ($check ne 'none') {
+	} elsif ($in_check) {
 		$pretty .= '+';
 	}
 	return ($pretty, $nb);
