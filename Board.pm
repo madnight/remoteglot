@@ -393,8 +393,7 @@ sub _find_kings {
 
 # Returns if any side is in mate.
 sub in_mate {
-	my $board = shift;
-	my $check = $board->in_check();
+	my ($board, $check) = @_;
 	return 0 if ($check eq 'none');
 
 	# try all possible moves for the side in check
@@ -434,9 +433,10 @@ sub prettyprint_move {
 	my $pretty = $board->_prettyprint_move_no_check_or_mate($from_row, $from_col, $to_row, $to_col, $promo);
 
 	my $nb = $board->make_move($from_row, $from_col, $to_row, $to_col, $promo);
-	if ($nb->in_mate()) {
+	my $check = $nb->in_check();
+	if ($nb->in_mate($check)) {
 		$pretty .= '#';
-	} elsif ($nb->in_check() ne 'none') {
+	} elsif ($check ne 'none') {
 		$pretty .= '+';
 	}
 	return ($pretty, $nb);
