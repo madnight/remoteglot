@@ -378,6 +378,7 @@ sub _find_kings {
 	my ($wkr, $wkc, $bkr, $bkc);
 
 	for my $row (0..7) {
+		next unless grep { $_ eq 'K' || $_ eq 'k' } @{$board->[$row]};
 		for my $col (0..7) {
 			my $piece = $board->[$row][$col];
 			if ($piece eq 'K') {
