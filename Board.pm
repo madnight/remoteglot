@@ -25,9 +25,7 @@ sub clone {
 	my $nb = [];
 
 	for my $row (0..7) {
-		for my $col (0..7) {
-			$nb->[$row][$col] = $board->[$row][$col];
-		}
+		$nb->[$row] = [ @{$board->[$row]} ];
 	}
 
 	return bless $nb;
