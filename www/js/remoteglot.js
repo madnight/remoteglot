@@ -34,7 +34,7 @@ var toplay = 'W';
 var ims = 0;
 
 /** @type {boolean} @private */
-var sort_refutation_lines_by_score = false;
+var sort_refutation_lines_by_score = true;
 
 /** @type {!string|undefined} @private */
 var highlight_from = undefined;
