@@ -21,23 +21,10 @@ use Time::HiRes;
 use JSON::XS;
 require 'Position.pm';
 require 'Engine.pm';
+require 'config.pm';
 use strict;
 use warnings;
-
-# Configuration
-my $server = "freechess.org";
-my $target = "GMCarlsen";
-my $engine_cmdline = "'./Deep Rybka 4 SSE42 x64'";
-my $engine2_cmdline = "./stockfish_13111119_x64_modern_sse42";  # undef for none
-my $uci_assume_full_compliance = 0;                    # dangerous :-)
-my $update_max_interval = 1.0;
-my @masters = (
-	'Sesse',
-	'Sessse',
-	'Sesssse',
-	'greatestguns',
-	'beuki'
-);
+no warnings qw(once);
 
 # Program starts here
 $SIG{ALRM} = sub { output(); };
@@ -60,25 +47,23 @@ $| = 1;
 select(STDOUT);
 
 # open the chess engine
-my $engine = open_engine($engine_cmdline, 'E1', sub { handle_uci(@_, 1); });
-my $engine2 = open_engine($engine2_cmdline, 'E2', sub { handle_uci(@_, 0); });
+my $engine = open_engine($remoteglotconf::engine_cmdline, 'E1', sub { handle_uci(@_, 1); });
+my $engine2 = open_engine($remoteglotconf::engine2_cmdline, 'E2', sub { handle_uci(@_, 0); });
 my $last_move;
 my $last_text = '';
 my ($pos_waiting, $pos_calculating, $pos_calculating_second_engine);
 
 uciprint($engine, "setoption name UCI_AnalyseMode value true");
-# uciprint($engine, "setoption name NalimovPath value /srv/tablebase");
-uciprint($engine, "setoption name NalimovUsage value Rarely");
-uciprint($engine, "setoption name Hash value 1024");
-# uciprint($engine, "setoption name MultiPV value 2");
+while (my ($key, $value) = each %remoteglotconf::engine_config) {
+	uciprint($engine, "setoption name $key value $value");
+}
 uciprint($engine, "ucinewgame");
 
 if (defined($engine2)) {
 	uciprint($engine2, "setoption name UCI_AnalyseMode value true");
-	# uciprint($engine2, "setoption name NalimovPath value /srv/tablebase");
-	uciprint($engine2, "setoption name NalimovUsage value Rarely");
-	uciprint($engine2, "setoption name Hash value 1024");
-	uciprint($engine2, "setoption name Threads value 8");
+	while (my ($key, $value) = each %remoteglotconf::engine2_config) {
+		uciprint($engine2, "setoption name $key value $value");
+	}
 	uciprint($engine2, "setoption name MultiPV value 500");
 	uciprint($engine2, "ucinewgame");
 }
@@ -88,8 +73,8 @@ print "Chess engine ready.\n";
 # now talk to FICS
 my $t = Net::Telnet->new(Timeout => 10, Prompt => '/fics% /');
 $t->input_log(\*FICSLOG);
-$t->open($server);
-$t->print("SesseBOT");
+$t->open($remoteglotconf::server);
+$t->print($remoteglotconf::nick);
 $t->waitfor('/Press return to enter the server/');
 $t->cmd("");
 
@@ -97,7 +82,7 @@ $t->cmd("");
 $t->cmd("set shout 0");
 $t->cmd("set seek 0");
 $t->cmd("set style 12");
-$t->cmd("observe $target");
+$t->cmd("observe $remoteglotconf::target");
 print "FICS ready.\n";
 
 my $ev1 = AnyEvent->io(
@@ -136,7 +121,7 @@ sub handle_uci {
 	}
 	if ($line =~ /^bestmove/) {
 		if ($primary) {
-			return if (!$uci_assume_full_compliance);
+			return if (!$remoteglotconf::uci_assume_full_compliance);
 			if (defined($pos_waiting)) {
 				uciprint($engine, "position fen " . $pos_waiting->fen());
 				uciprint($engine, "go infinite");
@@ -163,7 +148,7 @@ sub handle_fics {
 	if ($line =~ /^([A-Za-z]+)(?:\([A-Z]+\))* tells you: (.*)$/) {
 		my ($who, $msg) = ($1, $2);
 
-		next if (grep { $_ eq $who } (@masters) == 0);
+		next if (grep { $_ eq $who } (@remoteglotconf::masters) == 0);
 
 		if ($msg =~ /^fics (.*?)$/) {
 			$t->cmd("tell $who Executing '$1' on FICS.");
@@ -230,7 +215,7 @@ sub handle_position {
 		if (!defined($pos_waiting)) {
 			uciprint($engine, "stop");
 		}
-		if ($uci_assume_full_compliance) {
+		if ($remoteglotconf::uci_assume_full_compliance) {
 			$pos_waiting = $pos;
 		} else {
 			uciprint($engine, "position fen " . $pos->fen());
@@ -388,8 +373,8 @@ sub output {
 
 	# Don't update too often.
 	my $age = Time::HiRes::tv_interval($latest_update);
-	if ($age < $update_max_interval) {
-		Time::HiRes::alarm($update_max_interval + 0.01 - $age);
+	if ($age < $remoteglotconf::update_max_interval) {
+		Time::HiRes::alarm($remoteglotconf::update_max_interval + 0.01 - $age);
 		return;
 	}
 	
