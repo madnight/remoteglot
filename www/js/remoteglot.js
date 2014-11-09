@@ -377,8 +377,9 @@ var thousands = function(x) {
  * @param {number} move_num
  * @param {!string} toplay
  * @param {number=} opt_limit
+ * @param {boolean=} opt_showlast
  */
-var print_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, opt_limit) {
+var print_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, opt_limit, opt_showlast) {
 	display_lines.push({
 		start_fen: fen,
 		uci_pv: uci_pv,
@@ -387,7 +388,16 @@ var print_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, opt_limit) {
 
 	var pv = '';
 	var i = 0;
-	if (toplay == 'B') {
+	if (opt_limit && opt_showlast) {
+		// Truncate the PV at the beginning (instead of at the end).
+		// We assume here that toplay is 'W'.
+		pv = '(…) ';
+		i = pretty_pv.length - opt_limit;
+		if (i % 2 == 1) {
+			++i;
+		}
+		move_num += i / 2;
+	} else if (toplay == 'B') {
 		var move = "<a class=\"move\" href=\"javascript:show_line(" + (display_lines.length - 1) + ", " + 0 + ");\">" + pretty_pv[0] + "</a>";
 		pv = move_num + '. … ' + move;
 		toplay = 'W';
@@ -398,7 +408,7 @@ var print_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, opt_limit) {
 		var move = "<a class=\"move\" href=\"javascript:show_line(" + (display_lines.length - 1) + ", " + i + ");\">" + pretty_pv[i] + "</a>";
 
 		if (toplay == 'W') {
-			if (i > opt_limit) {
+			if (i > opt_limit && !opt_showlast) {
 				return pv + ' (…)';
 			}
 			if (pv != '') {
@@ -557,6 +567,13 @@ var update_board = function(data, num_viewers) {
 	}
 	update_highlight();
 
+	// Print the history.
+	if (data['position']['history']) {
+		$("#history").html(print_pv('start', data['position']['history'], data['position']['pretty_history'], 1, 'W', 8, true));
+	} else {
+		$("#history").html("No history");
+	}
+
 	// Print the PV.
 	$("#pv").html(print_pv(data['position']['fen'], data['pv_uci'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay']));
 
@@ -651,7 +668,7 @@ var show_line = function(line_num, move_num) {
 window['show_line'] = show_line;
 
 var prev_move = function() {
-	if (current_display_move > 0) {
+	if (current_display_move > -1) {
 		--current_display_move;
 	}
 	update_displayed_line();

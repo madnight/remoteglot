@@ -184,10 +184,14 @@ sub handle_pgn {
 		$pgn->quick_parse_game;
 		my $pos = Position->start_pos($pgn->white, $pgn->black);
 		my $moves = $pgn->moves;
+		my @uci_moves = ();
 		for my $move (@$moves) {
 			my ($from_row, $from_col, $to_row, $to_col, $promo) = $pos->parse_pretty_move($move);
+			push @uci_moves, Board::move_to_uci_notation($from_row, $from_col, $to_row, $to_col, $promo);
 			$pos = $pos->make_move($from_row, $from_col, $to_row, $to_col, $promo);
 		}
+		$pos->{'history'} = \@uci_moves;
+		$pos->{'pretty_history'} = $moves;
 		handle_position($pos);
 	}
 	
