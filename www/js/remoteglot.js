@@ -651,13 +651,17 @@ var show_line = function(line_num, move_num) {
 window['show_line'] = show_line;
 
 var prev_move = function() {
-	--current_display_move;
+	if (current_display_move > 0) {
+		--current_display_move;
+	}
 	update_displayed_line();
 }
 window['prev_move'] = prev_move;
 
 var next_move = function() {
-	++current_display_move;
+	if (current_display_line && current_display_move < current_display_line.pretty_pv.length - 1) {
+		++current_display_move;
+	}
 	update_displayed_line();
 }
 window['next_move'] = next_move;
