@@ -36,6 +36,9 @@ var ims = 0;
 /** @type {boolean} @private */
 var sort_refutation_lines_by_score = true;
 
+/** @type {boolean} @private */
+var truncate_display_history = true;
+
 /** @type {!string|undefined} @private */
 var highlight_from = undefined;
 
@@ -379,33 +382,46 @@ var thousands = function(x) {
  * @param {number=} opt_limit
  * @param {boolean=} opt_showlast
  */
-var print_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, opt_limit, opt_showlast) {
+var add_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, opt_limit, opt_showlast) {
 	display_lines.push({
 		start_fen: fen,
 		uci_pv: uci_pv,
 		pretty_pv: pretty_pv 
 	});
+	return print_pv(display_lines.length - 1, pretty_pv, move_num, toplay, opt_limit, opt_showlast);
+}
 
+/**
+ * @param {number} line_num
+ * @param {Array.<string>} pretty_pv
+ * @param {number} move_num
+ * @param {!string} toplay
+ * @param {number=} opt_limit
+ * @param {boolean=} opt_showlast
+ */
+var print_pv = function(line_num, pretty_pv, move_num, toplay, opt_limit, opt_showlast) {
 	var pv = '';
 	var i = 0;
 	if (opt_limit && opt_showlast) {
 		// Truncate the PV at the beginning (instead of at the end).
-		// We assume here that toplay is 'W'.
-		pv = '(…) ';
+		// We assume here that toplay is 'W'. We also assume that if
+		// opt_showlast is set, then it is the history, and thus,
+		// the UI should be to expand the history.
+		pv = '(<a class="move" href="javascript:collapse_history(false)">…</a>) ';
 		i = pretty_pv.length - opt_limit;
 		if (i % 2 == 1) {
 			++i;
 		}
 		move_num += i / 2;
 	} else if (toplay == 'B') {
-		var move = "<a class=\"move\" href=\"javascript:show_line(" + (display_lines.length - 1) + ", " + 0 + ");\">" + pretty_pv[0] + "</a>";
+		var move = "<a class=\"move\" href=\"javascript:show_line(" + line_num + ", " + 0 + ");\">" + pretty_pv[0] + "</a>";
 		pv = move_num + '. … ' + move;
 		toplay = 'W';
 		++i;
 		++move_num;
 	}
 	for ( ; i < pretty_pv.length; ++i) {
-		var move = "<a class=\"move\" href=\"javascript:show_line(" + (display_lines.length - 1) + ", " + i + ");\">" + pretty_pv[i] + "</a>";
+		var move = "<a class=\"move\" href=\"javascript:show_line(" + line_num + ", " + i + ");\">" + pretty_pv[i] + "</a>";
 
 		if (toplay == 'W') {
 			if (i > opt_limit && !opt_showlast) {
@@ -432,6 +448,27 @@ var update_highlight = function() {
 		$("#board").find('.square-' + highlight_to).addClass('nonuglyhighlight');
 	}
 }
+
+var update_history = function() {
+	if (display_lines[0] === null) {
+		$("#history").html("No history");
+	} else if (truncate_display_history) {
+		$("#history").html(print_pv(0, display_lines[0].pretty_pv, 1, 'W', 8, true));
+	} else {
+		$("#history").html(
+			'(<a class="move" href="javascript:collapse_history(true)">collapse</a>) ' +
+			print_pv(0, display_lines[0].pretty_pv, 1, 'W'));
+	}
+}
+
+/**
+ * @param {!boolean} truncate_history
+ */
+var collapse_history = function(truncate_history) {
+	truncate_display_history = truncate_history;
+	update_history();
+}
+window['collapse_history'] = collapse_history;
 
 var update_refutation_lines = function() {
 	if (fen === null) {
@@ -478,7 +515,7 @@ var update_refutation_lines = function() {
 		var pv_td = document.createElement("td");
 		tr.appendChild(pv_td);
 		$(pv_td).addClass("pv");
-		$(pv_td).html(print_pv(fen, line['pv_uci'], line['pv_pretty'], move_num, toplay, 10));
+		$(pv_td).html(add_pv(fen, line['pv_uci'], line['pv_pretty'], move_num, toplay, 10));
 
 		tbl.append(tr);
 	}
@@ -569,13 +606,14 @@ var update_board = function(data, num_viewers) {
 
 	// Print the history.
 	if (data['position']['history']) {
-		$("#history").html(print_pv('start', data['position']['history'], data['position']['pretty_history'], 1, 'W', 8, true));
+		add_pv('start', data['position']['history'], data['position']['pretty_history'], 1, 'W', 8, true);
 	} else {
-		$("#history").html("No history");
+		displayed_lines.push(null);
 	}
+	update_history();
 
 	// Print the PV.
-	$("#pv").html(print_pv(data['position']['fen'], data['pv_uci'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay']));
+	$("#pv").html(add_pv(data['position']['fen'], data['pv_uci'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay']));
 
 	// Update the PV arrow.
 	clear_arrows();
@@ -648,6 +686,15 @@ var resort_refutation_lines = function(sort_by_score) {
 	update_refutation_lines();
 }
 window['resort_refutation_lines'] = resort_refutation_lines;
+
+/**
+ * @param {boolean} truncate_history
+ */
+var set_truncate_history = function(truncate_history) {
+	truncate_display_history = truncate_history;
+	update_refutation_lines();
+}
+window['set_truncate_history'] = set_truncate_history;
 
 /**
  * @param {number} line_num
