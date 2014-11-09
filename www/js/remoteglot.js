@@ -518,6 +518,11 @@ var update_board = function(data, num_viewers) {
 		$("#numviewers").text(num_viewers + " current viewers");
 	}
 
+	// The engine id.
+	if (data['id'] && data['id']['name'] !== null) {
+		$("#engineid").text(data['id']['name']);
+	}
+
 	// The score.
 	if (data['score'] !== null) {
 		$("#score").text(data['score']);

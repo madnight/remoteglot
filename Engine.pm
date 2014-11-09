@@ -46,7 +46,9 @@ sub _anyevent_handle_line {
 
 	if (!$engine->{'seen_uciok'}) {
 		# Gobble up lines until we see uciok.
-		if ($line =~ /^uciok$/) {
+		if ($line =~ /^id (\S+) (.*)$/) {
+			$engine->{'id'}->{$1} = $2;
+		} elsif ($line =~ /^uciok$/) {
 			$engine->{'seen_uciok'} = 1;
 		}
 	} else {
