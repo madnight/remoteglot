@@ -112,7 +112,7 @@ sub fen {
 
 sub to_json_hash {
 	my $pos = shift;
-	my $json = { %$pos, board => undef, fen => $pos->fen() };
+	my $json = { %$pos, board => undef, prettyprint_cache => undef, fen => $pos->fen() };
 	if ($json->{'player_w'} =~ /^base64:(.*)$/) {
 		$json->{'player_w'} = MIME::Base64::decode_base64($1);
 	}
