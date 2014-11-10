@@ -120,6 +120,10 @@ a.move {
 	color: black;
 	text-decoration: none;
 }
+a.move.highlight {
+	color: red;
+	font-weight: bold;
+}
 a.move:hover {
 	font-weight: bold;
 	text-decoration: underline;

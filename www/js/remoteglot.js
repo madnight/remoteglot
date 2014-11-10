@@ -45,6 +45,9 @@ var highlight_from = undefined;
 /** @type {!string|undefined} @private */
 var highlight_to = undefined;
 
+/** @type {?jQuery} @private */
+var highlighted_move = null;
+
 /** @type {!number} @private */
 var unique = Math.random();
 
@@ -57,7 +60,8 @@ var fen = null;
 /** @typedef {{
  *    start_fen: string,
  *    uci_pv: Array.<string>,
- *    pretty_pv: Array.<string>
+ *    pretty_pv: Array.<string>,
+ *    line_num: number
  * }} DisplayLine
  */
 
@@ -386,7 +390,8 @@ var add_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, opt_limit, opt_s
 	display_lines.push({
 		start_fen: fen,
 		uci_pv: uci_pv,
-		pretty_pv: pretty_pv 
+		pretty_pv: pretty_pv,
+		line_number: display_lines.length
 	});
 	return print_pv(display_lines.length - 1, pretty_pv, move_num, toplay, opt_limit, opt_showlast);
 }
@@ -414,14 +419,14 @@ var print_pv = function(line_num, pretty_pv, move_num, toplay, opt_limit, opt_sh
 		}
 		move_num += i / 2;
 	} else if (toplay == 'B') {
-		var move = "<a class=\"move\" href=\"javascript:show_line(" + line_num + ", " + 0 + ");\">" + pretty_pv[0] + "</a>";
+		var move = "<a class=\"move\" id=\"automove" + line_num + "-0\" href=\"javascript:show_line(" + line_num + ", " + 0 + ");\">" + pretty_pv[0] + "</a>";
 		pv = move_num + '. … ' + move;
 		toplay = 'W';
 		++i;
 		++move_num;
 	}
 	for ( ; i < pretty_pv.length; ++i) {
-		var move = "<a class=\"move\" href=\"javascript:show_line(" + line_num + ", " + i + ");\">" + pretty_pv[i] + "</a>";
+		var move = "<a class=\"move\" id=\"automove" + line_num + "-" + i + "\" href=\"javascript:show_line(" + line_num + ", " + i + ");\">" + pretty_pv[i] + "</a>";
 
 		if (toplay == 'W') {
 			if (i > opt_limit && !opt_showlast) {
@@ -474,8 +479,8 @@ var update_refutation_lines = function() {
 	if (fen === null) {
 		return;
 	}
-	if (display_lines.length > 1) {
-		display_lines = [ display_lines[0] ];
+	if (display_lines.length > 2) {
+		display_lines = [ display_lines[0], display_lines[1] ];
 	}
 
 	var tbl = $("#refutationlines");
@@ -608,7 +613,7 @@ var update_board = function(data, num_viewers) {
 	if (data['position']['history']) {
 		add_pv('start', data['position']['history'], data['position']['pretty_history'], 1, 'W', 8, true);
 	} else {
-		displayed_lines.push(null);
+		display_lines.push(null);
 	}
 	update_history();
 
@@ -731,6 +736,9 @@ var next_move = function() {
 window['next_move'] = next_move;
 
 var update_displayed_line = function() {
+	if (highlighted_move !== null) {
+		highlighted_move.removeClass('highlight'); 
+	}
 	if (current_display_line === null) {
 		$("#linenav").hide();
 		$("#linemsg").show();
@@ -770,6 +778,10 @@ var update_displayed_line = function() {
 			hiddenboard.move("a8-d8", false);
 		}
 	}
+
+	highlighted_move = $("#automove" + current_display_line.line_number + "-" + current_display_move);
+	highlighted_move.addClass('highlight'); 
+
 	board.position(hiddenboard.position());
 }
 
