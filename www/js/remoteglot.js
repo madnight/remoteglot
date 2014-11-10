@@ -763,8 +763,17 @@ var update_displayed_line = function() {
 	hiddenboard.position(current_display_line.start_fen, false);
 	for (var i = 0; i <= current_display_move; ++i) {
 		var move = current_display_line.uci_pv[i];
+		var promo = move.substr(4, 1);
 		move = move.substr(0, 2) + "-" + move.substr(2, 2);
 		hiddenboard.move(move, false);
+
+		// Do promotion if needed.
+		if (promo != "") {
+			var pos = hiddenboard.position();
+			var target = move.substr(3, 2);
+			pos[target] = pos[target].substr(0, 1) + promo.toUpperCase();
+			hiddenboard.position(pos, false);
+		}
 
 		// chessboard.js does not automatically move the rook on castling
 		// (issue #51; marked as won't fix), so update it ourselves.
