@@ -467,7 +467,7 @@ sub _prettyprint_move_no_check_or_mate {
 			if (defined($promo) && $promo ne '') {
 				# promotion
 				$pretty .= "=";
-				$pretty .= $promo;
+				$pretty .= uc($promo);
 			}
 		}
 		return $pretty;
