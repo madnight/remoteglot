@@ -749,7 +749,7 @@ var update_displayed_line = function() {
 	$("#linenav").show();
 	$("#linemsg").hide();
 
-	if (current_display_move == 0) {
+	if (current_display_move <= 0) {
 		$("#prevmove").html("Previous");
 	} else {
 		$("#prevmove").html("<a href=\"javascript:prev_move();\">Previous</a></span>");
