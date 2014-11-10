@@ -603,7 +603,7 @@ var update_board = function(data, num_viewers) {
 
 	if (data['position']['last_move_uci']) {
 		highlight_from = data['position']['last_move_uci'].substr(0, 2);
-		highlight_to = data['position']['last_move_uci'].substr(2, 4);
+		highlight_to = data['position']['last_move_uci'].substr(2, 2);
 	} else {
 		highlight_from = highlight_to = undefined;
 	}
@@ -627,7 +627,7 @@ var update_board = function(data, num_viewers) {
 		for (var i = 0; i < data['pv_uci'].length; i += 2) {
 			var from = data['pv_uci'][i].substr(0, 2);
 			var to = data['pv_uci'][i].substr(2,4);
-			if ((i >= 2 && from != data['pv_uci'][i - 2].substr(2, 4)) ||
+			if ((i >= 2 && from != data['pv_uci'][i - 2].substr(2, 2)) ||
 			     interfering_arrow(from, to)) {
 				break;
 			}
@@ -637,7 +637,7 @@ var update_board = function(data, num_viewers) {
 		var alt_moves = find_nonstupid_moves(data, 30);
 		for (var i = 1; i < alt_moves.length && i < 3; ++i) {
 			create_arrow(alt_moves[i].substr(0, 2),
-				     alt_moves[i].substr(2, 4), '#f66', 1, 10);
+				     alt_moves[i].substr(2, 2), '#f66', 1, 10);
 		}
 	}
 
@@ -668,7 +668,7 @@ var update_board = function(data, num_viewers) {
 
 		if (nonstupid_moves.length > 0 && response !== undefined) {
 			create_arrow(response.substr(0, 2),
-				     response.substr(2, 4), '#66f', 6, 20);
+				     response.substr(2, 2), '#66f', 6, 20);
 		}
 	}
 
@@ -763,7 +763,7 @@ var update_displayed_line = function() {
 	hiddenboard.position(current_display_line.start_fen, false);
 	for (var i = 0; i <= current_display_move; ++i) {
 		var move = current_display_line.uci_pv[i];
-		move = move.substr(0, 2) + "-" + move.substr(2, 4);
+		move = move.substr(0, 2) + "-" + move.substr(2, 2);
 		hiddenboard.move(move, false);
 
 		// chessboard.js does not automatically move the rook on castling
