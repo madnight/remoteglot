@@ -128,7 +128,8 @@ var count_viewers = function() {
 fs.watch(path.dirname(json_filename), reread_file);
 reread_file(null, path.basename(json_filename));
 
-http.createServer(function(request, response) {
+var server = http.createServer();
+server.on('request', function(request, response) {
 	var u = url.parse(request.url, true);
 	var ims = (u.query)['ims'];
 	var unique = (u.query)['unique'];
@@ -168,4 +169,16 @@ http.createServer(function(request, response) {
 	client.accept_gzip = accept_gzip;
 	client.unique = unique;
 	sleeping_clients[request_id++] = client;
-}).listen(5000);
+
+	request.socket.client = client;
+});
+server.on('connection', function(socket) {
+	socket.on('close', function() {
+		var client = socket.client;
+		if (client) {
+			mark_recently_seen(client.unique);
+			delete sleeping_clients[client.request_id];
+		}
+	});
+});
+server.listen(5000);
