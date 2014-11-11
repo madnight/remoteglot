@@ -48,8 +48,8 @@ var highlight_to = undefined;
 /** @type {?jQuery} @private */
 var highlighted_move = null;
 
-/** @type {!number} @private */
-var unique = Math.random();
+/** @type {?number} @private */
+var unique = null;
 
 /** The current position on the board, represented as a FEN string.
  * @type {?string}
@@ -75,6 +75,28 @@ var current_display_line = null;
 
 /** @type {?number} @private */
 var current_display_move = null;
+
+var supports_html5_storage = function() {
+	try {
+		return 'localStorage' in window && window['localStorage'] !== null;
+	} catch (e) {
+		return false;
+	}
+}
+
+// Make the unique token persistent so people refreshing the page won't count twice.
+// Of course, you can never fully protect against people deliberately wanting to spam.
+var get_unique = function() {
+	var use_local_storage = supports_html5_storage();
+	if (use_local_storage && localStorage['unique']) {
+		return localStorage['unique'];
+	}
+	var unique = Math.random();
+	if (use_local_storage) {
+		localStorage['unique'] = unique;
+	}
+	return unique;
+}
 
 var request_update = function() {
 	$.ajax({
@@ -809,6 +831,8 @@ var update_displayed_line = function() {
 }
 
 var init = function() {
+	unique = get_unique();
+
 	// Create board.
 	board = new window.ChessBoard('board', 'start');
 	hiddenboard = new window.ChessBoard('hiddenboard', 'start');
