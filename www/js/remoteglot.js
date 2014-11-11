@@ -407,16 +407,13 @@ var add_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, opt_limit, opt_s
 var print_pv = function(line_num, pretty_pv, move_num, toplay, opt_limit, opt_showlast) {
 	var pv = '';
 	var i = 0;
-	if (opt_limit && opt_showlast) {
+	if (opt_limit && opt_showlast && pretty_pv.length > opt_limit) {
 		// Truncate the PV at the beginning (instead of at the end).
 		// We assume here that toplay is 'W'. We also assume that if
 		// opt_showlast is set, then it is the history, and thus,
 		// the UI should be to expand the history.
 		pv = '(<a class="move" href="javascript:collapse_history(false)">…</a>) ';
 		i = pretty_pv.length - opt_limit;
-		if (i < 0) {
-			i = 0;
-		}
 		if (i % 2 == 1) {
 			++i;
 		}
