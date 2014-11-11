@@ -414,6 +414,9 @@ var print_pv = function(line_num, pretty_pv, move_num, toplay, opt_limit, opt_sh
 		// the UI should be to expand the history.
 		pv = '(<a class="move" href="javascript:collapse_history(false)">…</a>) ';
 		i = pretty_pv.length - opt_limit;
+		if (i < 0) {
+			i = 0;
+		}
 		if (i % 2 == 1) {
 			++i;
 		}
@@ -455,7 +458,7 @@ var update_highlight = function() {
 }
 
 var update_history = function() {
-	if (display_lines[0] === null) {
+	if (display_lines[0] === null || display_lines[0].pretty_pv.length == 0) {
 		$("#history").html("No history");
 	} else if (truncate_display_history) {
 		$("#history").html(print_pv(0, display_lines[0].pretty_pv, 1, 'W', 8, true));
