@@ -762,15 +762,28 @@ var update_displayed_line = function() {
 
 	hiddenboard.position(current_display_line.start_fen, false);
 	for (var i = 0; i <= current_display_move; ++i) {
+		var pos = hiddenboard.position();
 		var move = current_display_line.uci_pv[i];
+		var source = move.substr(0, 2);
+		var target = move.substr(2, 2);
 		var promo = move.substr(4, 1);
-		move = move.substr(0, 2) + "-" + move.substr(2, 2);
+
+		// Check if we need to do en passant.
+		var piece = pos[source];
+		if (piece == "wP" || piece == "bP") {
+			if (source.substr(0, 1) != target.substr(0, 1) &&
+			    pos[target] === undefined) {
+				var ep_square = target.substr(0, 1) + source.substr(1, 1);
+				delete pos[ep_square];
+				hiddenboard.position(pos, false);
+			}
+		}
+
+		move = source + "-" + target;
 		hiddenboard.move(move, false);
 
 		// Do promotion if needed.
 		if (promo != "") {
-			var pos = hiddenboard.position();
-			var target = move.substr(3, 2);
 			pos[target] = pos[target].substr(0, 1) + promo.toUpperCase();
 			hiddenboard.position(pos, false);
 		}
