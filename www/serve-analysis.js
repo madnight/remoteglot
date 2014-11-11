@@ -56,6 +56,7 @@ var reread_file = function(event, filename) {
 var possibly_wakeup_clients = function() {
 	for (var i in sleeping_clients) {
 		clearTimeout(sleeping_clients[i].timer);
+		mark_recently_seen(sleeping_clients[request_id].unique);
 		send_json(sleeping_clients[i].response, sleeping_clients[i].accept_gzip);
 	}
 	sleeping_clients = {};
@@ -88,8 +89,14 @@ var send_json = function(response, accept_gzip) {
 	response.end();
 }
 var timeout_client = function(client) {
+	mark_recently_seen(client.unique);
 	send_json(client.response, client.accept_gzip);
 	delete sleeping_clients[client.request_id];
+}
+var mark_recently_seen = function(unique) {
+	if (unique) {
+		last_seen_clients[unique] = (new Date).getTime();
+	}
 }
 var count_viewers = function() {
 	var now = (new Date).getTime();
@@ -98,11 +105,20 @@ var count_viewers = function() {
 	var new_last_seen_clients = {};
 	var num_viewers = 0;
 	for (var unique in last_seen_clients) {
-		if (now - last_seen_clients[unique] < 60000) {
+		if (now - last_seen_clients[unique] < 5000) {
 			++num_viewers;
 			new_last_seen_clients[unique] = last_seen_clients[unique];
 		}
 	}
+
+	// Also add sleeping clients that we would otherwise assume timed out.
+	for (var request_id in sleeping_clients) {
+		var unique = sleeping_clients[request_id].unique;
+		if (unique && !(unique in new_last_seen_clients)) {
+			++num_viewers;
+		}
+	}
+
 	last_seen_clients = new_last_seen_clients;
 	return num_viewers;
 }
@@ -125,9 +141,7 @@ http.createServer(function(request, response) {
 		return;
 	}
 
-	if (unique) {
-		last_seen_clients[unique] = (new Date).getTime();
-	}
+	mark_recently_seen(unique);
 
 	var accept_encoding = request.headers['accept-encoding'];
 	var accept_gzip;
@@ -152,5 +166,6 @@ http.createServer(function(request, response) {
 	client.timer = setTimeout(function() { timeout_client(client); }, 30000);
 	client.request_id = request_id;
 	client.accept_gzip = accept_gzip;
+	client.unique = unique;
 	sleeping_clients[request_id++] = client;
 }).listen(5000);
