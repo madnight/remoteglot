@@ -784,6 +784,7 @@ var update_displayed_line = function() {
 
 		move = source + "-" + target;
 		hiddenboard.move(move, false);
+		pos = hiddenboard.position();
 
 		// Do promotion if needed.
 		if (promo != "") {
