@@ -56,7 +56,7 @@ var reread_file = function(event, filename) {
 var possibly_wakeup_clients = function() {
 	for (var i in sleeping_clients) {
 		clearTimeout(sleeping_clients[i].timer);
-		mark_recently_seen(sleeping_clients[request_id].unique);
+		mark_recently_seen(sleeping_clients[i].unique);
 		send_json(sleeping_clients[i].response, sleeping_clients[i].accept_gzip);
 	}
 	sleeping_clients = {};
