@@ -54,10 +54,13 @@ var reread_file = function(event, filename) {
 	});
 }
 var possibly_wakeup_clients = function() {
+	var num_viewers = count_viewers();
 	for (var i in sleeping_clients) {
 		clearTimeout(sleeping_clients[i].timer);
 		mark_recently_seen(sleeping_clients[i].unique);
-		send_json(sleeping_clients[i].response, sleeping_clients[i].accept_gzip);
+		send_json(sleeping_clients[i].response,
+		          sleeping_clients[i].accept_gzip,
+			  num_viewers);
 	}
 	sleeping_clients = {};
 }
@@ -68,11 +71,11 @@ var send_404 = function(response) {
 	response.write('Something went wrong. Sorry.');
 	response.end();
 }
-var send_json = function(response, accept_gzip) {
+var send_json = function(response, accept_gzip, num_viewers) {
 	var headers = {
 		'Content-Type': 'text/json',
 		'X-Remoteglot-Last-Modified': json_last_modified,
-		'X-Remoteglot-Num-Viewers': count_viewers(),
+		'X-Remoteglot-Num-Viewers': num_viewers,
 		'Access-Control-Allow-Origin': 'http://analysis.sesse.net',
 		'Access-Control-Expose-Headers': 'X-Remoteglot-Last-Modified, X-Remoteglot-Num-Viewers',
 		'Expires': 'Mon, 01 Jan 1970 00:00:00 UTC',
@@ -90,7 +93,7 @@ var send_json = function(response, accept_gzip) {
 }
 var timeout_client = function(client) {
 	mark_recently_seen(client.unique);
-	send_json(client.response, client.accept_gzip);
+	send_json(client.response, client.accept_gzip, count_viewers());
 	delete sleeping_clients[client.request_id];
 }
 var mark_recently_seen = function(unique) {
@@ -155,7 +158,7 @@ server.on('request', function(request, response) {
 	// If we already have something newer than what the user has,
 	// just send it out and be done with it.
 	if (json_last_modified !== undefined && (!ims || json_last_modified > ims)) {
-		send_json(response, accept_gzip);
+		send_json(response, accept_gzip, count_viewers());
 		return;
 	}
 
