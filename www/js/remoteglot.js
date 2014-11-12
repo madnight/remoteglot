@@ -600,6 +600,10 @@ var update_board = function(data, num_viewers) {
 	// The score.
 	if (data['score'] !== null) {
 		$("#score").text(data['score']);
+		var short_score = data['score'].replace(/Score: */, "");
+		document.title = '(' + short_score + ') analysis.sesse.net';
+	} else {
+		document.title = 'analysis.sesse.net';
 	}
 
 	// The search stats.
