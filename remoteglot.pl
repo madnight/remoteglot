@@ -105,6 +105,8 @@ EV::run;
 sub handle_uci {
 	my ($engine, $line, $primary) = @_;
 
+	return if $line =~ /(upper|lower)bound/;
+
 	$line =~ s/  / /g;  # Sometimes needed for Zappa Mexico
 	print UCILOG localtime() . " $engine->{'tag'} <= $line\n";
 	if ($line =~ /^info/) {
@@ -300,7 +302,7 @@ sub parse_infos {
 			delete $info->{'score_cp' . $mpv};
 			delete $info->{'score_mate' . $mpv};
 
-			while ($x[0] eq 'cp' || $x[0] eq 'mate' || $x[0] eq 'lowerbound' || $x[0] eq 'upperbound') {
+			while ($x[0] eq 'cp' || $x[0] eq 'mate') {
 				if ($x[0] eq 'cp') {
 					shift @x;
 					$info->{'score_cp' . $mpv} = shift @x;
