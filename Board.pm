@@ -170,7 +170,7 @@ sub parse_pretty_move {
 
 	# Parse promo
 	my $promo;
-	if ($move =~ s/=([QRNB])$//) {
+	if ($move =~ s/=?([QRNB])$//) {
 		$promo = $1;
 	}
 
