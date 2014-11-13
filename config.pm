@@ -32,6 +32,7 @@ our @masters = (
 	'Sesse',
 );
 
+our $tb_serial_key = undef;
 
 eval {
 	require 'config.local.pm';

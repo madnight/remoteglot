@@ -425,6 +425,19 @@ sub prettyprint_move {
 	return ($pretty, $nb);
 }
 
+sub num_pieces {
+	my ($board) = @_;
+
+	my $num = 0;
+	for my $row (0..7) {
+		for my $col (0..7) {
+			my $piece = $board->[$row][$col];
+			++$num if ($piece ne '-');
+		}
+	}
+	return $num;	
+}
+
 sub _prettyprint_move_no_check_or_mate {
         my ($board, $from_row, $from_col, $to_row, $to_col, $promo) = @_;
 	my $piece = $board->[$from_row][$from_col];

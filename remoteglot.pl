@@ -19,6 +19,7 @@ use FileHandle;
 use IPC::Open2;
 use Time::HiRes;
 use JSON::XS;
+use URI::Escape;
 require 'Position.pm';
 require 'Engine.pm';
 require 'config.pm';
@@ -30,6 +31,9 @@ no warnings qw(once);
 $SIG{ALRM} = sub { output(); };
 my $latest_update = undef;
 my $http_timer = undef;
+my $tb_retry_timer = undef;
+my %tb_cache = ();
+my $tb_lookup_running = 0;
 
 $| = 1;
 
@@ -44,6 +48,13 @@ open(UCILOG, ">ucilog.txt")
 print UCILOG "Log starting.\n";
 select(UCILOG);
 $| = 1;
+
+open(TBLOG, ">tblog.txt")
+	or die "tblog.txt: $!";
+print TBLOG "Log starting.\n";
+select(TBLOG);
+$| = 1;
+
 select(STDOUT);
 
 # open the chess engine
@@ -251,6 +262,8 @@ sub handle_position {
 	$engine->{'info'} = {};
 	$last_move = time;
 
+	schedule_tb_lookup();
+
 	# 
 	# Output a command every move to note that we're
 	# still paying attention -- this is a good tradeoff,
@@ -385,6 +398,46 @@ sub output {
 	}
 	
 	my $info = $engine->{'info'};
+
+	#
+	# If we have tablebase data from a previous lookup, replace the
+	# engine data with the data from the tablebase.
+	#
+	my $fen = $pos_calculating->fen();
+	if (exists($tb_cache{$fen})) {
+		for my $key (qw(pv score_cp score_mate nodes nps depth seldepth tbhits)) {
+			delete $info->{$key . '1'};
+			delete $info->{$key};
+		}
+		$info->{'nodes'} = 0;
+		$info->{'nps'} = 0;
+		$info->{'depth'} = 0;
+		$info->{'seldepth'} = 0;
+		$info->{'tbhits'} = 0;
+
+		my $t = $tb_cache{$fen};
+		my $pv = $t->{'pv'};
+		my $matelen = int((1 + scalar @$pv) / 2);
+		if ($t->{'result'} eq '1/2-1/2') {
+			$info->{'score_cp'} = 0;
+		} elsif ($t->{'result'} eq '1-0') {
+			if ($pos_calculating->{'toplay'} eq 'B') {
+				$info->{'score_mate'} = -$matelen;
+			} else {
+				$info->{'score_mate'} = $matelen;
+			}
+		} else {
+			if ($pos_calculating->{'toplay'} eq 'B') {
+				$info->{'score_mate'} = $matelen;
+			} else {
+				$info->{'score_mate'} = -$matelen;
+			}
+		}
+		$info->{'pv'} = $pv;
+		$info->{'tablebase'} = 1;
+	} else {
+		$info->{'tablebase'} = 0;
+	}
 	
 	#
 	# Some programs _always_ report MultiPV, even with only one PV.
@@ -556,6 +609,7 @@ sub output_json {
 	$json->{'depth'} = $info->{'depth'};
 	$json->{'tbhits'} = $info->{'tbhits'};
 	$json->{'seldepth'} = $info->{'seldepth'};
+	$json->{'tablebase'} = $info->{'tablebase'};
 
 	# single-PV only for now
 	$json->{'pv_uci'} = $info->{'pv'};
@@ -678,7 +732,11 @@ sub long_score {
 		if (exists($info->{'score_cp' . $mpv})) {
 			my $score = $info->{'score_cp' . $mpv} * 0.01;
 			if ($score == 0) {
-				return "Score:  0.00";
+				if ($info->{'tablebase'}) {
+					return "Theoretical draw";
+				} else {
+					return "Score:  0.00";
+				}
 			}
 			if ($pos->{'toplay'} eq 'B') {
 				$score = -$score;
@@ -740,6 +798,83 @@ sub book_info {
 	}
 
 	return $text;
+}
+
+sub schedule_tb_lookup {
+	return if (!defined($remoteglotconf::tb_serial_key));
+	my $pos = $pos_waiting // $pos_calculating;
+	return if (exists($tb_cache{$pos->fen()}));
+
+	# If there's more than seven pieces, there's not going to be an answer,
+	# so don't bother.
+	return if ($pos->num_pieces() > 7);
+
+	# Max one at a time. If it's still relevant when it returns,
+	# schedule_tb_lookup() will be called again.
+	return if ($tb_lookup_running);
+
+	$tb_lookup_running = 1;
+	my $url = 'http://158.250.18.203:6904/tasks/addtask?auth.login=' .
+		$remoteglotconf::tb_serial_key .
+		'&auth.password=aquarium&type=0&fen=' . 
+		URI::Escape::uri_escape($pos->fen());
+	print TBLOG "Downloading $url...\n";
+	AnyEvent::HTTP::http_get($url, sub {
+		handle_tb_lookup_return(@_, $pos, $pos->fen());
+	});
+}
+
+sub handle_tb_lookup_return {
+	my ($body, $header, $pos, $fen) = @_;
+	print TBLOG "Response for [$fen]:\n";
+	print TBLOG $header . "\n\n";
+	print TBLOG $body . "\n\n";
+	eval {
+		my $response = JSON::XS::decode_json($body);
+		if ($response->{'ErrorCode'} != 0) {
+			die "Unknown tablebase server error: " . $response->{'ErrorDesc'};
+		}
+		my $state = $response->{'Response'}{'StateString'};
+		if ($state eq 'COMPLETE') {
+			my $pgn = Chess::PGN::Parse->new(undef, $response->{'Response'}{'Moves'});
+			if (!defined($pgn) || !$pgn->read_game()) {
+				warn "Error in parsing PGN\n";
+			} else {
+				$pgn->quick_parse_game;
+				my $pvpos = $pos;
+				my $moves = $pgn->moves;
+				my @uci_moves = ();
+				for my $move (@$moves) {
+					my ($from_row, $from_col, $to_row, $to_col, $promo) = $pvpos->parse_pretty_move($move);
+					push @uci_moves, Board::move_to_uci_notation($from_row, $from_col, $to_row, $to_col, $promo);
+					$pvpos = $pvpos->make_move($from_row, $from_col, $to_row, $to_col, $promo);
+				}
+				$tb_cache{$fen} = {
+					result => $pgn->result,
+					pv => \@uci_moves
+				};
+				output();
+			}
+		} elsif ($state =~ /QUEUED/ || $state =~ /PROCESSING/) {
+			# Try again in a second. Note that if we have changed
+			# position in the meantime, we might query a completely
+			# different position! But that's fine.
+		} else {
+			die "Unknown response state state " . $response->{'Response'}{'StateString'};
+		}
+
+		# Wait a second before we schedule another one.
+		$tb_retry_timer = AnyEvent->timer(after => 1.0, cb => sub {
+			$tb_lookup_running = 0;
+			schedule_tb_lookup();
+		});
+	};
+	if ($@) {
+		warn "Error in tablebase lookup: $@";
+
+		# Don't try this one again, but don't block new lookups either.
+		$tb_lookup_running = 0;
+	}
 }
 
 sub open_engine {

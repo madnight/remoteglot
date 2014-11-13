@@ -127,6 +127,11 @@ sub parse_pretty_move {
 	return $pos->{'board'}->parse_pretty_move($move, $pos->{'toplay'});
 }
 
+sub num_pieces {
+	my ($pos) = @_;
+	return $pos->{'board'}->num_pieces();
+}
+
 # Returns a new Position object.
 sub make_move {
         my ($pos, $from_row, $from_col, $to_row, $to_col, $promo) = @_;
