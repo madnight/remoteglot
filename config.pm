@@ -7,6 +7,7 @@ package remoteglotconf;
 our $server = "freechess.org";
 our $nick = "SesseBOT";
 our $target = "GMCarlsen";
+our $json_output = "/srv/analysis.sesse.net/www/analysis.json";
 
 our $engine_cmdline = "./stockfish";
 our %engine_config = (

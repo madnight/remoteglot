@@ -588,11 +588,11 @@ sub output_json {
 	}
 	$json->{'refutation_lines'} = \%refutation_lines;
 
-	open my $fh, ">/srv/analysis.sesse.net/www/analysis.json.tmp"
+	open my $fh, ">", $remoteglotconf::json_output . ".tmp"
 		or return;
 	print $fh JSON::XS::encode_json($json);
 	close $fh;
-	rename("/srv/analysis.sesse.net/www/analysis.json.tmp", "/srv/analysis.sesse.net/www/analysis.json");
+	rename($remoteglotconf::json_output . ".tmp", $remoteglotconf::json_output);
 }
 
 sub uciprint {
