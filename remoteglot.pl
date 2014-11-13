@@ -635,11 +635,19 @@ sub score_sort_key {
 	my ($info, $pos, $mpv, $invert) = @_;
 
 	if (defined($info->{'score_mate' . $mpv})) {
-		if ($invert) {
-			return 99999 - $info->{'score_mate' . $mpv};
+		my $mate = $info->{'score_mate' . $mpv};
+		my $score;
+		if ($mate > 0) {
+			# Side to move mates
+			$mate = 99999 - $mate;
 		} else {
-			return -(99999 - $info->{'score_mate' . $mpv});
+			# Side to move is getting mated (note the double negative for $mate)
+			$mate = -99999 - $mate;
 		}
+		if ($invert) {
+			$score = -$score;
+		}
+		return $score;
 	} else {
 		if (exists($info->{'score_cp' . $mpv})) {
 			my $score = $info->{'score_cp' . $mpv};
