@@ -200,6 +200,10 @@ sub fetch_pgn {
 	});
 }
 
+my ($last_pgn_white, $last_pgn_black);
+my @last_pgn_uci_moves = ();
+my $pgn_hysteresis_counter = 0;
+
 sub handle_pgn {
 	my ($body, $header, $url) = @_;
 	my $pgn = Chess::PGN::Parse->new(undef, $body);
@@ -217,7 +221,27 @@ sub handle_pgn {
 		}
 		$pos->{'history'} = \@uci_moves;
 		$pos->{'pretty_history'} = $moves;
-		handle_position($pos);
+
+		# Sometimes, PGNs lose a move or two for a short while,
+		# or people push out new ones non-atomically. 
+		# Thus, if we PGN doesn't change names but becomes
+		# shorter, we mistrust it for a few seconds.
+		my $trust_pgn = 1;
+		if (defined($last_pgn_white) && defined($last_pgn_black) &&
+		    $last_pgn_white eq $pgn->white &&
+		    $last_pgn_black eq $pgn->black &&
+		    scalar(@uci_moves) < scalar(@last_pgn_uci_moves)) {
+			if (++$pgn_hysteresis_counter < 3) {
+				$trust_pgn = 0;	
+			}
+		}
+		if ($trust_pgn) {
+			$last_pgn_white = $pgn->white;
+			$last_pgn_black = $pgn->black;
+			@last_pgn_uci_moves = @uci_moves;
+			$pgn_hysteresis_counter = 0;
+			handle_position($pos);
+		}
 	}
 	
 	$http_timer = AnyEvent->timer(after => 1.0, cb => sub {
