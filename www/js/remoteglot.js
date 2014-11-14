@@ -600,14 +600,17 @@ var update_board = function(data, num_viewers) {
 	// The score.
 	if (data['score'] !== null) {
 		$("#score").text(data['score']);
-		var short_score = data['score'].replace(/Score: */, "");
-		document.title = '(' + short_score + ') analysis.sesse.net';
+	}
+	if (data['short_score'] !== undefined) {
+		document.title = '(' + data['short_score'] + ') analysis.sesse.net';
 	} else {
 		document.title = 'analysis.sesse.net';
 	}
 
 	// The search stats.
-	if (data['nodes'] && data['nps'] && data['depth']) {
+	if (data['tablebase'] == 1) {
+		$("#searchstats").text("Tablebase result");
+	} else if (data['nodes'] && data['nps'] && data['depth']) {
 		var stats = thousands(data['nodes']) + ' nodes, ' + thousands(data['nps']) + ' nodes/sec, depth ' + data['depth'] + ' ply';
 		if (data['seldepth']) {
 			stats += ' (' + data['seldepth'] + ' selective)';
@@ -621,6 +624,8 @@ var update_board = function(data, num_viewers) {
 		}
 
 		$("#searchstats").text(stats);
+	} else {
+		$("#searchstats").text("");
 	}
 
 	// Update the board itself.
