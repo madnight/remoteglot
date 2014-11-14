@@ -30,6 +30,9 @@ h3 {
 .vir path.l1arrow {
 	opacity: 1.0;
 }
+#news {
+	font-size: smaller;
+}
 #credits {
 	font-size: smaller;
 }
