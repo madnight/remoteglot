@@ -601,7 +601,7 @@ var update_board = function(data, num_viewers) {
 	if (data['score'] !== null) {
 		$("#score").text(data['score']);
 	}
-	if (data['short_score'] !== undefined) {
+	if (data['short_score'] !== undefined && data['short_score'] !== null) {
 		document.title = '(' + data['short_score'] + ') analysis.sesse.net';
 	} else {
 		document.title = 'analysis.sesse.net';
