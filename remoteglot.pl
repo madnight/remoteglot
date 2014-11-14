@@ -93,7 +93,13 @@ $t->cmd("");
 $t->cmd("set shout 0");
 $t->cmd("set seek 0");
 $t->cmd("set style 12");
-$t->cmd("observe $remoteglotconf::target");
+if (defined($remoteglotconf::target)) {
+	if ($remoteglotconf::target =~ /^http:/) {
+		fetch_pgn($remoteglotconf::target);
+	} else {
+		$t->cmd("observe $remoteglotconf::target");
+	}
+}
 print "FICS ready.\n";
 
 my $ev1 = AnyEvent->io(
@@ -172,9 +178,7 @@ sub handle_fics {
 		} elsif ($msg =~ /^pgn (.*?)$/) {
 			my $url = $1;
 			$t->cmd("tell $who Starting to poll '$url'.");
-			AnyEvent::HTTP::http_get($url, sub {
-				handle_pgn(@_, $url);
-			});
+			fetch_pgn($url);
 		} elsif ($msg =~ /^stoppgn$/) {
 			$t->cmd("tell $who Stopping poll.");
 			$http_timer = undef;
@@ -186,6 +190,14 @@ sub handle_fics {
 		}
 	}
 	#print "FICS: [$line]\n";
+}
+
+# Starts periodic fetching of PGNs from the given URL.
+sub fetch_pgn {
+	my ($url) = @_;
+	AnyEvent::HTTP::http_get($url, sub {
+		handle_pgn(@_, $url);
+	});
 }
 
 sub handle_pgn {
@@ -209,9 +221,7 @@ sub handle_pgn {
 	}
 	
 	$http_timer = AnyEvent->timer(after => 1.0, cb => sub {
-		AnyEvent::HTTP::http_get($url, sub {
-			handle_pgn(@_, $url);
-		});
+		fetch_pgn($url);
 	});
 }
 
