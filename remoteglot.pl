@@ -861,7 +861,7 @@ sub handle_tb_lookup_return {
 			# position in the meantime, we might query a completely
 			# different position! But that's fine.
 		} else {
-			die "Unknown response state state " . $response->{'Response'}{'StateString'};
+			die "Unknown response state " . $state;
 		}
 
 		# Wait a second before we schedule another one.
