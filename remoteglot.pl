@@ -573,7 +573,7 @@ sub output_screen {
 				my $key = $pretty_move;
 				my $line = sprintf("  %-6s %6s %3s  %s",
 					$pretty_move,
-					short_score($info, $pos_calculating_second_engine, $mpv, 0),
+					short_score($info, $pos_calculating_second_engine, $mpv),
 					"d" . $info->{'depth' . $mpv},
 					join(', ', @pretty_pv));
 				push @refutation_lines, [ $key, $line ];
@@ -603,6 +603,7 @@ sub output_json {
 	$json->{'position'} = $pos_calculating->to_json_hash();
 	$json->{'id'} = $engine->{'id'};
 	$json->{'score'} = long_score($info, $pos_calculating, '');
+	$json->{'short_score'} = short_score($info, $pos_calculating, '');
 
 	$json->{'nodes'} = $info->{'nodes'};
 	$json->{'nps'} = $info->{'nps'};
@@ -632,7 +633,7 @@ sub output_json {
 					sort_key => $pretty_move,
 					depth => $info->{'depth' . $mpv},
 					score_sort_key => score_sort_key($info, $pos_calculating, $mpv, 0),
-					pretty_score => short_score($info, $pos_calculating, $mpv, 0),
+					pretty_score => short_score($info, $pos_calculating, $mpv),
 					pretty_move => $pretty_move,
 					pv_pretty => \@pretty_pv,
 				};
@@ -656,13 +657,9 @@ sub uciprint {
 }
 
 sub short_score {
-	my ($info, $pos, $mpv, $invert) = @_;
+	my ($info, $pos, $mpv) = @_;
 
-	$invert //= 0;
-	if ($pos->{'toplay'} eq 'B') {
-		$invert = !$invert;
-	}
-
+	my $invert = ($pos->{'toplay'} eq 'B');
 	if (defined($info->{'score_mate' . $mpv})) {
 		if ($invert) {
 			return sprintf "M%3d", -$info->{'score_mate' . $mpv};
@@ -673,7 +670,11 @@ sub short_score {
 		if (exists($info->{'score_cp' . $mpv})) {
 			my $score = $info->{'score_cp' . $mpv} * 0.01;
 			if ($score == 0) {
-				return " 0.00";
+				if ($info->{'tablebase'}) {
+					return "TB draw";
+				} else {
+					return " 0.00";
+				}
 			}
 			if ($invert) {
 				$score = -$score;
