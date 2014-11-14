@@ -694,10 +694,10 @@ sub score_sort_key {
 		my $score;
 		if ($mate > 0) {
 			# Side to move mates
-			$mate = 99999 - $mate;
+			$score = 99999 - $mate;
 		} else {
 			# Side to move is getting mated (note the double negative for $mate)
-			$mate = -99999 - $mate;
+			$score = -99999 - $mate;
 		}
 		if ($invert) {
 			$score = -$score;
