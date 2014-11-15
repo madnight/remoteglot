@@ -200,8 +200,11 @@ sub parse_pretty_move {
 			push @squares, [ $row, $col ];
 		}
 	}
+	if (scalar @squares == 0) {
+		die "Impossible move $move";
+	}
 	if (scalar @squares != 1) {
-		die "Ambigious or impossible move $move";
+		die "Ambigious move $move";
 	}
 	return (@{$squares[0]}, $to_row, $to_col, $promo);
 }
