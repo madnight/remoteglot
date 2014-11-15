@@ -17,15 +17,20 @@ var json_contents = undefined;
 var json_contents_gz = undefined;
 var json_last_modified = undefined;
 
-// The list of clients that are waiting for new data to show up,
-// and their associated timers. Uniquely keyed by request_id
-// so that we can take them out of the queue if they time out.
+// The list of clients that are waiting for new data to show up.
+// Uniquely keyed by request_id so that we can take them out of
+// the queue if they close the socket.
 var sleeping_clients = {};
 var request_id = 0;
 
 // List of when clients were last seen, keyed by their unique ID.
 // Used to show a viewer count to the user.
 var last_seen_clients = {};
+
+// The timer used to touch the file every 30 seconds if nobody
+// else does it for us. This makes sure we don't have clients
+// hanging indefinitely (which might have them return errors).
+var touch_timer = undefined;
 
 var reread_file = function(event, filename) {
 	if (filename != path.basename(json_filename)) {
@@ -52,11 +57,19 @@ var reread_file = function(event, filename) {
 			});
 		});
 	});
+
+	if (touch_timer !== undefined) {
+		clearTimeout(touch_timer);
+	}
+	touch_timer = setTimeout(function() {
+		console.log("Touching analysis.json due to no other activity");
+		var now = Date.now() / 1000;
+		fs.utimes(json_filename, now, now);
+	}, 30000);
 }
 var possibly_wakeup_clients = function() {
 	var num_viewers = count_viewers();
 	for (var i in sleeping_clients) {
-		clearTimeout(sleeping_clients[i].timer);
 		mark_recently_seen(sleeping_clients[i].unique);
 		send_json(sleeping_clients[i].response,
 		          sleeping_clients[i].accept_gzip,
@@ -90,11 +103,6 @@ var send_json = function(response, accept_gzip, num_viewers) {
 		response.write(json_contents);
 	}
 	response.end();
-}
-var timeout_client = function(client) {
-	mark_recently_seen(client.unique);
-	send_json(client.response, client.accept_gzip, count_viewers());
-	delete sleeping_clients[client.request_id];
 }
 var mark_recently_seen = function(unique) {
 	if (unique) {
@@ -163,11 +171,9 @@ server.on('request', function(request, response) {
 	}
 
 	// OK, so we need to hang until we have something newer.
-	// Put the user on the wait list; if we don't get anything
-	// in 30 seconds, though, we'll send something anyway.
+	// Put the user on the wait list.
 	var client = {};
 	client.response = response;
-	client.timer = setTimeout(function() { timeout_client(client); }, 30000);
 	client.request_id = request_id;
 	client.accept_gzip = accept_gzip;
 	client.unique = unique;
