@@ -195,6 +195,16 @@ sub make_move {
 	return bless $np;
 }
 
+# Returns a new Position object, and the parsed UCI move.
+sub make_pretty_move {
+	my ($pos, $move) = @_;
+
+	my ($from_row, $from_col, $to_row, $to_col, $promo) = $pos->parse_pretty_move($move);
+	my $uci_move = Board::move_to_uci_notation($from_row, $from_col, $to_row, $to_col, $promo);
+	$pos = $pos->make_move($from_row, $from_col, $to_row, $to_col, $promo);
+	return ($pos, $uci_move);
+}
+
 sub _pos_to_square {
         my ($row, $col) = @_;
         return sprintf("%c%d", ord('a') + $col, 8 - $row);

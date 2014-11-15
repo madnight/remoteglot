@@ -160,10 +160,60 @@ sub handle_uci {
 	output();
 }
 
+my $getting_movelist = 0;
+my $pos_for_movelist = undef;
+my @uci_movelist = ();
+my @pretty_movelist = ();
+
 sub handle_fics {
 	my $line = shift;
 	if ($line =~ /^<12> /) {
 		handle_position(Position->new($line));
+		$t->cmd("moves");
+	}
+	if ($line =~ /^Movelist for game /) {
+		my $pos = $pos_waiting // $pos_calculating;
+		if (defined($pos)) {
+			@uci_movelist = ();
+			@pretty_movelist = ();
+			$pos_for_movelist = Position->start_pos($pos->{'player_w'}, $pos->{'player_b'});
+			$getting_movelist = 1;
+		}
+	}
+	if ($getting_movelist &&
+	    $line =~ /^\s* \d+\. \s+                     # move number
+                       (\S+) \s+ \( [\d:.]+ \) \s*       # first move, then time
+	               (?: (\S+) \s+ \( [\d:.]+ \) )?    # second move, then time 
+	             /x) {
+		eval {
+			my $uci_move;
+			($pos_for_movelist, $uci_move) = $pos_for_movelist->make_pretty_move($1);
+			push @uci_movelist, $uci_move;
+			push @pretty_movelist, $1;
+
+			if (defined($2)) {
+				($pos_for_movelist, $uci_move) = $pos_for_movelist->make_pretty_move($2);
+				push @uci_movelist, $uci_move;
+				push @pretty_movelist, $2;
+			}
+		};
+		if ($@) {
+			warn "Error when getting FICS move history: $@";
+			exit;
+			$getting_movelist = 0;
+		}
+	}
+	if ($getting_movelist &&
+	    $line =~ /^\s+ \{.*\} \s+ (?: \* | 1\/2-1\/2 | 0-1 | 1-0 )/x) {
+		# End of movelist.
+		for my $pos ($pos_waiting, $pos_calculating) {
+			next if (!defined($pos));
+			if ($pos->fen() eq $pos_for_movelist->fen()) {
+				$pos->{'history'} = \@uci_movelist;
+				$pos->{'pretty_history'} = \@pretty_movelist;
+			}
+		}
+		$getting_movelist = 0;
 	}
 	if ($line =~ /^([A-Za-z]+)(?:\([A-Z]+\))* tells you: (.*)$/) {
 		my ($who, $msg) = ($1, $2);
@@ -216,9 +266,8 @@ sub handle_pgn {
 		my $moves = $pgn->moves;
 		my @uci_moves = ();
 		for my $move (@$moves) {
-			my ($from_row, $from_col, $to_row, $to_col, $promo) = $pos->parse_pretty_move($move);
-			push @uci_moves, Board::move_to_uci_notation($from_row, $from_col, $to_row, $to_col, $promo);
-			$pos = $pos->make_move($from_row, $from_col, $to_row, $to_col, $promo);
+			my ($pos, $uci_move) = $pos->make_pretty_move($move);
+			push @uci_moves, $uci_move;
 		}
 		$pos->{'history'} = \@uci_moves;
 		$pos->{'pretty_history'} = $moves;
@@ -881,9 +930,8 @@ sub handle_tb_lookup_return {
 				my $moves = $pgn->moves;
 				my @uci_moves = ();
 				for my $move (@$moves) {
-					my ($from_row, $from_col, $to_row, $to_col, $promo) = $pvpos->parse_pretty_move($move);
-					push @uci_moves, Board::move_to_uci_notation($from_row, $from_col, $to_row, $to_col, $promo);
-					$pvpos = $pvpos->make_move($from_row, $from_col, $to_row, $to_col, $promo);
+					my ($pvpos, $uci_move) = $pvpos->make_pretty_move($move);
+					push @uci_moves, $uci_move;
 				}
 				$tb_cache{$fen} = {
 					result => $pgn->result,
