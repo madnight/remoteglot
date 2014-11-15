@@ -93,14 +93,6 @@ $t->cmd("");
 $t->cmd("set shout 0");
 $t->cmd("set seek 0");
 $t->cmd("set style 12");
-if (defined($remoteglotconf::target)) {
-	if ($remoteglotconf::target =~ /^http:/) {
-		fetch_pgn($remoteglotconf::target);
-	} else {
-		$t->cmd("observe $remoteglotconf::target");
-	}
-}
-print "FICS ready.\n";
 
 my $ev1 = AnyEvent->io(
 	fh => fileno($t),
@@ -116,6 +108,15 @@ my $ev1 = AnyEvent->io(
 		}
 	}
 );
+if (defined($remoteglotconf::target)) {
+	if ($remoteglotconf::target =~ /^http:/) {
+		fetch_pgn($remoteglotconf::target);
+	} else {
+		$t->cmd("observe $remoteglotconf::target");
+	}
+}
+print "FICS ready.\n";
+
 # Engine events have already been set up by Engine.pm.
 EV::run;
 
