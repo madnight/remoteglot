@@ -199,7 +199,6 @@ sub handle_fics {
 		};
 		if ($@) {
 			warn "Error when getting FICS move history: $@";
-			exit;
 			$getting_movelist = 0;
 		}
 	}
