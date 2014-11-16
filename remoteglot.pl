@@ -31,6 +31,7 @@ no warnings qw(once);
 my $latest_update = undef;
 my $output_timer = undef;
 my $http_timer = undef;
+my $stop_pgn_fetch = 0;
 my $tb_retry_timer = undef;
 my %tb_cache = ();
 my $tb_lookup_running = 0;
@@ -231,6 +232,7 @@ sub handle_fics {
 			fetch_pgn($url);
 		} elsif ($msg =~ /^stoppgn$/) {
 			$t->cmd("tell $who Stopping poll.");
+			$stop_pgn_fetch = 1;
 			$http_timer = undef;
 		} elsif ($msg =~ /^quit$/) {
 			$t->cmd("tell $who Bye bye.");
@@ -256,6 +258,13 @@ my $pgn_hysteresis_counter = 0;
 
 sub handle_pgn {
 	my ($body, $header, $url) = @_;
+
+	if ($stop_pgn_fetch) {
+		$stop_pgn_fetch = 0;
+		$http_timer = undef;
+		return;
+	}
+
 	my $pgn = Chess::PGN::Parse->new(undef, $body);
 	if (!defined($pgn) || !$pgn->read_game()) {
 		warn "Error in parsing PGN from $url\n";
