@@ -511,7 +511,7 @@ sub output {
 
 		my $t = $tb_cache{$fen};
 		my $pv = $t->{'pv'};
-		my $matelen = int((1 + scalar @$pv) / 2);
+		my $matelen = int((1 + $t->{'score'}) / 2);
 		if ($t->{'result'} eq '1/2-1/2') {
 			$info->{'score_cp'} = 0;
 		} elsif ($t->{'result'} eq '1-0') {
@@ -946,7 +946,8 @@ sub handle_tb_lookup_return {
 				}
 				$tb_cache{$fen} = {
 					result => $pgn->result,
-					pv => \@uci_moves
+					pv => \@uci_moves,
+					score => $response->{'Response'}{'Score'},
 				};
 				output();
 			}
