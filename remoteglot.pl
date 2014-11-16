@@ -28,8 +28,8 @@ use warnings;
 no warnings qw(once);
 
 # Program starts here
-$SIG{ALRM} = sub { output(); };
 my $latest_update = undef;
+my $output_timer = undef;
 my $http_timer = undef;
 my $tb_retry_timer = undef;
 my %tb_cache = ();
@@ -478,7 +478,8 @@ sub output {
 	# Don't update too often.
 	my $age = Time::HiRes::tv_interval($latest_update);
 	if ($age < $remoteglotconf::update_max_interval) {
-		Time::HiRes::alarm($remoteglotconf::update_max_interval + 0.01 - $age);
+		my $wait = $remoteglotconf::update_max_interval + 0.01 - $age;
+		$output_timer = AnyEvent->timer(after => $wait, cb => \&output);
 		return;
 	}
 	
