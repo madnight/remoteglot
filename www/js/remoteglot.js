@@ -440,7 +440,7 @@ var print_pv = function(line_num, pretty_pv, move_num, toplay, opt_limit, opt_sh
 			++i;
 		}
 		move_num += i / 2;
-	} else if (toplay == 'B') {
+	} else if (toplay == 'B' && pretty_pv.length > 0) {
 		var move = "<a class=\"move\" id=\"automove" + line_num + "-0\" href=\"javascript:show_line(" + line_num + ", " + 0 + ");\">" + pretty_pv[0] + "</a>";
 		pv = move_num + '. … ' + move;
 		toplay = 'W';
