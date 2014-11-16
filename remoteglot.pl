@@ -266,7 +266,8 @@ sub handle_pgn {
 		my $moves = $pgn->moves;
 		my @uci_moves = ();
 		for my $move (@$moves) {
-			my ($pos, $uci_move) = $pos->make_pretty_move($move);
+			my $uci_move;
+			($pos, $uci_move) = $pos->make_pretty_move($move);
 			push @uci_moves, $uci_move;
 		}
 		$pos->{'history'} = \@uci_moves;
@@ -930,7 +931,8 @@ sub handle_tb_lookup_return {
 				my $moves = $pgn->moves;
 				my @uci_moves = ();
 				for my $move (@$moves) {
-					my ($pvpos, $uci_move) = $pvpos->make_pretty_move($move);
+					my $uci_move;
+					($pvpos, $uci_move) = $pvpos->make_pretty_move($move);
 					push @uci_moves, $uci_move;
 				}
 				$tb_cache{$fen} = {
