@@ -32,6 +32,10 @@ var last_seen_clients = {};
 // hanging indefinitely (which might have them return errors).
 var touch_timer = undefined;
 
+// If we are behind Varnish, we can't count the number of clients
+// ourselves, so some external log-tailing daemon needs to tell us.
+var viewer_count_override = undefined;
+
 var reread_file = function(event, filename) {
 	if (filename != path.basename(json_filename)) {
 		return;
@@ -84,6 +88,21 @@ var send_404 = function(response) {
 	response.write('Something went wrong. Sorry.');
 	response.end();
 }
+var handle_viewer_override = function(request, u, response) {
+	// Only accept requests from localhost.
+	var peer = request.socket.localAddress;
+	if ((peer != '127.0.0.1' && peer != '::1') || request.headers['x-forwarded-for']) {
+		console.log("Refusing viewer override from " + peer);
+		send_404(response);
+	} else {
+		viewer_count_override = (u.query)['num'];
+		response.writeHead(200, {
+			'Content-Type': 'text/plain',
+		});
+		response.write('OK.');
+		response.end();
+	}
+}
 var send_json = function(response, accept_gzip, num_viewers) {
 	var headers = {
 		'Content-Type': 'text/json',
@@ -110,6 +129,10 @@ var mark_recently_seen = function(unique) {
 	}
 }
 var count_viewers = function() {
+	if (viewer_count_override !== undefined) {
+		return viewer_count_override;
+	}
+
 	var now = (new Date).getTime();
 
 	// Go through and remove old viewers, and count them at the same time.
@@ -146,7 +169,10 @@ server.on('request', function(request, response) {
 	var unique = (u.query)['unique'];
 
 	console.log((new Date).getTime()*1e-3 + " " + request.url);
-
+	if (u.pathname === '/override-num-viewers') {
+		handle_viewer_override(request, u, response);
+		return;
+	}
 	if (u.pathname !== '/analysis.pl') {
 		// This is not the request you are looking for.
 		send_404(response);
