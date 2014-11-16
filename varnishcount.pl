@@ -1,21 +1,34 @@
 #! /usr/bin/perl
-use Time::HiRes;
+use AnyEvent;
+use AnyEvent::Handle;
+use EV;
 use LWP::Simple;
 require 'config.pm';
 use strict;
 use warnings;
 no warnings qw(once);
 
-$SIG{ALRM} = sub { output(); };
-Time::HiRes::alarm(1.0, 1.0);
-
 open my $fh, "-|", "varnishncsa -F '%{%s}t %U %q tffb=%{Varnish:time_firstbyte}x' -q 'ReqURL ~ \"^/analysis.pl\"'"
 	or die "varnishncsa: $!";
 my %uniques = ();
 
-while (<$fh>) {
-	chomp;
-	m#(\d+) /analysis.pl \?ims=\d+&unique=(.*) tffb=(.*)# or next;
+my $ev = AnyEvent->io(
+	fh => $fh,
+        poll => 'r',
+	cb => sub {
+		chomp (my $input = <$fh>);
+		handle_line($input);
+	}
+);
+my $ev2 = AnyEvent->timer(
+	interval => 1.0,
+	cb => \&output
+);
+EV::run;
+
+sub handle_line {
+	my $line = shift;
+	$line =~ m#(\d+) /analysis.pl \?ims=\d+&unique=(.*) tffb=(.*)# or return;
 	$uniques{$2} = {
 		last_seen => $1 + $3,
 		grace => undef,
