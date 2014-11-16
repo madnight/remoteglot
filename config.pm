@@ -32,6 +32,9 @@ our @masters = (
 	'Sesse',
 );
 
+# ChessOK serial key (of the form NNNNN-NNNNN-NNNNN-NNNNN-NNNNN-NNNNN)
+# for looking up 7-man tablebases; undef means no lookup. Note that
+# you probably need specific prior permission to use this.
 our $tb_serial_key = undef;
 
 eval {
