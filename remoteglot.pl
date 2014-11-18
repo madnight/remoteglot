@@ -269,37 +269,42 @@ sub handle_pgn {
 	if (!defined($pgn) || !$pgn->read_game()) {
 		warn "Error in parsing PGN from $url\n";
 	} else {
-		$pgn->quick_parse_game;
-		my $pos = Position->start_pos($pgn->white, $pgn->black);
-		my $moves = $pgn->moves;
-		my @uci_moves = ();
-		for my $move (@$moves) {
-			my $uci_move;
-			($pos, $uci_move) = $pos->make_pretty_move($move);
-			push @uci_moves, $uci_move;
-		}
-		$pos->{'history'} = \@uci_moves;
-		$pos->{'pretty_history'} = $moves;
-
-		# Sometimes, PGNs lose a move or two for a short while,
-		# or people push out new ones non-atomically. 
-		# Thus, if we PGN doesn't change names but becomes
-		# shorter, we mistrust it for a few seconds.
-		my $trust_pgn = 1;
-		if (defined($last_pgn_white) && defined($last_pgn_black) &&
-		    $last_pgn_white eq $pgn->white &&
-		    $last_pgn_black eq $pgn->black &&
-		    scalar(@uci_moves) < scalar(@last_pgn_uci_moves)) {
-			if (++$pgn_hysteresis_counter < 3) {
-				$trust_pgn = 0;	
+		eval {
+			$pgn->quick_parse_game;
+			my $pos = Position->start_pos($pgn->white, $pgn->black);
+			my $moves = $pgn->moves;
+			my @uci_moves = ();
+			for my $move (@$moves) {
+				my $uci_move;
+				($pos, $uci_move) = $pos->make_pretty_move($move);
+				push @uci_moves, $uci_move;
 			}
-		}
-		if ($trust_pgn) {
-			$last_pgn_white = $pgn->white;
-			$last_pgn_black = $pgn->black;
-			@last_pgn_uci_moves = @uci_moves;
-			$pgn_hysteresis_counter = 0;
-			handle_position($pos);
+			$pos->{'history'} = \@uci_moves;
+			$pos->{'pretty_history'} = $moves;
+
+			# Sometimes, PGNs lose a move or two for a short while,
+			# or people push out new ones non-atomically. 
+			# Thus, if we PGN doesn't change names but becomes
+			# shorter, we mistrust it for a few seconds.
+			my $trust_pgn = 1;
+			if (defined($last_pgn_white) && defined($last_pgn_black) &&
+			    $last_pgn_white eq $pgn->white &&
+			    $last_pgn_black eq $pgn->black &&
+			    scalar(@uci_moves) < scalar(@last_pgn_uci_moves)) {
+				if (++$pgn_hysteresis_counter < 3) {
+					$trust_pgn = 0;	
+				}
+			}
+			if ($trust_pgn) {
+				$last_pgn_white = $pgn->white;
+				$last_pgn_black = $pgn->black;
+				@last_pgn_uci_moves = @uci_moves;
+				$pgn_hysteresis_counter = 0;
+				handle_position($pos);
+			}
+		};
+		if ($@) {
+			warn "Error in parsing moves from $url\n";
 		}
 	}
 	
