@@ -742,11 +742,18 @@ sub output_json {
 	}
 	$json->{'refutation_lines'} = \%refutation_lines;
 
-	open my $fh, ">", $remoteglotconf::json_output . ".tmp"
+	my $encoded = JSON::XS::encode_json($json);
+	atomic_set_contents($remoteglotconf::json_output, $encoded);
+}
+
+sub atomic_set_contents {
+	my ($filename, $contents) = @_;
+
+	open my $fh, ">", $filename . ".tmp"
 		or return;
-	print $fh JSON::XS::encode_json($json);
+	print $fh $contents;
 	close $fh;
-	rename($remoteglotconf::json_output . ".tmp", $remoteglotconf::json_output);
+	rename($filename . ".tmp", $filename);
 }
 
 sub uciprint {
