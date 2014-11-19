@@ -744,6 +744,16 @@ sub output_json {
 
 	my $encoded = JSON::XS::encode_json($json);
 	atomic_set_contents($remoteglotconf::json_output, $encoded);
+
+	if (exists($pos_calculating->{'history'}) &&
+	    defined($remoteglotconf::json_history_dir)) {
+		my $halfmove_num = scalar @{$pos_calculating->{'history'}};
+		(my $fen = $pos_calculating->fen()) =~ tr,/ ,-_,;
+		my $filename = $remoteglotconf::json_history_dir . "/move$halfmove_num-$fen.json";
+
+		# TODO: Avoid overwriting earlier analysis if it's better.
+		atomic_set_contents($filename, $encoded);
+	}
 }
 
 sub atomic_set_contents {

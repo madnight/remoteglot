@@ -8,6 +8,7 @@ our $server = "freechess.org";
 our $nick = "SesseBOT";
 our $target = "GMCarlsen";  # FICS username or HTTP to a PGN file.
 our $json_output = "/srv/analysis.sesse.net/www/analysis.json";
+our $json_history_dir = "/srv/analysis.sesse.net/www/history/";  # undef for none.
 
 our $engine_cmdline = "./stockfish";
 our %engine_config = (
