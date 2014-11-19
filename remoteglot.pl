@@ -751,8 +751,19 @@ sub output_json {
 		(my $fen = $pos_calculating->fen()) =~ tr,/ ,-_,;
 		my $filename = $remoteglotconf::json_history_dir . "/move$halfmove_num-$fen.json";
 
-		# TODO: Avoid overwriting earlier analysis if it's better.
-		atomic_set_contents($filename, $encoded);
+		# Overwrite old analysis (assuming it exists at all) if we're
+		# using a different engine, or if we've calculated deeper.
+		# nodes is used as a tiebreaker. Don't bother about Multi-PV
+		# data; it's not that important.
+		my ($old_engine, $old_depth, $old_nodes) = get_json_analysis_stats($filename);
+		my $new_depth = $json->{'depth'} // 0;
+		my $new_nodes = $json->{'nodes'} // 0;
+		if (!defined($old_engine) ||
+		    $old_engine ne $json->{'id'}{'name'} ||
+		    $new_depth > $old_depth ||
+		    ($new_depth == $old_depth && $new_nodes >= $old_nodes)) {
+			atomic_set_contents($filename, $encoded);
+		}
 	}
 }
 
@@ -764,6 +775,28 @@ sub atomic_set_contents {
 	print $fh $contents;
 	close $fh;
 	rename($filename . ".tmp", $filename);
+}
+
+sub get_json_analysis_stats {
+	my $filename = shift;
+
+	my ($engine, $depth, $nodes);
+
+	open my $fh, "<", $filename
+		or return undef;
+	local $/ = undef;
+	eval {
+		my $json = JSON::XS::decode_json(<$fh>);
+		$engine = $json->{'id'}{'name'} // die;
+		$depth = $json->{'depth'} // 0;
+		$nodes = $json->{'nodes'} // 0;
+	};
+	close $fh;
+	if ($@) {
+		warn "Error in decoding $filename: $@";
+		return undef;
+	}
+	return ($engine, $depth, $nodes);
 }
 
 sub uciprint {
