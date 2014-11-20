@@ -3,6 +3,23 @@
 /** @type {window.ChessBoard} @private */
 var board = null;
 
+/**
+ * The most recent analysis data we have from the server
+ * (about the most recent position).
+ *
+ * @type {?Object}
+ * @private */
+var current_analysis_data = null;
+
+/**
+ * If we are displaying previous analysis, this is non-null,
+ * and will override most of current_analysis_data.
+ *
+ * @type {?Object}
+ * @private
+ */
+var displayed_analysis_data = null;
+
 /** @type {Array.<{
  *      from_col: number,
  *      from_row: number,
@@ -70,6 +87,9 @@ var display_lines = [];
 /** @type {?DisplayLine} @private */
 var current_display_line = null;
 
+/** @type {boolean} @private */
+var current_display_line_is_history = false;
+
 /** @type {?number} @private */
 var current_display_move = null;
 
@@ -101,7 +121,8 @@ var request_update = function() {
 	}).done(function(data, textstatus, xhr) {
 		ims = xhr.getResponseHeader('X-Remoteglot-Last-Modified');
 		var num_viewers = xhr.getResponseHeader('X-Remoteglot-Num-Viewers');
-		update_board(data);
+		current_analysis_data = data;
+		update_board(current_analysis_data, displayed_analysis_data);
 		update_num_viewers(num_viewers);
 
 		// Next update.
@@ -565,44 +586,55 @@ var update_refutation_lines = function() {
 
 /**
  * @param {Object} data
+ * @param {?Object} display_data
  */
-var update_board = function(data) {
+var update_board = function(current_data, display_data) {
+	var data = display_data || current_data;
+
 	display_lines = [];
 
-	// The headline.
+	// Print the history. This is pretty much the only thing that's
+	// unconditionally taken from current_data (we're not interested in
+	// historic history).
+	if (current_data['position']['history']) {
+		add_pv('start', current_data['position']['history'], 1, 'W', 8, true);
+	} else {
+		display_lines.push(null);
+	}
+	update_history();
+
+	// The headline. Names are always fetched from current_data;
+	// the rest can depend a bit.
 	var headline;
-	if (data['position']['player_w'] && data['position']['player_b']) {
-		headline = data['position']['player_w'] + '–' +
-			data['position']['player_b'] + ', analysis';
+	if (current_data &&
+	    current_data['position']['player_w'] && current_data['position']['player_b']) {
+		headline = current_data['position']['player_w'] + '–' +
+			current_data['position']['player_b'] + ', analysis';
 	} else {
 		headline = 'Analysis';
 	}
-	var last_move;
-	if (data['position']['last_move'] !== 'none') {
-		if (data['position']['toplay'] == 'W') {
-			last_move = (data['position']['move_num']-1) + '… ';
-		} else {
-			last_move = data['position']['move_num'] + '. ';
-		}
-		last_move += data['position']['last_move'];
 
+	var last_move;
+	if (display_data) {
+		// Displaying some non-current position, pick out the last move
+		// from the history. This will work even if the fetch failed.
+		last_move = format_move_with_number(
+			current_display_line.pretty_pv[current_display_move],
+			Math.floor((current_display_move + 1) / 2) + 1,
+			(current_display_move % 2 == 1));
+		headline += ' after ' + last_move;
+	} else if (data['position']['last_move'] !== 'none') {
+		last_move = format_move_with_number(
+			data['position']['last_move'],
+			data['position']['move_num'],
+			data['position']['toplay'] == 'W');
 		headline += ' after ' + last_move;
 	} else {
 		last_move = null;
 	}
-
 	$("#headline").text(headline);
 
-	// The engine id.
-	if (data['id'] && data['id']['name'] !== null) {
-		$("#engineid").text(data['id']['name']);
-	}
-
-	// The score.
-	if (data['score'] !== null) {
-		$("#score").text(data['score']);
-	}
-
+	// The <title> contains a very brief headline.
 	var title_elems = [];
 	if (data['short_score'] !== undefined && data['short_score'] !== null) {
 		title_elems.push(data['short_score']);
@@ -615,6 +647,26 @@ var update_board = function(data) {
 		document.title = '(' + title_elems.join(', ') + ') analysis.sesse.net';
 	} else {
 		document.title = 'analysis.sesse.net';
+	}
+
+	if (data['failed']) {
+		$("#score").text("No analysis for this move");
+		$("#pv").empty();
+		$("#searchstats").html("&nbsp;");
+		$("#refutationlines").empty();
+		refutation_lines = [];
+		update_refutation_lines();
+		return;
+	}
+
+	// The engine id.
+	if (data['id'] && data['id']['name'] !== null) {
+		$("#engineid").text(data['id']['name']);
+	}
+
+	// The score.
+	if (data['score'] !== null) {
+		$("#score").text(data['score']);
 	}
 
 	// The search stats.
@@ -649,14 +701,6 @@ var update_board = function(data) {
 		highlight_from = highlight_to = undefined;
 	}
 	update_highlight();
-
-	// Print the history.
-	if (data['position']['history']) {
-		add_pv('start', data['position']['history'], 1, 'W', 8, true);
-	} else {
-		display_lines.push(null);
-	}
-	update_history();
 
 	// Print the PV.
 	$("#pv").html(add_pv(data['position']['fen'], data['pv_uci'], data['position']['move_num'], data['position']['toplay']));
@@ -735,6 +779,22 @@ var update_num_viewers = function(num_viewers) {
 }
 
 /**
+ * @param {string} move
+ * @param {Number} move_num
+ * @param {boolean} white_to_play
+ */
+var format_move_with_number = function(move, move_num, white_to_play) {
+	var ret;
+	if (white_to_play) {
+		ret = (move_num - 1) + '… ';
+	} else {
+		ret = move_num + '. ';
+	}
+	ret += move;
+	return ret;
+}
+
+/**
  * @param {boolean} sort_by_score
  */
 var resort_refutation_lines = function(sort_by_score) {
@@ -760,10 +820,19 @@ var show_line = function(line_num, move_num) {
 	if (line_num == -1) {
 		current_display_line = null;
 		current_display_move = null;
+		if (displayed_analysis_data) {
+			// TODO: Support exiting to history position if we are in an
+			// analysis line of a history position.
+			displayed_analysis_data = null;
+			update_board(current_analysis_data, displayed_analysis_data);
+		}
 	} else {
 		current_display_line = display_lines[line_num];
 		current_display_move = move_num;
 	}
+	current_display_line_is_history = (line_num == 0);
+
+	update_historic_analysis();
 	update_displayed_line();
 	update_highlight();
 	redraw_arrows();
@@ -774,6 +843,7 @@ var prev_move = function() {
 	if (current_display_move > -1) {
 		--current_display_move;
 	}
+	update_historic_analysis();
 	update_displayed_line();
 }
 window['prev_move'] = prev_move;
@@ -782,9 +852,38 @@ var next_move = function() {
 	if (current_display_line && current_display_move < current_display_line.pretty_pv.length - 1) {
 		++current_display_move;
 	}
+	update_historic_analysis();
 	update_displayed_line();
 }
 window['next_move'] = next_move;
+
+var update_historic_analysis = function() {
+	if (!current_display_line_is_history) {
+		return;
+	}
+	if (current_display_move == current_display_line.pretty_pv.length - 1) {
+		displayed_analysis_data = null;
+		update_board(current_analysis_data, displayed_analysis_data);
+	}
+
+	// Fetch old analysis for this line if it exists.
+	var hiddenboard = new Chess();
+	for (var i = 0; i <= current_display_move; ++i) {
+		hiddenboard.move(ucimove_to_chessjs_move(current_display_line.uci_pv[i]));
+	}
+	var filename = "/history/move" + (current_display_move + 1) + "-" +
+		hiddenboard.fen().replace(/ /g, '_').replace(/\//g, '-') + ".json";
+
+	$.ajax({
+		url: filename
+	}).done(function(data, textstatus, xhr) {
+		displayed_analysis_data = data;
+		update_board(current_analysis_data, displayed_analysis_data);
+	}).fail(function() {
+		displayed_analysis_data = {'failed': true};
+		update_board(current_analysis_data, displayed_analysis_data);
+	});
+}
 
 var update_displayed_line = function() {
 	if (highlighted_move !== null) {
