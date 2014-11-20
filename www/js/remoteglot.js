@@ -572,14 +572,18 @@ var update_board = function(data, num_viewers) {
 	} else {
 		headline = 'Analysis';
 	}
+	var last_move;
 	if (data['position']['last_move'] !== 'none') {
-		headline += ' after '
 		if (data['position']['toplay'] == 'W') {
-			headline += (data['position']['move_num']-1) + '… ';
+			last_move = (data['position']['move_num']-1) + '… ';
 		} else {
-			headline += data['position']['move_num'] + '. ';
+			last_move = data['position']['move_num'] + '. ';
 		}
-		headline += data['position']['last_move'];
+		last_move += data['position']['last_move'];
+
+		headline += ' after ' + last_move;
+	} else {
+		last_move = null;
 	}
 
 	$("#headline").text(headline);
@@ -601,8 +605,17 @@ var update_board = function(data, num_viewers) {
 	if (data['score'] !== null) {
 		$("#score").text(data['score']);
 	}
+
+	var title_elems = [];
 	if (data['short_score'] !== undefined && data['short_score'] !== null) {
-		document.title = '(' + data['short_score'] + ') analysis.sesse.net';
+		title_elems.push(data['short_score']);
+	}
+	if (last_move !== null) {
+		title_elems.push(last_move);
+	}
+
+	if (title_elems.length != 0) {
+		document.title = '(' + title_elems.join(', ') + ') analysis.sesse.net';
 	} else {
 		document.title = 'analysis.sesse.net';
 	}
