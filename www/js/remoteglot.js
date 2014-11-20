@@ -3,9 +3,6 @@
 /** @type {window.ChessBoard} @private */
 var board = null;
 
-/** @type {window.ChessBoard} @private */
-var hiddenboard = null;
-
 /** @type {Array.<{
  *      from_col: number,
  *      from_row: number,
@@ -401,13 +398,19 @@ var thousands = function(x) {
 /**
  * @param {!string} fen
  * @param {Array.<string>} uci_pv
- * @param {Array.<string>} pretty_pv
  * @param {number} move_num
  * @param {!string} toplay
  * @param {number=} opt_limit
  * @param {boolean=} opt_showlast
  */
-var add_pv = function(fen, uci_pv, pretty_pv, move_num, toplay, opt_limit, opt_showlast) {
+var add_pv = function(fen, uci_pv, move_num, toplay, opt_limit, opt_showlast) {
+	var hiddenboard = new Chess();
+	hiddenboard.load(fen);
+	for (var i = 0; i < uci_pv.length; ++i) {
+		hiddenboard.move(ucimove_to_chessjs_move(uci_pv[i]));
+	}
+	var pretty_pv = hiddenboard.history();
+
 	display_lines.push({
 		start_fen: fen,
 		uci_pv: uci_pv,
@@ -541,7 +544,7 @@ var update_refutation_lines = function() {
 		var pv_td = document.createElement("td");
 		tr.appendChild(pv_td);
 		$(pv_td).addClass("pv");
-		$(pv_td).html(add_pv(fen, line['pv_uci'], line['pv_pretty'], move_num, toplay, 10));
+		$(pv_td).html(add_pv(fen, line['pv_uci'], move_num, toplay, 10));
 
 		tbl.append(tr);
 	}
@@ -654,14 +657,14 @@ var update_board = function(data, num_viewers) {
 
 	// Print the history.
 	if (data['position']['history']) {
-		add_pv('start', data['position']['history'], data['position']['pretty_history'], 1, 'W', 8, true);
+		add_pv('start', data['position']['history'], 1, 'W', 8, true);
 	} else {
 		display_lines.push(null);
 	}
 	update_history();
 
 	// Print the PV.
-	$("#pv").html(add_pv(data['position']['fen'], data['pv_uci'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay']));
+	$("#pv").html(add_pv(data['position']['fen'], data['pv_uci'], data['position']['move_num'], data['position']['toplay']));
 
 	// Update the PV arrow.
 	clear_arrows();
@@ -803,52 +806,28 @@ var update_displayed_line = function() {
 		$("#nextmove").html("<a href=\"javascript:next_move();\">Next</a></span>");
 	}
 
-	hiddenboard.position(current_display_line.start_fen, false);
+	var hiddenboard = new Chess();
+	hiddenboard.load(current_display_line.start_fen);
 	for (var i = 0; i <= current_display_move; ++i) {
-		var pos = hiddenboard.position();
-		var move = current_display_line.uci_pv[i];
-		var source = move.substr(0, 2);
-		var target = move.substr(2, 2);
-		var promo = move.substr(4, 1);
-
-		// Check if we need to do en passant.
-		var piece = pos[source];
-		if (piece == "wP" || piece == "bP") {
-			if (source.substr(0, 1) != target.substr(0, 1) &&
-			    pos[target] === undefined) {
-				var ep_square = target.substr(0, 1) + source.substr(1, 1);
-				delete pos[ep_square];
-				hiddenboard.position(pos, false);
-			}
-		}
-
-		move = source + "-" + target;
-		hiddenboard.move(move, false);
-		pos = hiddenboard.position();
-
-		// Do promotion if needed.
-		if (promo != "") {
-			pos[target] = pos[target].substr(0, 1) + promo.toUpperCase();
-			hiddenboard.position(pos, false);
-		}
-
-		// chessboard.js does not automatically move the rook on castling
-		// (issue #51; marked as won't fix), so update it ourselves.
-		if (move == "e1-g1" && hiddenboard.position().g1 == "wK") {  // white O-O
-			hiddenboard.move("h1-f1", false);
-		} else if (move == "e1-c1" && hiddenboard.position().c1 == "wK") {  // white O-O-O
-			hiddenboard.move("a1-d1", false);
-		} else if (move == "e8-g8" && hiddenboard.position().g8 == "bK") {  // black O-O
-			hiddenboard.move("h8-f8", false);
-		} else if (move == "e8-c8" && hiddenboard.position().c8 == "bK") {  // black O-O-O
-			hiddenboard.move("a8-d8", false);
-		}
+		hiddenboard.move(ucimove_to_chessjs_move(current_display_line.uci_pv[i]));
 	}
 
 	highlighted_move = $("#automove" + current_display_line.line_number + "-" + current_display_move);
 	highlighted_move.addClass('highlight'); 
 
-	board.position(hiddenboard.position());
+	board.position(hiddenboard.fen());
+}
+
+var ucimove_to_chessjs_move = function(move) {
+	var source = move.substr(0, 2);
+	var target = move.substr(2, 2);
+	var promo = move.substr(4, 1);
+
+	if (promo === '') {
+		return { from: source, to: target };
+	} else {
+		return { from: source, to: target, promotion: promo };
+	}
 }
 
 var init = function() {
@@ -856,7 +835,6 @@ var init = function() {
 
 	// Create board.
 	board = new window.ChessBoard('board', 'start');
-	hiddenboard = new window.ChessBoard('hiddenboard', 'start');
 
 	request_update();
 	$(window).resize(function() {
