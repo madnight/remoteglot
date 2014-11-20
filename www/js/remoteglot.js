@@ -101,7 +101,11 @@ var request_update = function() {
 	}).done(function(data, textstatus, xhr) {
 		ims = xhr.getResponseHeader('X-Remoteglot-Last-Modified');
 		var num_viewers = xhr.getResponseHeader('X-Remoteglot-Num-Viewers');
-		update_board(data, num_viewers);
+		update_board(data);
+		update_num_viewers(num_viewers);
+
+		// Next update.
+		setTimeout(function() { request_update(); }, 100);
 	}).fail(function() {
 		// Wait ten seconds, then try again.
 		setTimeout(function() { request_update(); }, 10000);
@@ -561,9 +565,8 @@ var update_refutation_lines = function() {
 
 /**
  * @param {Object} data
- * @param {number} num_viewers
  */
-var update_board = function(data, num_viewers) {
+var update_board = function(data) {
 	display_lines = [];
 
 	// The headline.
@@ -589,14 +592,6 @@ var update_board = function(data, num_viewers) {
 	}
 
 	$("#headline").text(headline);
-
-	if (num_viewers === null) {
-		$("#numviewers").text("");
-	} else if (num_viewers == 1) {
-		$("#numviewers").text("You are the only current viewer");
-	} else {
-		$("#numviewers").text(num_viewers + " current viewers");
-	}
 
 	// The engine id.
 	if (data['id'] && data['id']['name'] !== null) {
@@ -724,9 +719,19 @@ var update_board = function(data, num_viewers) {
 	toplay = data['position']['toplay'];
 	refutation_lines = data['refutation_lines'];
 	update_refutation_lines();
+}
 
-	// Next update.
-	setTimeout(function() { request_update(); }, 100);
+/**
+ * @param {number} num_viewers
+ */
+var update_num_viewers = function(num_viewers) {
+	if (num_viewers === null) {
+		$("#numviewers").text("");
+	} else if (num_viewers == 1) {
+		$("#numviewers").text("You are the only current viewer");
+	} else {
+		$("#numviewers").text(num_viewers + " current viewers");
+	}
 }
 
 /**
