@@ -108,7 +108,6 @@ var send_json = function(response, accept_gzip, num_viewers) {
 		'Content-Type': 'text/json',
 		'X-Remoteglot-Last-Modified': json_last_modified,
 		'X-Remoteglot-Num-Viewers': num_viewers,
-		'Access-Control-Allow-Origin': 'http://analysis.sesse.net',
 		'Access-Control-Expose-Headers': 'X-Remoteglot-Last-Modified, X-Remoteglot-Num-Viewers',
 		'Expires': 'Mon, 01 Jan 1970 00:00:00 UTC',
 		'Vary': 'Accept-Encoding',

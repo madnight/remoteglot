@@ -100,8 +100,7 @@ var get_unique = function() {
 
 var request_update = function() {
 	$.ajax({
-		url: "http://analysis.sesse.net/analysis.pl?ims=" + ims + "&unique=" + unique
-		//url: "http://analysis.sesse.net:5000/analysis.pl?ims=" + ims + "&unique=" + unique
+		url: "/analysis.pl?ims=" + ims + "&unique=" + unique
 	}).done(function(data, textstatus, xhr) {
 		ims = xhr.getResponseHeader('X-Remoteglot-Last-Modified');
 		var num_viewers = xhr.getResponseHeader('X-Remoteglot-Num-Viewers');
