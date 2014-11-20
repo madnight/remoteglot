@@ -209,7 +209,7 @@ sub handle_fics {
 		for my $pos ($pos_waiting, $pos_calculating) {
 			next if (!defined($pos));
 			if ($pos->fen() eq $pos_for_movelist->fen()) {
-				$pos->{'history'} = \@uci_movelist;
+				$pos->{'pretty_history'} = \@pretty_movelist;
 			}
 		}
 		$getting_movelist = 0;
@@ -278,7 +278,7 @@ sub handle_pgn {
 				($pos, $uci_move) = $pos->make_pretty_move($move);
 				push @uci_moves, $uci_move;
 			}
-			$pos->{'history'} = \@uci_moves;
+			$pos->{'pretty_history'} = $moves;
 
 			# Sometimes, PGNs lose a move or two for a short while,
 			# or people push out new ones non-atomically. 
@@ -709,8 +709,8 @@ sub output_json {
 	$json->{'seldepth'} = $info->{'seldepth'};
 	$json->{'tablebase'} = $info->{'tablebase'};
 
-	# single-PV only for now
-	$json->{'pv_uci'} = $info->{'pv'};
+	$json->{'pv_uci'} = $info->{'pv'};  # Still needs to be there for the JS to calculate arrows; only for the primary PV, though!
+	$json->{'pv_pretty'} = [ prettyprint_pv($pos_calculating, @{$info->{'pv'}}) ];
 
 	my %refutation_lines = ();
 	my @refutation_lines = ();
@@ -731,8 +731,8 @@ sub output_json {
 					score_sort_key => score_sort_key($info, $pos_calculating, $mpv, 0),
 					pretty_score => short_score($info, $pos_calculating, $mpv),
 					pretty_move => $pretty_move,
+					pv_pretty => \@pretty_pv,
 				};
-				$refutation_lines{$pv->[0]}->{'pv_uci'} = $pv;
 			};
 		}
 	}

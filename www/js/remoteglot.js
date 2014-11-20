@@ -422,23 +422,15 @@ var thousands = function(x) {
 
 /**
  * @param {!string} fen
- * @param {Array.<string>} uci_pv
+ * @param {Array.<string>} pretty_pv
  * @param {number} move_num
  * @param {!string} toplay
  * @param {number=} opt_limit
  * @param {boolean=} opt_showlast
  */
-var add_pv = function(fen, uci_pv, move_num, toplay, opt_limit, opt_showlast) {
-	var hiddenboard = new Chess();
-	hiddenboard.load(fen);
-	for (var i = 0; i < uci_pv.length; ++i) {
-		hiddenboard.move(ucimove_to_chessjs_move(uci_pv[i]));
-	}
-	var pretty_pv = hiddenboard.history();
-
+var add_pv = function(fen, pretty_pv, move_num, toplay, opt_limit, opt_showlast) {
 	display_lines.push({
 		start_fen: fen,
-		uci_pv: uci_pv,
 		pretty_pv: pretty_pv,
 		line_number: display_lines.length
 	});
@@ -549,7 +541,7 @@ var update_refutation_lines = function() {
 		var move_td = document.createElement("td");
 		tr.appendChild(move_td);
 		$(move_td).addClass("move");
-		if (line['pv_uci'].length == 0) {
+		if (line['pv_pretty'].length == 0) {
 			$(move_td).text(line['pretty_move']);
 		} else {
 			var move = "<a class=\"move\" href=\"javascript:show_line(" + display_lines.length + ", " + 0 + ");\">" + line['pretty_move'] + "</a>";
@@ -569,7 +561,7 @@ var update_refutation_lines = function() {
 		var pv_td = document.createElement("td");
 		tr.appendChild(pv_td);
 		$(pv_td).addClass("pv");
-		$(pv_td).html(add_pv(fen, line['pv_uci'], move_num, toplay, 10));
+		$(pv_td).html(add_pv(fen, line['pv_pretty'], move_num, toplay, 10));
 
 		tbl.append(tr);
 	}
@@ -596,8 +588,8 @@ var update_board = function(current_data, display_data) {
 	// Print the history. This is pretty much the only thing that's
 	// unconditionally taken from current_data (we're not interested in
 	// historic history).
-	if (current_data['position']['history']) {
-		add_pv('start', current_data['position']['history'], 1, 'W', 8, true);
+	if (current_data['position']['pretty_history']) {
+		add_pv('start', current_data['position']['pretty_history'], 1, 'W', 8, true);
 	} else {
 		display_lines.push(null);
 	}
@@ -703,7 +695,7 @@ var update_board = function(current_data, display_data) {
 	update_highlight();
 
 	// Print the PV.
-	$("#pv").html(add_pv(data['position']['fen'], data['pv_uci'], data['position']['move_num'], data['position']['toplay']));
+	$("#pv").html(add_pv(data['position']['fen'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay']));
 
 	// Update the PV arrow.
 	clear_arrows();
@@ -869,7 +861,7 @@ var update_historic_analysis = function() {
 	// Fetch old analysis for this line if it exists.
 	var hiddenboard = new Chess();
 	for (var i = 0; i <= current_display_move; ++i) {
-		hiddenboard.move(ucimove_to_chessjs_move(current_display_line.uci_pv[i]));
+		hiddenboard.move(current_display_line.pretty_pv[i]);
 	}
 	var filename = "/history/move" + (current_display_move + 1) + "-" +
 		hiddenboard.fen().replace(/ /g, '_').replace(/\//g, '-') + ".json";
@@ -904,7 +896,7 @@ var update_displayed_line = function() {
 	} else {
 		$("#prevmove").html("<a href=\"javascript:prev_move();\">Previous</a></span>");
 	}
-	if (current_display_move == current_display_line.uci_pv.length - 1) {
+	if (current_display_move == current_display_line.pretty_pv.length - 1) {
 		$("#nextmove").html("Next");
 	} else {
 		$("#nextmove").html("<a href=\"javascript:next_move();\">Next</a></span>");
@@ -913,25 +905,13 @@ var update_displayed_line = function() {
 	var hiddenboard = new Chess();
 	hiddenboard.load(current_display_line.start_fen);
 	for (var i = 0; i <= current_display_move; ++i) {
-		hiddenboard.move(ucimove_to_chessjs_move(current_display_line.uci_pv[i]));
+		hiddenboard.move(current_display_line.pretty_pv[i]);
 	}
 
 	highlighted_move = $("#automove" + current_display_line.line_number + "-" + current_display_move);
 	highlighted_move.addClass('highlight'); 
 
 	board.position(hiddenboard.fen());
-}
-
-var ucimove_to_chessjs_move = function(move) {
-	var source = move.substr(0, 2);
-	var target = move.substr(2, 2);
-	var promo = move.substr(4, 1);
-
-	if (promo === '') {
-		return { from: source, to: target };
-	} else {
-		return { from: source, to: target, promotion: promo };
-	}
 }
 
 var init = function() {
