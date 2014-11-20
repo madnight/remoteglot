@@ -112,7 +112,14 @@ sub fen {
 
 sub to_json_hash {
 	my $pos = shift;
-	my $json = { %$pos, board => undef, prettyprint_cache => undef, fen => $pos->fen() };
+	my $json = { %$pos, fen => $pos->fen() };
+	delete $json->{'board'};
+	delete $json->{'prettyprint_cache'};
+	delete $json->{'black_castle_k'};
+	delete $json->{'black_castle_q'};
+	delete $json->{'white_castle_k'};
+	delete $json->{'white_castle_q'};
+	delete $json->{'time_since_100move_rule_reset'};
 	if ($json->{'player_w'} =~ /^base64:(.*)$/) {
 		$json->{'player_w'} = MIME::Base64::decode_base64($1);
 	}
