@@ -254,7 +254,7 @@ var position_arrow = function(arrow) {
 		arrow.svg.parentElement.removeChild(arrow.svg);
 		delete arrow.svg;
 	}
-	if (current_display_line !== null) {
+	if (current_display_line !== null && !current_display_line_is_history) {
 		return;
 	}
 
@@ -489,7 +489,8 @@ var print_pv = function(line_num, pretty_pv, move_num, toplay, opt_limit, opt_sh
 
 var update_highlight = function() {
 	$("#board").find('.square-55d63').removeClass('nonuglyhighlight');
-	if (current_display_line === null && highlight_from !== undefined && highlight_to !== undefined) {
+	if ((current_display_line === null || current_display_line_is_history) &&
+	    highlight_from !== undefined && highlight_to !== undefined) {
 		$("#board").find('.square-' + highlight_from).addClass('nonuglyhighlight');
 		$("#board").find('.square-' + highlight_to).addClass('nonuglyhighlight');
 	}
@@ -648,6 +649,7 @@ var update_board = function(current_data, display_data) {
 		$("#refutationlines").empty();
 		refutation_lines = [];
 		update_refutation_lines();
+		clear_arrows();
 		return;
 	}
 
