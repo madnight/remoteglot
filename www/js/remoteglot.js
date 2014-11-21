@@ -642,6 +642,27 @@ var update_board = function(current_data, display_data) {
 		document.title = 'analysis.sesse.net';
 	}
 
+	// The last move (shown by highlighting the from and to squares).
+	if (data['position'] && data['position']['last_move_uci']) {
+		highlight_from = data['position']['last_move_uci'].substr(0, 2);
+		highlight_to = data['position']['last_move_uci'].substr(2, 2);
+	} else if (current_display_line_is_history && current_display_move >= 0) {
+		// We don't have historic analysis for this position, but we
+		// can reconstruct what the last move was by just replaying
+		// from the start.
+		var hiddenboard = new Chess();
+		for (var i = 0; i <= current_display_move; ++i) {
+			hiddenboard.move(current_display_line.pretty_pv[i]);
+		}
+		var moves = hiddenboard.history({ verbose: true });
+		var last_move = moves.pop();
+		highlight_from = last_move.from;
+		highlight_to = last_move.to;
+	} else {
+		highlight_from = highlight_to = undefined;
+	}
+	update_highlight();
+
 	if (data['failed']) {
 		$("#score").text("No analysis for this move");
 		$("#pv").empty();
@@ -687,14 +708,6 @@ var update_board = function(current_data, display_data) {
 	// Update the board itself.
 	fen = data['position']['fen'];
 	update_displayed_line();
-
-	if (data['position']['last_move_uci']) {
-		highlight_from = data['position']['last_move_uci'].substr(0, 2);
-		highlight_to = data['position']['last_move_uci'].substr(2, 2);
-	} else {
-		highlight_from = highlight_to = undefined;
-	}
-	update_highlight();
 
 	// Print the PV.
 	$("#pv").html(add_pv(data['position']['fen'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay']));
