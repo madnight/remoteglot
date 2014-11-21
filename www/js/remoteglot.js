@@ -671,6 +671,7 @@ var update_board = function(current_data, display_data) {
 		refutation_lines = [];
 		update_refutation_lines();
 		clear_arrows();
+		update_displayed_line();
 		return;
 	}
 
