@@ -145,7 +145,7 @@ var possibly_play_sound = function(old_data, new_data) {
 		return;
 	}
 	var ding = document.getElementById('ding');
-	if (ding && ding.play !== undefined) {
+	if (ding && ding.play) {
 		if (old_data['position'] && old_data['position']['fen'] &&
 		    new_data['position'] && new_data['position']['fen'] &&
 		    (old_data['position']['fen'] !== new_data['position']['fen'] ||
@@ -963,6 +963,14 @@ var set_sound = function(param_enable_sound) {
 	if (enable_sound) {
 		$("#soundon").html("<strong>On</strong>");
 		$("#soundoff").html("<a href=\"javascript:set_sound(false)\">Off</a>");
+
+		// Seemingly at least Firefox prefers MP3 over Opus; tell it otherwise,
+		// and also preload the file since the user has selected audio.
+		var ding = document.getElementById('ding');
+		if (ding && ding.canPlayType && ding.canPlayType('audio/ogg; codecs="opus"') === 'probably') {
+			ding.src = 'ding.opus';
+			ding.load();
+		}
 	} else {
 		$("#soundon").html("<a href=\"javascript:set_sound(true)\">On</a>");
 		$("#soundoff").html("<strong>Off</strong>");
