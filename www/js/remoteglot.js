@@ -652,7 +652,7 @@ var update_board = function(current_data, display_data) {
 	// The <title> contains a very brief headline.
 	var title_elems = [];
 	if (data['short_score'] !== undefined && data['short_score'] !== null) {
-		title_elems.push(data['short_score']);
+		title_elems.push(data['short_score'].replace(/^ /, ""));
 	}
 	if (last_move !== null) {
 		title_elems.push(last_move);
