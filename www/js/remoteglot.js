@@ -65,6 +65,9 @@ var highlighted_move = null;
 /** @type {?number} @private */
 var unique = null;
 
+/** @type {boolean} @private */
+var enable_sound = false;
+
 /** The current position on the board, represented as a FEN string.
  * @type {?string}
  * @private
@@ -121,6 +124,7 @@ var request_update = function() {
 	}).done(function(data, textstatus, xhr) {
 		ims = xhr.getResponseHeader('X-Remoteglot-Last-Modified');
 		var num_viewers = xhr.getResponseHeader('X-Remoteglot-Num-Viewers');
+		possibly_play_sound(current_analysis_data, data);
 		current_analysis_data = data;
 		update_board(current_analysis_data, displayed_analysis_data);
 		update_num_viewers(num_viewers);
@@ -131,6 +135,24 @@ var request_update = function() {
 		// Wait ten seconds, then try again.
 		setTimeout(function() { request_update(); }, 10000);
 	});
+}
+
+var possibly_play_sound = function(old_data, new_data) {
+	if (!enable_sound) {
+		return;
+	}
+	if (old_data === null) {
+		return;
+	}
+	var ding = document.getElementById('ding');
+	if (ding && ding.play !== undefined) {
+		if (old_data['position'] && old_data['position']['fen'] &&
+		    new_data['position'] && new_data['position']['fen'] &&
+		    (old_data['position']['fen'] !== new_data['position']['fen'] ||
+		     old_data['position']['move_num'] !== new_data['position']['move_num'])) {
+			ding.play();
+		}
+	}
 }
 
 var clear_arrows = function() {
@@ -930,8 +952,24 @@ var update_displayed_line = function() {
 	board.position(hiddenboard.fen());
 }
 
+/**
+ * @param {boolean} param_enable_sound
+ */
+var set_sound = function(param_enable_sound) {
+	enable_sound = param_enable_sound;
+	if (enable_sound) {
+		$("#soundon").html("<strong>On</strong>");
+		$("#soundoff").html("<a href=\"javascript:set_sound(false)\">Off</a>");
+	} else {
+		$("#soundon").html("<a href=\"javascript:set_sound(true)\">On</a>");
+		$("#soundoff").html("<strong>Off</strong>");
+	}
+}
+window['set_sound'] = set_sound;
+
 var init = function() {
 	unique = get_unique();
+	set_sound(false);
 
 	// Create board.
 	board = new window.ChessBoard('board', 'start');

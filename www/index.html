@@ -10,6 +10,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
+<audio id="ding" preload="none">
+  <source src="ding.opus" type="audio/ogg; codecs=opus" />
+  <source src="ding.mp3" type="audio/mp3" />
+</audio>
 <h1 id="headline">Analysis</h1>
 <div id="boardcontainer">
   <div id="board"></div>
@@ -20,7 +24,13 @@
   <p><strong>PV:</strong> <span id="pv"></span></p>
   <p id="searchstats"></p>
   <h3>History and potential moves (multi-PV)</h3>
-  <p id="sortbyscoreholder">Sort by: <span id="sortbyscore0"><a href="javascript:resort_refutation_lines(0)">Move</a></span>
+  <p id="sortbyscoreholder">
+    Sound:
+    <span id="soundon"><a href="javascript:set_sound(true)">On</a></span>
+    <span id="soundoff"><a href="javascript:set_sound(false)">Off</a></span>
+    |
+    Sort by:
+    <span id="sortbyscore0"><a href="javascript:resort_refutation_lines(0)">Move</a></span>
     <span id="sortbyscore1"><a href="javascript:resort_refutation_lines(1)">Score</a></span>
     |
     <span id="history">No history</span>
@@ -55,6 +65,7 @@
   Hosting and multi-PV analysis hardware by <a href="http://www.samfundet.no/">Studentersamfundet i Trondhjem</a>.
   JavaScript chessboard powered by <a href="http://chessboardjs.com/">chessboard.js</a>
   and <a href="https://github.com/jhlywa/chess.js">chess.js</a>.
+  Ding sound by <a href="https://www.freesound.org/people/Aiwha/sounds/196106/">Aiwa</a> (CC-BY-3.0).
   7-man Lomonosov tablebase lookup by <a href="http://tb7.chessok.com/">ChessOK</a>.</p>
 
 <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>
