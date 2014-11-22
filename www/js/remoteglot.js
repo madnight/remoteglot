@@ -829,6 +829,9 @@ var format_move_with_number = function(move, move_num, white_to_play) {
  */
 var resort_refutation_lines = function(sort_by_score) {
 	sort_refutation_lines_by_score = sort_by_score;
+	if (supports_html5_storage()) {
+		localStorage['sort_refutation_lines_by_score'] = sort_by_score ? 1 : 0;
+	}
 	update_refutation_lines();
 }
 window['resort_refutation_lines'] = resort_refutation_lines;
@@ -964,12 +967,26 @@ var set_sound = function(param_enable_sound) {
 		$("#soundon").html("<a href=\"javascript:set_sound(true)\">On</a>");
 		$("#soundoff").html("<strong>Off</strong>");
 	}
+	if (supports_html5_storage()) {
+		localStorage['enable_sound'] = enable_sound ? 1 : 0;
+	}
 }
 window['set_sound'] = set_sound;
 
 var init = function() {
 	unique = get_unique();
-	set_sound(false);
+
+	// Load settings from HTML5 local storage if available.
+	if (supports_html5_storage() && localStorage['enable_sound']) {
+		set_sound(parseInt(localStorage['enable_sound']));
+	} else {
+		set_sound(false);
+	}
+	if (supports_html5_storage() && localStorage['sort_refutation_lines_by_score']) {
+		sort_refutation_lines_by_score = parseInt(localStorage['sort_refutation_lines_by_score']);
+	} else {
+		sort_refutation_lines_by_score = true;
+	}
 
 	// Create board.
 	board = new window.ChessBoard('board', 'start');
