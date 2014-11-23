@@ -36,6 +36,9 @@ my $tb_retry_timer = undef;
 my %tb_cache = ();
 my $tb_lookup_running = 0;
 
+# TODO: Persist (parts of) this so that we can restart.
+my %clock_target_for_pos = ();
+
 $| = 1;
 
 open(FICSLOG, ">ficslog.txt")
@@ -269,7 +272,7 @@ sub handle_pgn {
 		warn "Error in parsing PGN from $url\n";
 	} else {
 		eval {
-			$pgn->quick_parse_game;
+			$pgn->parse_game({ save_comments => 'yes' });
 			my $pos = Position->start_pos($pgn->white, $pgn->black);
 			my $moves = $pgn->moves;
 			my @uci_moves = ();
@@ -278,7 +281,10 @@ sub handle_pgn {
 				($pos, $uci_move) = $pos->make_pretty_move($move);
 				push @uci_moves, $uci_move;
 			}
+			$pos->{'result'} = $pgn->result;
 			$pos->{'pretty_history'} = $moves;
+
+			extract_clock($pgn, $pos);
 
 			# Sometimes, PGNs lose a move or two for a short while,
 			# or people push out new ones non-atomically. 
@@ -313,6 +319,7 @@ sub handle_pgn {
 
 sub handle_position {
 	my ($pos) = @_;
+	find_clock_start($pos);
 		
 	# if this is already in the queue, ignore it
 	return if (defined($pos_waiting) && $pos->fen() eq $pos_waiting->fen());
@@ -325,6 +332,19 @@ sub handle_position {
 	# if we're already thinking on something, stop and wait for the engine
 	# to approve
 	if (defined($pos_calculating)) {
+		# Store the final data we have for this position in the history,
+		# with the precise clock information we just got from the new
+		# position. (Historic positions store the clock at the end of
+		# the position.)
+		#
+		# Do not output anything new to the main analysis; that's
+		# going to be obsolete really soon.
+		$pos_calculating->{'white_clock'} = $pos->{'white_clock'};
+		$pos_calculating->{'black_clock'} = $pos->{'black_clock'};
+		delete $pos_calculating->{'white_clock_target'};
+		delete $pos_calculating->{'black_clock_target'};
+		output_json(1);
+
 		if (!defined($pos_waiting)) {
 			uciprint($engine, "stop");
 		}
@@ -572,7 +592,7 @@ sub output {
 	}
 
 	output_screen();
-	output_json();
+	output_json(0);
 	$latest_update = [Time::HiRes::gettimeofday];
 }
 
@@ -694,6 +714,7 @@ sub output_screen {
 }
 
 sub output_json {
+	my $historic_json_only = shift;
 	my $info = $engine->{'info'};
 
 	my $json = {};
@@ -739,13 +760,13 @@ sub output_json {
 	$json->{'refutation_lines'} = \%refutation_lines;
 
 	my $encoded = JSON::XS::encode_json($json);
-	atomic_set_contents($remoteglotconf::json_output, $encoded);
+	unless ($historic_json_only) {
+		atomic_set_contents($remoteglotconf::json_output, $encoded);
+	}
 
 	if (exists($pos_calculating->{'pretty_history'}) &&
 	    defined($remoteglotconf::json_history_dir)) {
-		my $halfmove_num = scalar @{$pos_calculating->{'pretty_history'}};
-		(my $fen = $pos_calculating->fen()) =~ tr,/ ,-_,;
-		my $filename = $remoteglotconf::json_history_dir . "/move$halfmove_num-$fen.json";
+		my $filename = $remoteglotconf::json_history_dir . "/" . id_for_pos($pos_calculating) . ".json";
 
 		# Overwrite old analysis (assuming it exists at all) if we're
 		# using a different engine, or if we've calculated deeper.
@@ -771,6 +792,14 @@ sub atomic_set_contents {
 	print $fh $contents;
 	close $fh;
 	rename($filename . ".tmp", $filename);
+}
+
+sub id_for_pos {
+	my $pos = shift;
+
+	my $halfmove_num = scalar @{$pos->{'pretty_history'}};
+	(my $fen = $pos->fen()) =~ tr,/ ,-_,;
+	return "move$halfmove_num-$fen";
 }
 
 sub get_json_analysis_stats {
@@ -944,6 +973,80 @@ sub book_info {
 	}
 
 	return $text;
+}
+
+sub extract_clock {
+	my ($pgn, $pos) = @_;
+
+	# Look for extended PGN clock tags.
+	my $tags = $pgn->tags;
+	if (exists($tags->{'WhiteClock'}) && exists($tags->{'BlackClock'})) {
+		$pos->{'white_clock'} = $tags->{'WhiteClock'};
+		$pos->{'black_clock'} = $tags->{'BlackClock'};
+		return;
+	}
+
+	# Look for TCEC-style time comments.
+	my $moves = $pgn->moves;
+	my $comments = $pgn->comments;
+	my $last_black_move = int((scalar @$moves) / 2);
+	my $last_white_move = int((1 + scalar @$moves) / 2);
+
+	my $black_key = $last_black_move . "b";
+	my $white_key = $last_white_move . "w";
+
+	if (exists($comments->{$white_key}) &&
+	    exists($comments->{$black_key}) &&
+	    $comments->{$white_key} =~ /tl=(\d+:\d+:\d+)/ &&
+	    $comments->{$black_key} =~ /tl=(\d+:\d+:\d+)/) {
+		$comments->{$white_key} =~ /tl=(\d+:\d+:\d+)/;
+		$pos->{'white_clock'} = $1;
+		$comments->{$black_key} =~ /tl=(\d+:\d+:\d+)/;
+		$pos->{'black_clock'} = $1;
+		return;
+	}
+}
+
+sub find_clock_start {
+	my $pos = shift;
+
+	# If the game is over, the clock is stopped.
+	if ($pos->{'result'} eq '1-0' ||
+	    $pos->{'result'} eq '1/2-1/2' ||
+	    $pos->{'result'} eq '0-1') {
+		return;
+	}
+
+	# When we don't have any moves, we assume the clock hasn't started yet.
+	if ($pos->{'move_num'} == 1 && $pos->{'toplay'} eq 'W') {
+		return;
+	}
+
+	my $id = id_for_pos($pos);
+	if (exists($clock_target_for_pos{$id})) {
+		if ($pos->{'toplay'} eq 'W') {
+			$pos->{'white_clock_target'} = $clock_target_for_pos{$id};
+		} else {
+			$pos->{'black_clock_target'} = $clock_target_for_pos{$id};
+		}
+		return;
+	}
+
+	# OK, we haven't seen this position before, so we assume the move
+	# happened right now.
+	my $key = ($pos->{'toplay'} eq 'W') ? 'white_clock' : 'black_clock';
+	if (!exists($pos->{$key})) {
+		# No clock information.
+		return;
+	}
+	$pos->{$key} =~ /(\d+):(\d+):(\d+)/;
+	my $time_left = $1 * 3600 + $2 * 60 + $3;
+	$clock_target_for_pos{$id} = time + $time_left;
+	if ($pos->{'toplay'} eq 'W') {
+		$pos->{'white_clock_target'} = $clock_target_for_pos{$id};
+	} else {
+		$pos->{'black_clock_target'} = $clock_target_for_pos{$id};
+	}
 }
 
 sub schedule_tb_lookup {

@@ -68,6 +68,18 @@ var unique = null;
 /** @type {boolean} @private */
 var enable_sound = false;
 
+/**
+ * Our best estimate of how many milliseconds we need to add to 
+ * new Date() to get the true UTC time. Calibrated against the
+ * server clock.
+ *
+ * @type {?number}
+ * @private
+ */
+var client_clock_offset_ms = null;
+
+var clock_timer = null;
+
 /** The current position on the board, represented as a FEN string.
  * @type {?string}
  * @private
@@ -122,6 +134,7 @@ var request_update = function() {
 	$.ajax({
 		url: "/analysis.pl?ims=" + ims + "&unique=" + unique
 	}).done(function(data, textstatus, xhr) {
+		sync_server_clock(xhr.getResponseHeader('Date'));
 		ims = xhr.getResponseHeader('X-Remoteglot-Last-Modified');
 		var num_viewers = xhr.getResponseHeader('X-Remoteglot-Num-Viewers');
 		possibly_play_sound(current_analysis_data, data);
@@ -152,6 +165,23 @@ var possibly_play_sound = function(old_data, new_data) {
 		     old_data['position']['move_num'] !== new_data['position']['move_num'])) {
 			ding.play();
 		}
+	}
+}
+
+/**
+ * @type {!string} server_date_string
+ */
+var sync_server_clock = function(server_date_string) {
+	var server_time_ms = new Date(server_date_string).getTime();
+	var client_time_ms = new Date().getTime();
+	var estimated_offset_ms = server_time_ms - client_time_ms;
+
+	// In order not to let the noise move us too much back and forth
+	// (the server only has one-second resolution anyway), we only
+	// change an existing skew if we are at least five seconds off.
+	if (client_clock_offset_ms === null ||
+	    Math.abs(estimated_offset_ms - client_clock_offset_ms) > 5000) {
+		client_clock_offset_ms = estimated_offset_ms;
 	}
 }
 
@@ -690,12 +720,16 @@ var update_board = function(current_data, display_data) {
 		$("#pv").empty();
 		$("#searchstats").html("&nbsp;");
 		$("#refutationlines").empty();
+		$("#whiteclock").empty();
+		$("#blackclock").empty();
 		refutation_lines = [];
 		update_refutation_lines();
 		clear_arrows();
 		update_displayed_line();
 		return;
 	}
+
+	update_clock();
 
 	// The engine id.
 	if (data['id'] && data['id']['name'] !== null) {
@@ -805,6 +839,93 @@ var update_num_viewers = function(num_viewers) {
 		$("#numviewers").text("You are the only current viewer");
 	} else {
 		$("#numviewers").text(num_viewers + " current viewers");
+	}
+}
+
+var update_clock = function() {
+	clearTimeout(clock_timer);
+
+	var data = displayed_analysis_data || current_analysis_data;
+	if (data['position']) {
+		var result = data['position']['result'];
+		if (result === '1-0') {
+			$("#whiteclock").text("1");
+			$("#blackclock").text("0");
+			return;
+		}
+		if (result === '1/2-1/2') {
+			$("#whiteclock").text("1/2");
+			$("#blackclock").text("1/2");
+			return;
+		}	
+		if (result === '0-1') {
+			$("#whiteclock").text("0");
+			$("#blackclock").text("1");
+			return;
+		}
+	}
+
+	var white_clock = "";
+	var black_clock = "";
+
+	// Static clocks.
+	if (data['position'] &&
+	    data['position']['white_clock'] &&
+	    data['position']['black_clock']) {
+		white_clock = data['position']['white_clock'];
+		black_clock = data['position']['black_clock'];
+	}
+
+	// Dynamic clock (only one, obviously).
+	var color;
+	if (data['position']['white_clock_target']) {
+		color = "white";
+	} else if (data['position']['black_clock_target']) {
+		color = "black";
+	}
+	if (color) {
+		var now = new Date().getTime() + client_clock_offset_ms;
+		var remaining_ms = data['position'][color + '_clock_target'] * 1000 - now;
+		if (color === "white") {
+			white_clock = format_clock(remaining_ms);
+		} else {
+			black_clock = format_clock(remaining_ms);
+		}
+
+		// See when the clock will change next, and update right after that.
+		var next_update_ms = remaining_ms % 1000 + 100;
+		clock_timer = setTimeout(update_clock, next_update_ms);
+	}
+
+	$("#whiteclock").text(white_clock);
+	$("#blackclock").text(black_clock);
+}
+
+/**
+ * @param {Number} remaining_ms
+ */
+var format_clock = function(remaining_ms) {
+	if (remaining_ms <= 0) {
+		return "00:00:00";
+	}
+
+	var remaining = Math.floor(remaining_ms / 1000);
+	var seconds = remaining % 60;
+	remaining = (remaining - seconds) / 60;
+	var minutes = remaining % 60;
+	remaining = (remaining - minutes) / 60;
+	var hours = remaining;
+	return format_2d(hours) + ":" + format_2d(minutes) + ":" + format_2d(seconds);	
+}
+
+/**
+ * @param {Number} x
+ */
+var format_2d = function(x) {
+	if (x >= 10) {
+		return x;
+	} else {
+		return "0" + x;
 	}
 }
 

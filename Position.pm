@@ -28,6 +28,8 @@ sub new {
 	$pos->{'player_b'} = $x[18];
 	$pos->{'player_w'} =~ s/^W?[FCIG]M//;
 	$pos->{'player_b'} =~ s/^W?[FCIG]M//;
+	$pos->{'white_clock'} = $x[24];
+	$pos->{'black_clock'} = $x[25];
 	$pos->{'move_num'} = $x[26];
 	if ($x[27] =~ /([a-h][1-8])-([a-h][1-8])/) {
 		$pos->{'last_move_uci'} = $1 . $2;
