@@ -886,8 +886,15 @@ var update_clock = function() {
 	var color;
 	if (data['position']['white_clock_target']) {
 		color = "white";
+		$("#whiteclock").addClass("running-clock");
+		$("#blackclock").removeClass("running-clock");
 	} else if (data['position']['black_clock_target']) {
 		color = "black";
+		$("#whiteclock").removeClass("running-clock");
+		$("#blackclock").addClass("running-clock");
+	} else {
+		$("#whiteclock").removeClass("running-clock");
+		$("#blackclock").removeClass("running-clock");
 	}
 	if (color) {
 		var now = new Date().getTime() + client_clock_offset_ms;
@@ -905,14 +912,6 @@ var update_clock = function() {
 
 	$("#whiteclock").text(white_clock);
 	$("#blackclock").text(black_clock);
-
-	if (toplay == 'W') {
-		$("#whiteclock").addClass("running-clock");
-		$("#blackclock").removeClass("running-clock");
-	} else {
-		$("#whiteclock").removeClass("running-clock");
-		$("#blackclock").addClass("running-clock");
-	}
 }
 
 /**
