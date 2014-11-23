@@ -872,8 +872,8 @@ var update_clock = function() {
 	if (data['position'] &&
 	    data['position']['white_clock'] &&
 	    data['position']['black_clock']) {
-		white_clock = data['position']['white_clock'];
-		black_clock = data['position']['black_clock'];
+		white_clock = data['position']['white_clock'].replace(/:[0-5][0-9]$/, "");
+		black_clock = data['position']['black_clock'].replace(/:[0-5][0-9]$/, "");
 	}
 
 	// Dynamic clock (only one, obviously).
@@ -893,7 +893,7 @@ var update_clock = function() {
 		}
 
 		// See when the clock will change next, and update right after that.
-		var next_update_ms = remaining_ms % 1000 + 100;
+		var next_update_ms = remaining_ms % 60000 + 100;
 		clock_timer = setTimeout(update_clock, next_update_ms);
 	}
 
@@ -906,7 +906,7 @@ var update_clock = function() {
  */
 var format_clock = function(remaining_ms) {
 	if (remaining_ms <= 0) {
-		return "00:00:00";
+		return "00:00";
 	}
 
 	var remaining = Math.floor(remaining_ms / 1000);
@@ -915,7 +915,7 @@ var format_clock = function(remaining_ms) {
 	var minutes = remaining % 60;
 	remaining = (remaining - minutes) / 60;
 	var hours = remaining;
-	return format_2d(hours) + ":" + format_2d(minutes) + ":" + format_2d(seconds);	
+	return format_2d(hours) + ":" + format_2d(minutes);
 }
 
 /**
