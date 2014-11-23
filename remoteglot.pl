@@ -983,6 +983,9 @@ sub extract_clock {
 	if (exists($tags->{'WhiteClock'}) && exists($tags->{'BlackClock'})) {
 		$pos->{'white_clock'} = $tags->{'WhiteClock'};
 		$pos->{'black_clock'} = $tags->{'BlackClock'};
+
+		$pos->{'white_clock'} =~ s/\b(\d)\b/0$1/g;
+		$pos->{'black_clock'} =~ s/\b(\d)\b/0$1/g;
 		return;
 	}
 
