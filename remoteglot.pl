@@ -268,7 +268,7 @@ sub handle_pgn {
 	}
 
 	my $pgn = Chess::PGN::Parse->new(undef, $body);
-	if (!defined($pgn) || !$pgn->read_game()) {
+	if (!defined($pgn) || !$pgn->read_game() || $body !~ /^\[/) {
 		warn "Error in parsing PGN from $url\n";
 	} else {
 		eval {
