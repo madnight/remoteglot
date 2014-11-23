@@ -105,6 +105,9 @@ p {
 	text-align: right;
 	margin-right: 5px;
 }
+.running-clock {
+	font-weight: bold;
+}
 #analysis {
 	display: block;
 	min-width: 400px;

@@ -851,16 +851,22 @@ var update_clock = function() {
 		if (result === '1-0') {
 			$("#whiteclock").text("1");
 			$("#blackclock").text("0");
+			$("#whiteclock").removeClass("running-clock");
+			$("#blackclock").removeClass("running-clock");
 			return;
 		}
 		if (result === '1/2-1/2') {
 			$("#whiteclock").text("1/2");
 			$("#blackclock").text("1/2");
+			$("#whiteclock").removeClass("running-clock");
+			$("#blackclock").removeClass("running-clock");
 			return;
 		}	
 		if (result === '0-1') {
 			$("#whiteclock").text("0");
 			$("#blackclock").text("1");
+			$("#whiteclock").removeClass("running-clock");
+			$("#blackclock").removeClass("running-clock");
 			return;
 		}
 	}
@@ -899,6 +905,14 @@ var update_clock = function() {
 
 	$("#whiteclock").text(white_clock);
 	$("#blackclock").text(black_clock);
+
+	if (toplay == 'W') {
+		$("#whiteclock").addClass("running-clock");
+		$("#blackclock").removeClass("running-clock");
+	} else {
+		$("#whiteclock").removeClass("running-clock");
+		$("#blackclock").addClass("running-clock");
+	}
 }
 
 /**
