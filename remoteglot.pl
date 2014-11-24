@@ -760,7 +760,7 @@ sub output_json {
 	$json->{'refutation_lines'} = \%refutation_lines;
 
 	my $encoded = JSON::XS::encode_json($json);
-	unless ($historic_json_only) {
+	unless ($historic_json_only || !defined($remoteglotconf::json_output)) {
 		atomic_set_contents($remoteglotconf::json_output, $encoded);
 	}
 
@@ -1014,14 +1014,20 @@ sub find_clock_start {
 	my $pos = shift;
 
 	# If the game is over, the clock is stopped.
-	if ($pos->{'result'} eq '1-0' ||
-	    $pos->{'result'} eq '1/2-1/2' ||
-	    $pos->{'result'} eq '0-1') {
+	if (exists($pos->{'result'}) &&
+	    ($pos->{'result'} eq '1-0' ||
+	     $pos->{'result'} eq '1/2-1/2' ||
+	     $pos->{'result'} eq '0-1')) {
 		return;
 	}
 
 	# When we don't have any moves, we assume the clock hasn't started yet.
 	if ($pos->{'move_num'} == 1 && $pos->{'toplay'} eq 'W') {
+		return;
+	}
+
+	# TODO(sesse): Maybe we can get the number of moves somehow else for FICS games.
+	if (!exists($pos->{'pretty_history'})) {
 		return;
 	}
 
