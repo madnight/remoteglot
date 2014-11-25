@@ -11,13 +11,13 @@ var zlib = require('zlib');
 var delta = require('./js/json_delta.js');
 
 // Constants.
-var json_filename = '/srv/analysis.sesse.net/www/analysis.json';
+var JSON_FILENAME = '/srv/analysis.sesse.net/www/analysis.json';
+var HISTORY_TO_KEEP = 5;
 
 // The current contents of the file to hand out, and its last modified time.
 var json = undefined;
 
 // The last five timestamps, and diffs from them to the latest version.
-var history_to_keep = 5;
 var historic_json = [];
 var diff_json = {};
 
@@ -50,7 +50,7 @@ var replace_json = function(new_json_contents, mtime) {
 		}
 		if (!json.invalid_base) {
 			historic_json.push(json);
-			if (historic_json.length > history_to_keep) {
+			if (historic_json.length > HISTORY_TO_KEEP) {
 				historic_json.shift();
 			}
 		}
@@ -98,11 +98,11 @@ var create_json_historic_diff = function(new_json, history_left, new_diff_json, 
 }
 
 var reread_file = function(event, filename) {
-	if (filename != path.basename(json_filename)) {
+	if (filename != path.basename(JSON_FILENAME)) {
 		return;
 	}
-	console.log("Rereading " + json_filename);
-	fs.open(json_filename, 'r+', function(err, fd) {
+	console.log("Rereading " + JSON_FILENAME);
+	fs.open(JSON_FILENAME, 'r+', function(err, fd) {
 		if (err) throw err;
 		fs.fstat(fd, function(err, st) {
 			if (err) throw err;
@@ -123,7 +123,7 @@ var reread_file = function(event, filename) {
 	touch_timer = setTimeout(function() {
 		console.log("Touching analysis.json due to no other activity");
 		var now = Date.now() / 1000;
-		fs.utimes(json_filename, now, now);
+		fs.utimes(JSON_FILENAME, now, now);
 	}, 30000);
 }
 var possibly_wakeup_clients = function() {
@@ -217,8 +217,8 @@ var count_viewers = function() {
 
 // Set up a watcher to catch changes to the file, then do an initial read
 // to make sure we have a copy.
-fs.watch(path.dirname(json_filename), reread_file);
-reread_file(null, path.basename(json_filename));
+fs.watch(path.dirname(JSON_FILENAME), reread_file);
+reread_file(null, path.basename(JSON_FILENAME));
 
 var server = http.createServer();
 server.on('request', function(request, response) {
