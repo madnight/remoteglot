@@ -14,6 +14,10 @@ var delta = require('./js/json_delta.js');
 var JSON_FILENAME = '/srv/analysis.sesse.net/www/analysis.json';
 var HISTORY_TO_KEEP = 5;
 
+// If set to 1, we are already processing a JSON update and should not
+// start a new one. If set to 2, we are _also_ having one in the queue.
+var json_lock = 0;
+
 // The current contents of the file to hand out, and its last modified time.
 var json = undefined;
 
@@ -69,6 +73,7 @@ var replace_json = function(new_json_contents, mtime) {
 			new_json.gzip = buffer;
 			json = new_json;
 			diff_json = new_diff_json;
+			json_lock = 0;
 
 			// Finally, wake up any sleeping clients.
 			possibly_wakeup_clients();
@@ -101,6 +106,17 @@ var reread_file = function(event, filename) {
 	if (filename != path.basename(JSON_FILENAME)) {
 		return;
 	}
+	if (json_lock >= 2) {
+		return;
+	}
+	if (json_lock == 1) {
+		// Already processing; wait a bit.
+		json_lock = 2;
+		setTimeout(function() { json_lock = 1; reread_file(event, filename); }, 100);
+		return;
+	}
+	json_lock = 1;
+
 	console.log("Rereading " + JSON_FILENAME);
 	fs.open(JSON_FILENAME, 'r+', function(err, fd) {
 		if (err) throw err;
