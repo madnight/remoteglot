@@ -8,12 +8,18 @@ var url = require('url');
 var querystring = require('querystring');
 var path = require('path');
 var zlib = require('zlib');
+var delta = require('./js/json_delta.js');
 
 // Constants.
 var json_filename = '/srv/analysis.sesse.net/www/analysis.json';
 
 // The current contents of the file to hand out, and its last modified time.
 var json = undefined;
+
+// The last five timestamps, and diffs from them to the latest version.
+var history_to_keep = 5;
+var historic_json = [];
+var diff_json = {};
 
 // The list of clients that are waiting for new data to show up.
 // Uniquely keyed by request_id so that we can take them out of
@@ -35,21 +41,59 @@ var touch_timer = undefined;
 var viewer_count_override = undefined;
 
 var replace_json = function(new_json_contents, mtime) {
+	// Generate the list of diffs from the last five versions.
+	if (json !== undefined) {
+		// If two versions have the same mtime, clients could have either.
+		// Note the fact, so that we never insert it.
+		if (json.last_modified == mtime) {
+			json.invalid_base = true;
+		}
+		if (!json.invalid_base) {
+			historic_json.push(json);
+			if (historic_json.length > history_to_keep) {
+				historic_json.shift();
+			}
+		}
+	}
+
 	var new_json = {
 		parsed: JSON.parse(new_json_contents),
 		plain: new_json_contents,
 		last_modified: mtime
 	};
+	create_json_historic_diff(new_json, historic_json.slice(0), {}, function(new_diff_json) {
+		// gzip the new version (non-delta), and put it into place.
+		zlib.gzip(new_json_contents, function(err, buffer) {
+			if (err) throw err;
 
-	// gzip the new version, and put it into place.
-	zlib.gzip(new_json_contents, function(err, buffer) {
+			new_json.gzip = buffer;
+			json = new_json;
+			diff_json = new_diff_json;
+
+			// Finally, wake up any sleeping clients.
+			possibly_wakeup_clients();
+		});
+	});
+}
+
+var create_json_historic_diff = function(new_json, history_left, new_diff_json, cb) {
+	if (history_left.length == 0) {
+		cb(new_diff_json);
+		return;
+	}
+
+	var histobj = history_left.shift();
+	var diff = delta.JSON_delta.diff(histobj.parsed, new_json.parsed);
+	var diff_text = JSON.stringify(diff);
+	zlib.gzip(diff_text, function(err, buffer) {
 		if (err) throw err;
-
-		new_json.gzip = buffer;
-		json = new_json;
-
-		// Finally, wake up any sleeping clients.
-		possibly_wakeup_clients();
+		new_diff_json[histobj.last_modified] = {
+			plain: diff,
+			text: diff_text,
+			gzip: buffer,
+			last_modified: new_json.last_modified,
+		};
+		create_json_historic_diff(new_json, history_left, new_diff_json, cb);
 	});
 }
 
@@ -87,6 +131,7 @@ var possibly_wakeup_clients = function() {
 	for (var i in sleeping_clients) {
 		mark_recently_seen(sleeping_clients[i].unique);
 		send_json(sleeping_clients[i].response,
+		          sleeping_clients[i].ims,
 		          sleeping_clients[i].accept_gzip,
 			  num_viewers);
 	}
@@ -114,10 +159,12 @@ var handle_viewer_override = function(request, u, response) {
 		response.end();
 	}
 }
-var send_json = function(response, accept_gzip, num_viewers) {
+var send_json = function(response, ims, accept_gzip, num_viewers) {
+	var this_json = diff_json[ims] || json;
+
 	var headers = {
 		'Content-Type': 'text/json',
-		'X-Remoteglot-Last-Modified': json.last_modified,
+		'X-Remoteglot-Last-Modified': this_json.last_modified,
 		'X-Remoteglot-Num-Viewers': num_viewers,
 		'Access-Control-Expose-Headers': 'X-Remoteglot-Last-Modified, X-Remoteglot-Num-Viewers',
 		'Expires': 'Mon, 01 Jan 1970 00:00:00 UTC',
@@ -127,10 +174,10 @@ var send_json = function(response, accept_gzip, num_viewers) {
 	if (accept_gzip) {
 		headers['Content-Encoding'] = 'gzip';
 		response.writeHead(200, headers);
-		response.write(json.gzip);
+		response.write(this_json.gzip);
 	} else {
 		response.writeHead(200, headers);
-		response.write(json.text);
+		response.write(this_json.text);
 	}
 	response.end();
 }
@@ -203,7 +250,7 @@ server.on('request', function(request, response) {
 	// If we already have something newer than what the user has,
 	// just send it out and be done with it.
 	if (json !== undefined && (!ims || json.last_modified > ims)) {
-		send_json(response, accept_gzip, count_viewers());
+		send_json(response, ims, accept_gzip, count_viewers());
 		return;
 	}
 
@@ -214,6 +261,7 @@ server.on('request', function(request, response) {
 	client.request_id = request_id;
 	client.accept_gzip = accept_gzip;
 	client.unique = unique;
+	client.ims = ims;
 	sleeping_clients[request_id++] = client;
 
 	request.socket.client = client;

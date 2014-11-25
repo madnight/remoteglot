@@ -138,7 +138,11 @@ var request_update = function() {
 		ims = xhr.getResponseHeader('X-Remoteglot-Last-Modified');
 		var num_viewers = xhr.getResponseHeader('X-Remoteglot-Num-Viewers');
 		possibly_play_sound(current_analysis_data, data);
-		current_analysis_data = data;
+		if (Array.isArray(data)) {
+			current_analysis_data = JSON_delta.patch(current_analysis_data, data);
+		} else {
+			current_analysis_data = data;
+		}
 		update_board(current_analysis_data, displayed_analysis_data);
 		update_num_viewers(num_viewers);
 

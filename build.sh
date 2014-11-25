@@ -11,5 +11,6 @@ java -jar closure/compiler.jar \
 	--externs externs/webstorage.js \
 	www/js/chessboard-0.3.0.js \
 	www/js/chess.js \
+	www/js/json_delta.js \
 	www/js/remoteglot.js
 
