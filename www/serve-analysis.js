@@ -183,7 +183,6 @@ var send_json = function(response, ims, accept_gzip, num_viewers) {
 		'X-Remoteglot-Last-Modified': this_json.last_modified,
 		'X-Remoteglot-Num-Viewers': num_viewers,
 		'Access-Control-Expose-Headers': 'X-Remoteglot-Last-Modified, X-Remoteglot-Num-Viewers',
-		'Expires': 'Mon, 01 Jan 1970 00:00:00 UTC',
 		'Vary': 'Accept-Encoding',
 	};
 
