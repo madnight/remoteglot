@@ -180,9 +180,9 @@ var send_json = function(response, ims, accept_gzip, num_viewers) {
 
 	var headers = {
 		'Content-Type': 'text/json',
-		'X-Remoteglot-Last-Modified': this_json.last_modified,
-		'X-Remoteglot-Num-Viewers': num_viewers,
-		'Access-Control-Expose-Headers': 'X-Remoteglot-Last-Modified, X-Remoteglot-Num-Viewers',
+		'X-RGLM': this_json.last_modified,
+		'X-RGNV': num_viewers,
+		'Access-Control-Expose-Headers': 'X-RGLM, X-RGNV',
 		'Vary': 'Accept-Encoding',
 	};
 

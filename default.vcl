@@ -51,7 +51,7 @@ sub vcl_backend_response {
         }
         if (beresp.http.content-type ~ "json") {
              set beresp.http.x-analysis = 1;
-             ban ( "obj.http.x-analysis == 1 && obj.http.x-remoteglot-last-modified != " + beresp.http.x-remoteglot-last-modified );
+             ban ( "obj.http.x-analysis == 1 && obj.http.x-rglm != " + beresp.http.x-rglm );
         }
         return (deliver);
     }

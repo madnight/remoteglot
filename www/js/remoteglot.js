@@ -135,8 +135,8 @@ var request_update = function() {
 		url: "/analysis.pl?ims=" + ims + "&unique=" + unique
 	}).done(function(data, textstatus, xhr) {
 		sync_server_clock(xhr.getResponseHeader('Date'));
-		ims = xhr.getResponseHeader('X-Remoteglot-Last-Modified');
-		var num_viewers = xhr.getResponseHeader('X-Remoteglot-Num-Viewers');
+		ims = xhr.getResponseHeader('X-RGLM');
+		var num_viewers = xhr.getResponseHeader('X-RGNV');
 		possibly_play_sound(current_analysis_data, data);
 		if (Array.isArray(data)) {
 			current_analysis_data = JSON_delta.patch(current_analysis_data, data);
