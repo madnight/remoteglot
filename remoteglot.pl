@@ -35,6 +35,7 @@ my $stop_pgn_fetch = 0;
 my $tb_retry_timer = undef;
 my %tb_cache = ();
 my $tb_lookup_running = 0;
+my $last_written_json = undef;
 
 # TODO: Persist (parts of) this so that we can restart.
 my %clock_target_for_pos = ();
@@ -760,8 +761,10 @@ sub output_json {
 	$json->{'refutation_lines'} = \%refutation_lines;
 
 	my $encoded = JSON::XS::encode_json($json);
-	unless ($historic_json_only || !defined($remoteglotconf::json_output)) {
+	unless ($historic_json_only || !defined($remoteglotconf::json_output) ||
+	        (defined($last_written_json) && $last_written_json eq $encoded)) {
 		atomic_set_contents($remoteglotconf::json_output, $encoded);
+		$last_written_json = $encoded;
 	}
 
 	if (exists($pos_calculating->{'pretty_history'}) &&
