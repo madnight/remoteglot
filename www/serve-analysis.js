@@ -187,10 +187,12 @@ var send_json = function(response, ims, accept_gzip, num_viewers) {
 	};
 
 	if (accept_gzip) {
+		headers['Content-Length'] = this_json.gzip.length;
 		headers['Content-Encoding'] = 'gzip';
 		response.writeHead(200, headers);
 		response.write(this_json.gzip);
 	} else {
+		headers['Content-Length'] = this_json.text.length;
 		response.writeHead(200, headers);
 		response.write(this_json.text);
 	}

@@ -24,7 +24,11 @@ sub vcl_recv {
 
 sub vcl_deliver { 
     if (resp.http.x-analysis) {
-        set resp.http.date = now;
+        set resp.http.Date = now;
+        unset resp.http.X-Varnish;
+        unset resp.http.Via;
+        unset resp.http.Age;
+        unset resp.http.X-Powered-By;
     }
     unset resp.http.x-analysis;
 }
