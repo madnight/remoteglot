@@ -157,7 +157,7 @@ sub num_pieces {
 
 # Returns a new Position object.
 sub make_move {
-        my ($pos, $from_row, $from_col, $to_row, $to_col, $promo) = @_;
+        my ($pos, $from_row, $from_col, $to_row, $to_col, $promo, $pretty_move) = @_;
 
 	my $from_square = _pos_to_square($from_row, $from_col);
 	my $to_square = _pos_to_square($to_row, $to_col);
@@ -211,8 +211,12 @@ sub make_move {
 	}
 	$np->{'player_w'} = $pos->{'player_w'};
 	$np->{'player_b'} = $pos->{'player_b'};
-	my ($move, $nb) = $pos->{'board'}->prettyprint_move($from_row, $from_col, $to_row, $to_col, $promo);
-	$np->{'last_move'} = $move;
+	if (defined($pretty_move)) {
+		$np->{'last_move'} = $pretty_move;
+	} else {
+		my ($move, $nb) = $pos->{'board'}->prettyprint_move($from_row, $from_col, $to_row, $to_col, $promo);
+		$np->{'last_move'} = $move;
+	}
 	$np->{'last_move_uci'} = Board::move_to_uci_notation($from_row, $from_col, $to_row, $to_col, $promo);
 
 	return bless $np;
