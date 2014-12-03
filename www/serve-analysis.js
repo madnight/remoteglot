@@ -93,8 +93,8 @@ var create_json_historic_diff = function(new_json, history_left, new_diff_json, 
 	zlib.gzip(diff_text, function(err, buffer) {
 		if (err) throw err;
 		new_diff_json[histobj.last_modified] = {
-			plain: diff,
-			text: diff_text,
+			parsed: diff,
+			plain: diff_text,
 			gzip: buffer,
 			last_modified: new_json.last_modified,
 		};
@@ -192,9 +192,9 @@ var send_json = function(response, ims, accept_gzip, num_viewers) {
 		response.writeHead(200, headers);
 		response.write(this_json.gzip);
 	} else {
-		headers['Content-Length'] = this_json.text.length;
+		headers['Content-Length'] = this_json.plain.length;
 		response.writeHead(200, headers);
-		response.write(this_json.text);
+		response.write(this_json.plain);
 	}
 	response.end();
 }
