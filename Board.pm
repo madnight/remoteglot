@@ -148,6 +148,8 @@ sub move_to_uci_notation {
 	return _pos_to_square($from_row, $from_col) . _pos_to_square($to_row, $to_col) . $promo;
 }
 
+# Note: This is in general not a validation that the move is actually allowed
+# (e.g. you can castle even though you're in check).
 sub parse_pretty_move {
 	my ($board, $move, $toplay) = @_;
 
@@ -192,13 +194,17 @@ sub parse_pretty_move {
 		for my $col (0..7) {
 			next if (defined($from_col) && $from_col != $col);
 			next if ($board->[$row][$col] ne $piece);
-			next if (!$board->can_reach($piece, $row, $col, $to_row, $to_col));
-
-			# See if doing this move would put us in check
-			# (yes, there are clients that expect us to do this).
-			next if ($board->make_move($row, $col, $to_row, $to_col, $promo)->in_check($side));
 			push @squares, [ $row, $col ];
 		}
+	}
+	if (scalar @squares > 1) {
+		# Filter out pieces which cannot reach this square.
+		@squares = grep { $board->can_reach($piece, $_->[0], $_->[1], $to_row, $to_col) } @squares;
+	}
+	if (scalar @squares > 1) {
+		# See if doing this move would put us in check
+		# (yes, there are clients that expect us to do this).
+		@squares = grep { !$board->make_move($_->[0], $_->[1], $to_row, $to_col, $promo)->in_check($side) } @squares;
 	}
 	if (scalar @squares == 0) {
 		die "Impossible move $move";
