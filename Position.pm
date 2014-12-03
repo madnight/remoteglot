@@ -97,6 +97,35 @@ sub fen {
 	return $fen;
 }
 
+# Returns a compact bit string describing the same data as fen(),
+# except for the half-move and full-move clock.
+sub bitpacked_fen {
+	my $pos = shift;
+	my $board = $pos->{'board'}->bitpacked_fen();
+
+	my $bits = "";
+	if ($pos->{'toplay'} eq 'W') {
+		$bits .= "0";
+	} else {
+		$bits .= "1";
+	}
+
+	$bits .= $pos->{'white_castle_k'};
+	$bits .= $pos->{'white_castle_q'};
+	$bits .= $pos->{'black_castle_k'};
+	$bits .= $pos->{'black_castle_q'};
+
+	my $col = $pos->{'ep_file_num'};
+	if ($col == -1) {
+		$bits .= "0";
+	} else {
+		$bits .= "1";
+		$bits .= (qw(000 001 010 011 100 101 110 111))[$col];
+	}
+
+	return $board . pack('b*', $bits);
+}
+
 sub to_json_hash {
 	my $pos = shift;
 	my $json = { %$pos, fen => $pos->fen() };

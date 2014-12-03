@@ -221,6 +221,45 @@ sub fen {
 	return join('/', @rows);
 }
 
+# Returns a compact bit string describing the same data as fen().
+# This is encoded using a Huffman-like encoding, and should be
+# typically about 1/3 the number of bytes.
+sub bitpacked_fen {
+	my ($board) = @_;
+	my $bits = "";
+
+	for my $row (0..7) {
+		for my $col (0..7) {
+			my $piece = $board->[$row][$col];
+			if ($piece eq '-') {
+				$bits .= "0";
+				next;
+			}
+
+			my $color = (lc($piece) eq $piece) ? 0 : 1;
+			$bits .= "1" . $color;
+
+			if (lc($piece) eq 'p') {
+				$bits .= "0";
+			} elsif (lc($piece) eq 'n') {
+				$bits .= "100";
+			} elsif (lc($piece) eq 'b') {
+				$bits .= "101";
+			} elsif (lc($piece) eq 'r') {
+				$bits .= "1110";
+			} elsif (lc($piece) eq 'q') {
+				$bits .= "11110";
+			} elsif (lc($piece) eq 'k') {
+				$bits .= "11111";
+			} else {
+				die "Unknown piece $piece";
+			}
+		}
+	}
+
+	return pack('b*', $bits);
+}
+
 sub can_reach {
 	my ($board, $piece, $from_row, $from_col, $to_row, $to_col) = @_;
 	
