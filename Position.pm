@@ -50,6 +50,39 @@ sub start_pos {
 	return $class->new("<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 dummygamenum $white $black -2 dummytime dummyincrement 39 39 dummytime dummytime 1 none (0:00) none 0 0 0");
 }
 
+sub from_fen {
+	my ($class, $fen) = @_;
+	my ($board, $toplay, $castling, $ep_square, $halfmove_clock, $fullmove_clock) = split / /, $fen;
+
+	my $pos = {};
+	$board =~ s/(\d)/"-"x$1/ge;
+	$pos->{'board'} = Board->new(split /\//, $board);
+	$pos->{'toplay'} = uc($toplay);
+
+	if ($ep_square =~ /^([a-h])/) {
+		$pos->{'ep_file_num'} = ord($1) - ord('a');
+	} else {
+		$pos->{'ep_file_num'} = -1;
+	}
+
+	$pos->{'white_castle_k'} = ($castling =~ /K/) ? 1 : 0;
+	$pos->{'white_castle_q'} = ($castling =~ /Q/) ? 1 : 0;
+	$pos->{'black_castle_k'} = ($castling =~ /k/) ? 1 : 0;
+	$pos->{'black_castle_q'} = ($castling =~ /q/) ? 1 : 0;
+	$pos->{'time_since_100move_rule_reset'} = $halfmove_clock // 0;
+	$pos->{'player_w'} = 'white';
+	$pos->{'player_b'} = 'black';
+	$pos->{'white_clock'} = 0;
+	$pos->{'black_clock'} = 0;
+	$pos->{'move_num'} = $fullmove_clock // 0;
+	$pos->{'last_move_uci'} = undef;
+	$pos->{'last_move'} = undef;
+	$pos->{'prettyprint_cache'} = {};
+	
+	bless $pos, $class;
+	return $pos;
+}
+
 sub fen {
 	my $pos = shift;
 
