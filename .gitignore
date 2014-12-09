@@ -1,1 +1,10 @@
 config.local.pm
+junk/
+www/analysis.json
+www/js/remoteglot.min.js
+tblog.txt
+ucilog.txt
+ficslog.txt
+openings.txt
+www/history/
+closure/
