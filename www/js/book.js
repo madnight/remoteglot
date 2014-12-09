@@ -66,7 +66,7 @@ var show_lines = function(data, game) {
 		move_td.appendChild(move_a);
 		$(move_a).text(move['move']);
 
-		// #.
+		// N.
 		var num = white + draw + black;
 		add_td(tr, num);
 
@@ -78,16 +78,36 @@ var show_lines = function(data, game) {
 		var win_ratio = (game.turn() == 'w') ? white_win_ratio : 1.0 - white_win_ratio;
 		add_td(tr, ((100.0 * win_ratio).toFixed(1) + "%"));
 
-		// Elo.
-		add_td(tr, move['white_avg_elo'].toFixed(1));
-		add_td(tr, move['black_avg_elo'].toFixed(1));
+		// WWin and %WW.
+		add_td(tr, white);
+		add_td(tr, (100.0 * white / num).toFixed(1) + "%");
 
-		// Win% corrected for Elo.
-		var win_elo = -400.0 * Math.log(1.0 / white_win_ratio - 1.0) / Math.LN10;
-		win_elo -= (move['white_avg_elo'] - move['black_avg_elo']);
-		white_win_ratio = 1.0 / (1.0 + Math.pow(10, win_elo / -400.0));
-		win_ratio = (game.turn() == 'w') ? white_win_ratio : 1.0 - white_win_ratio;
-		add_td(tr, ((100.0 * win_ratio).toFixed(1) + "%"));
+		// BWin and %BW.
+		add_td(tr, black);
+		add_td(tr, (100.0 * black / num).toFixed(1) + "%");
+
+		// Draw and %Draw.
+		add_td(tr, draw);
+		add_td(tr, ((100.0 * draw / num).toFixed(1) + "%"));
+
+		if (move['num_elo'] >= 10) {
+			// Elo.
+			add_td(tr, move['white_avg_elo'].toFixed(1));
+			add_td(tr, move['black_avg_elo'].toFixed(1));
+			add_td(tr, (move['white_avg_elo'] - move['black_avg_elo']).toFixed(1));
+
+			// Win% corrected for Elo.
+			var win_elo = -400.0 * Math.log(1.0 / white_win_ratio - 1.0) / Math.LN10;
+			win_elo -= (move['white_avg_elo'] - move['black_avg_elo']);
+			white_win_ratio = 1.0 / (1.0 + Math.pow(10, win_elo / -400.0));
+			win_ratio = (game.turn() == 'w') ? white_win_ratio : 1.0 - white_win_ratio;
+			add_td(tr, ((100.0 * win_ratio).toFixed(1) + "%"));
+		} else {
+			add_td(tr, "");
+			add_td(tr, "");
+			add_td(tr, "");
+			add_td(tr, "");
+		}
 
 		if (false) {
 			// Win bars (W/D/B).

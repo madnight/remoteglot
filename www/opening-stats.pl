@@ -21,14 +21,15 @@ my $opening;
 my @moves = ();
 while (<$fh>) {
 	chomp;
-	my ($move, $white, $draw, $black, $opening_num, $white_avg_elo, $black_avg_elo) = split;
+	my ($move, $white, $draw, $black, $opening_num, $white_avg_elo, $black_avg_elo, $num_elo) = split;
 	push @moves, {
 		move => $move,
 		white => $white * 1,
 		draw => $draw * 1,
 		black => $black * 1,
 		white_avg_elo => $white_avg_elo * 1,
-		black_avg_elo => $black_avg_elo * 1
+		black_avg_elo => $black_avg_elo * 1,
+		num_elo => $num_elo * 1
 	};
 	$opening = $ECO::openings[$opening_num];
 }
