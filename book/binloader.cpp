@@ -82,8 +82,6 @@ int main(int argc, char **argv)
 	printf("Writing SSTable...\n");
 	mtbl_writer* mtbl = mtbl_writer_init("open.mtbl", NULL);
 	Count c;
-	int num_elo = 0;
-	double sum_white_elo = 0.0, sum_black_elo = 0.0;
 	for (int i = 0; i < elems.size(); ++i) {
 		if (elems[i].result == WHITE) {
 			++c.white;
@@ -94,19 +92,15 @@ int main(int argc, char **argv)
 		}
 		c.opening_num = elems[i].opening_num;
 		if (elems[i].white_elo >= 100 && elems[i].black_elo >= 100) {
-			sum_white_elo += elems[i].white_elo;
-			sum_black_elo += elems[i].black_elo;
-			++num_elo;
+			c.sum_white_elo += elems[i].white_elo;
+			c.sum_black_elo += elems[i].black_elo;
+			++c.num_elo;
 		}
 		if (i == elems.size() - 1 || elems[i].bpfen_and_move != elems[i + 1].bpfen_and_move) {
-			c.avg_white_elo = sum_white_elo / num_elo;
-			c.avg_black_elo = sum_black_elo / num_elo;
 			mtbl_writer_add(mtbl,
 				(const uint8_t *)elems[i].bpfen_and_move.data(), elems[i].bpfen_and_move.size(),
 				(const uint8_t *)&c, sizeof(c));
 			c = Count();
-			num_elo = 0;
-			sum_white_elo = sum_black_elo = 0.0;
 		}
 	}
 	mtbl_writer_destroy(&mtbl);

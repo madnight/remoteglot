@@ -36,6 +36,9 @@ int main(int argc, char **argv)
 	while (mtbl_iter_next(it, &key, &len_key, &val, &len_val)) {
 		string move((char *)(key + prefix_len), len_key - prefix_len);
 		const Count* c = (Count *)val;
-		printf("%s %d %d %d %d %f %f\n", move.c_str(), c->white, c->draw, c->black, c->opening_num, c->avg_white_elo, c->avg_black_elo);
+		printf("%s %d %d %d %d %f %f\n", move.c_str(),
+			c->white, c->draw, c->black, c->opening_num,
+			float(c->sum_white_elo) / c->num_elo,
+			float(c->sum_black_elo) / c->num_elo);
 	}
 }
