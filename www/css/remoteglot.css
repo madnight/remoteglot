@@ -152,3 +152,38 @@ a.move:hover {
 #linenav {
 	display: none;
 }
+
+/* Opening display */
+.num {
+	padding-left: 0.5em;
+	padding-right: 0.5em;
+	text-align: right;
+}
+.winbars {
+        width: 20em;
+	font-size: small;
+	font-weight: bold;
+	text-align: center;
+}
+.winbars table {
+	border: 1px solid black;
+	width: 100%;
+	border-collapse: collapse;
+}
+.winbars table td {
+	border: 1px solid black;
+	overflow: hidden;
+	max-width: 0px;
+}
+.winbars table td.white {
+	background-color: white;
+	color: black;
+}
+.winbars table td.draw {
+	background-color: gray;
+	color: white;
+}
+.winbars table td.black {
+	background-color: black;
+	color: white;
+}

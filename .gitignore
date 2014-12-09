@@ -8,3 +8,9 @@ ficslog.txt
 openings.txt
 www/history/
 closure/
+book/part-*.bin
+book/ficsgame*.pgn
+book/binloader
+book/binlookup
+book/eco.pgn
+book/open.mtbl

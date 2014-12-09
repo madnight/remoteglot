@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>analysis.sesse.net</title>
+
+  <link rel="stylesheet" href="css/chessboard-0.3.0.min.css" />
+  <link rel="stylesheet" href="css/remoteglot.css" />
+</head>
+<body>
+<h1 id="headline">Openings</h1>
+<div id="boardcontainer">
+  <div id="board"></div>
+  <div id="bottompanel">
+    <!-- CSS abuse... -->
+    <p id="whiteclock"><a href="javascript:prev_move()">&lt;&lt;&lt;</a></p>
+    <p id="blackclock"><a href="javascript:next_move()">&gt;&gt;&gt;</a></p>
+    <p id="numviewers"></p>
+  </div>
+</div>
+<div id="analysis">
+  <table>
+    <thead>
+      <tr>
+        <th>Move</th>
+        <th>Games</th>
+        <th>%</th>
+        <th>Win%</th>
+        <th>WElo</th>
+        <th>BElo</th>
+        <th>AWin%</th>
+        <!--<th class="winbars">
+          <table><tr>
+             <td class="white" style="width: 35%;">White</td>
+             <td class="draw" style="width: 30%;">Draw</td>
+             <td class="black" style="width: 35%;">Black</td>
+           </tr></table>
+        </th> -->
+      </tr>
+    </thead>
+    <tbody id="lines">
+    </tbody>
+  </table>
+</div>
+<!-- For faster development -->
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+<script type="text/javascript" src="js/chessboard-0.3.0.min.js"></script>
+<script type="text/javascript" src="js/chess.min.js"></script>
+<script type="text/javascript" src="js/book.js"></script>
+</body>
+</html>
