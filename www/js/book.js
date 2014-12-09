@@ -34,6 +34,11 @@ var add_td = function(tr, value) {
 	$(td).text(value);
 }
 
+var headings = [
+	"Move", "Games", "%", "Win%", "WWin", "%WW", "Bwin", "%BW", "Draw", "Draw%",
+	"AvWElo", "AvBElo", "EloVar", "AWin%"
+];
+
 var show_lines = function(data, game) {
 	var moves = data['moves'];
 	$('#numviewers').text(data['opening']);
@@ -43,7 +48,15 @@ var show_lines = function(data, game) {
 		total_num += parseInt(move['white']);
 		total_num += parseInt(move['draw']);
 		total_num += parseInt(move['black']);
-	}	
+	}
+
+	var headings_tr = $("#headings");
+	headings_tr.empty();
+	for (var i = 0; i < headings.length; ++i) {
+		var th = document.createElement("th");
+		headings_tr.append(th);
+		$(th).text(headings[i]);
+	}
 
 	var tbl = $("#lines");
 	tbl.empty();
