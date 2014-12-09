@@ -3,9 +3,9 @@ use strict;
 use warnings;
 use CGI;
 use JSON::XS;
-use lib '.';
+use lib '..';
 use Position;
-require 'ECO.pm';
+use ECO;
 
 #ECO::unpersist();
 
