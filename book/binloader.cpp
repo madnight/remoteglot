@@ -1,4 +1,7 @@
 //#define _GLIBCXX_PARALLEL
+
+// Usage: ./binloader IN1 IN2 IN3 ... OUT
+
 #include <stdio.h>
 #include <vector>
 #include <mtbl.h>
@@ -26,7 +29,7 @@ int main(int argc, char **argv)
 {
 	vector<Element> elems;
 
-	for (int i = 1; i < argc; ++i) {
+	for (int i = 1; i < argc - 1; ++i) {
 		FILE *fp = fopen(argv[i], "rb");
 		if (fp == NULL) {
 			perror(argv[i]);
@@ -80,7 +83,7 @@ int main(int argc, char **argv)
 	sort(elems.begin(), elems.end());
 
 	printf("Writing SSTable...\n");
-	mtbl_writer* mtbl = mtbl_writer_init("open.mtbl", NULL);
+	mtbl_writer* mtbl = mtbl_writer_init(argv[argc - 1], NULL);
 	Count c;
 	for (int i = 0; i < elems.size(); ++i) {
 		if (elems[i].result == WHITE) {
