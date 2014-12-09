@@ -83,7 +83,9 @@ int main(int argc, char **argv)
 	sort(elems.begin(), elems.end());
 
 	printf("Writing SSTable...\n");
-	mtbl_writer* mtbl = mtbl_writer_init(argv[argc - 1], NULL);
+	mtbl_writer_options* wopt = mtbl_writer_options_init();
+	mtbl_writer_options_set_compression(wopt, MTBL_COMPRESSION_SNAPPY);
+	mtbl_writer* mtbl = mtbl_writer_init(argv[argc - 1], wopt);
 	Count c;
 	for (int i = 0; i < elems.size(); ++i) {
 		if (elems[i].result == WHITE) {

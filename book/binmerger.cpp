@@ -45,7 +45,9 @@ int main(int argc, char **argv)
 		mtbl_merger_add_source(merger, mtbl_reader_source(mtbl));
 	}
 
-	mtbl_writer* writer = mtbl_writer_init(argv[argc - 1], NULL);
+	mtbl_writer_options* wopt = mtbl_writer_options_init();
+	mtbl_writer_options_set_block_size(wopt, 65536);
+	mtbl_writer* writer = mtbl_writer_init(argv[argc - 1], wopt);
 	mtbl_source_write(mtbl_merger_source(merger), writer);
 	mtbl_writer_destroy(&writer);
 }
