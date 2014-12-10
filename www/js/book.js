@@ -34,9 +34,26 @@ var add_td = function(tr, value) {
 	$(td).text(value);
 }
 
+var TYPE_MOVE = 0;
+var TYPE_INTEGER = 1;
+var TYPE_FLOAT = 2;
+var TYPE_RATIO = 3;
+
 var headings = [
-	"Move", "Games", "%", "Win%", "WWin", "%WW", "Bwin", "%BW", "Draw", "Draw%",
-	"AvWElo", "AvBElo", "EloVar", "AWin%"
+	[ "Move", TYPE_MOVE ],
+	[ "Games", TYPE_INTEGER ],
+	[ "%", TYPE_RATIO ],
+	[ "Win%", TYPE_RATIO ],
+	[ "WWin", TYPE_INTEGER ],
+	[ "%WW", TYPE_RATIO ],
+	[ "Bwin", TYPE_INTEGER ],
+	[ "%BW", TYPE_RATIO ],
+	[ "Draw", TYPE_INTEGER ],
+	[ "Draw%", TYPE_RATIO ],
+	[ "AvWElo", TYPE_FLOAT ],
+	[ "AvBElo", TYPE_FLOAT ],
+	[ "EloVar", TYPE_FLOAT ],
+	[ "AWin%", TYPE_RATIO ],
 ];
 
 var show_lines = function(data, game) {
@@ -55,106 +72,80 @@ var show_lines = function(data, game) {
 	for (var i = 0; i < headings.length; ++i) {
 		var th = document.createElement("th");
 		headings_tr.append(th);
-		$(th).text(headings[i]);
+		$(th).text(headings[i][0]);
 	}
 
-	var tbl = $("#lines");
-	tbl.empty();
-
+	var lines = [];
 	for (var i = 0; i < moves.length; ++i) {
 		var move = moves[i];
-		var tr = document.createElement("tr");
+		var line = [];
 
 		var white = parseInt(move['white']);
 		var draw = parseInt(move['draw']);
 		var black = parseInt(move['black']);
 
-		// Move.
-		var move_td = document.createElement("td");
-		tr.appendChild(move_td);
-		$(move_td).addClass("move");
-
-		var move_a = document.createElement("a");
-		move_a.href = "javascript:make_move('" + move['move'] + "')";
-		move_td.appendChild(move_a);
-		$(move_a).text(move['move']);
-
-		// N.
+		line.push(move['move']);  // Move.
 		var num = white + draw + black;
-		add_td(tr, num);
-
-		// %.
-		add_td(tr, (100.0 * num / total_num).toFixed(1) + "%");
+		line.push(num);  // N.
+		line.push(num / total_num);  // %.
 
 		// Win%.
 		var white_win_ratio = (white + 0.5 * draw) / num;
 		var win_ratio = (game.turn() == 'w') ? white_win_ratio : 1.0 - white_win_ratio;
-		add_td(tr, ((100.0 * win_ratio).toFixed(1) + "%"));
+		line.push(win_ratio);
 
-		// WWin and %WW.
-		add_td(tr, white);
-		add_td(tr, (100.0 * white / num).toFixed(1) + "%");
-
-		// BWin and %BW.
-		add_td(tr, black);
-		add_td(tr, (100.0 * black / num).toFixed(1) + "%");
-
-		// Draw and %Draw.
-		add_td(tr, draw);
-		add_td(tr, ((100.0 * draw / num).toFixed(1) + "%"));
+		line.push(white);        // WWin.
+		line.push(white / num);  // %WW.
+		line.push(black);        // BWin.
+		line.push(black / num);  // %BW.
+		line.push(draw);         // Draw.
+		line.push(draw / num);   // %Draw.
 
 		if (move['num_elo'] >= 10) {
 			// Elo.
-			add_td(tr, move['white_avg_elo'].toFixed(1));
-			add_td(tr, move['black_avg_elo'].toFixed(1));
-			add_td(tr, (move['white_avg_elo'] - move['black_avg_elo']).toFixed(1));
+			line.push(move['white_avg_elo']);
+			line.push(move['black_avg_elo']);
+			line.push(move['white_avg_elo'] - move['black_avg_elo']);
 
 			// Win% corrected for Elo.
 			var win_elo = -400.0 * Math.log(1.0 / white_win_ratio - 1.0) / Math.LN10;
 			win_elo -= (move['white_avg_elo'] - move['black_avg_elo']);
 			white_win_ratio = 1.0 / (1.0 + Math.pow(10, win_elo / -400.0));
 			win_ratio = (game.turn() == 'w') ? white_win_ratio : 1.0 - white_win_ratio;
-			add_td(tr, ((100.0 * win_ratio).toFixed(1) + "%"));
+			line.push(win_ratio);
 		} else {
-			add_td(tr, "");
-			add_td(tr, "");
-			add_td(tr, "");
-			add_td(tr, "");
+			line.push(null);
+			line.push(null);
+			line.push(null);
+			line.push(null);
 		}
+		lines.push(line);
+	}
 
-		if (false) {
-			// Win bars (W/D/B).
-			var winbar_td = document.createElement("td");
-			$(winbar_td).addClass("winbars");
-			tr.appendChild(winbar_td);
-			var winbar_table = document.createElement("table");
-			winbar_td.appendChild(winbar_table);
-			var winbar_tr = document.createElement("tr");
-			winbar_table.appendChild(winbar_tr);
+	var tbl = $("#lines");
+	tbl.empty();
 
-			if (white > 0) {
-				var white_percent = (100.0 * white / num).toFixed(0) + "%";
-				var white_td = document.createElement("td");
-				winbar_tr.appendChild(white_td);
-				$(white_td).addClass("white");
-				white_td.style.width = white_percent;
-				$(white_td).text(white_percent);
-			}
-			if (draw > 0) {
-				var draw_percent = (100.0 * draw / num).toFixed(0) + "%";
-				var draw_td = document.createElement("td");
-				winbar_tr.appendChild(draw_td);
-				$(draw_td).addClass("draw");
-				draw_td.style.width = draw_percent;
-				$(draw_td).text(draw_percent);
-			}
-			if (black > 0) {
-				var black_percent = (100.0 * black / num).toFixed(0) + "%";
-				var black_td = document.createElement("td");
-				winbar_tr.appendChild(black_td);
-				$(black_td).addClass("black");
-				black_td.style.width = black_percent;
-				$(black_td).text(black_percent);
+	for (var i = 0; i < moves.length; ++i) {
+		var line = lines[i];
+		var tr = document.createElement("tr");
+
+		for (var j = 0; j < line.length; ++j) {
+			if (line[j] === null) {
+				add_td(tr, "");
+			} else if (headings[j][1] == TYPE_MOVE) {
+				var td = document.createElement("td");
+				tr.appendChild(td);
+				$(td).addClass("move");
+				var move_a = document.createElement("a");
+				move_a.href = "javascript:make_move('" + line[j] + "')";
+				td.appendChild(move_a);
+				$(move_a).text(line[j]);
+			} else if (headings[j][1] == TYPE_INTEGER) {
+				add_td(tr, line[j]);
+			} else if (headings[j][1] == TYPE_FLOAT) {
+				add_td(tr, line[j].toFixed(1));
+			} else {
+				add_td(tr, (100.0 * line[j]).toFixed(1) + "%");
 			}
 		}
 
