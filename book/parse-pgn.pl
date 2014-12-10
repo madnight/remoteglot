@@ -9,14 +9,10 @@ require 'Position.pm';
 require 'Engine.pm';
 require 'ECO.pm';
 
-my $DRYRUN = 1;
 my $TEXTOUT = 0;
 my $BINOUT = 1;
 
 ECO::init();
-
-my $dbh = DBI->connect("dbi:Pg:dbname=ficsopening", "sesse", undef);
-$dbh->do("COPY opening FROM STDIN") unless $DRYRUN;
 
 my ($filename, $my_num, $tot_num) = @ARGV;
 
@@ -50,7 +46,6 @@ while ($pgn->read_game()) {
 		my ($from_row, $from_col, $to_row, $to_col, $promo) = $pos->parse_pretty_move($moves->[$i]);
 		my $next_move = $moves->[$i];
 		my $bpfen = $pos->bitpacked_fen;
-		my $bpfen_q = $dbh->quote($bpfen, { pg_type => DBD::Pg::PG_BYTEA });
 		my $fen = $pos->fen;
 		$opening = ECO::get_opening_num($pos) // $opening;
 		print "$fen $next_move $result $opening\n" if $TEXTOUT;
@@ -59,8 +54,6 @@ while ($pgn->read_game()) {
 			print $binresult . $binwhiteelo . $binblackelo;
 			print pack('l', $opening);
 		}
-		$dbh->pg_putcopydata("$bpfen_q\t$next_move\t$result\n") unless $DRYRUN;
 		$pos = $pos->make_move($from_row, $from_col, $to_row, $to_col, $promo, $moves->[$i]);
 	}
 }
-$dbh->pg_putcopyend unless $DRYRUN;
