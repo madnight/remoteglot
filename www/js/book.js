@@ -55,6 +55,7 @@ var headings = [
 	[ "EloVar", TYPE_FLOAT ],
 	[ "AWin%", TYPE_RATIO ],
 ];
+var sort_by = 1;
 
 var show_lines = function(data, game) {
 	var moves = data['moves'];
@@ -73,6 +74,12 @@ var show_lines = function(data, game) {
 		var th = document.createElement("th");
 		headings_tr.append(th);
 		$(th).text(headings[i][0]);
+		(function(new_sort_by) {
+			$(th).click(function() {
+				sort_by = new_sort_by;
+				show_lines(data, game);
+			});
+		})(i);
 	}
 
 	var lines = [];
@@ -121,6 +128,8 @@ var show_lines = function(data, game) {
 		}
 		lines.push(line);
 	}
+
+	lines.sort(function(a, b) { return b[sort_by] - a[sort_by]; });
 
 	var tbl = $("#lines");
 	tbl.empty();
