@@ -56,6 +56,7 @@ var headings = [
 	[ "AWin%", TYPE_RATIO ],
 ];
 var sort_by = 1;
+var direction = 1;
 
 var show_lines = function(data, game) {
 	var moves = data['moves'];
@@ -76,7 +77,12 @@ var show_lines = function(data, game) {
 		$(th).text(headings[i][0]);
 		(function(new_sort_by) {
 			$(th).click(function() {
-				sort_by = new_sort_by;
+				if (sort_by == new_sort_by) {
+					direction = -direction;
+				} else {
+					sort_by = new_sort_by;
+					direction = 1;
+				}
 				show_lines(data, game);
 			});
 		})(i);
@@ -129,7 +135,7 @@ var show_lines = function(data, game) {
 		lines.push(line);
 	}
 
-	lines.sort(function(a, b) { return b[sort_by] - a[sort_by]; });
+	lines.sort(function(a, b) { return direction * ( b[sort_by] - a[sort_by]); });
 
 	var tbl = $("#lines");
 	tbl.empty();
