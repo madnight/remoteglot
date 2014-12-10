@@ -3,11 +3,10 @@ use Chess::PGN::Parse;
 use Data::Dumper;
 use strict;
 use warnings;
-use DBI;
-use DBD::Pg;
-require 'Position.pm';
-require 'Engine.pm';
-require 'ECO.pm';
+use lib '..';
+use Position;
+use Engine;
+use ECO;
 
 my $TEXTOUT = 0;
 my $BINOUT = 1;
