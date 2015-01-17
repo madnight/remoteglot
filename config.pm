@@ -7,6 +7,15 @@ package remoteglotconf;
 our $server = "freechess.org";
 our $nick = "SesseBOT";
 our $target = "GMCarlsen";  # FICS username or HTTP to a PGN file.
+
+# Set to non-undef to pick out one specific game from a PGN file with many games.
+# See example.
+our $pgn_filter = undef;
+#our $pgn_filter = sub {
+#	my $pgn = shift;
+#	return $pgn->round() eq '7' && $pgn->white eq 'Carlsen,M';
+#};
+
 our $json_output = "/srv/analysis.sesse.net/www/analysis.json";
 our $json_history_dir = "/srv/analysis.sesse.net/www/history/";  # undef for none.
 

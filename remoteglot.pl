@@ -273,6 +273,12 @@ sub handle_pgn {
 		warn "Error in parsing PGN from $url\n";
 	} else {
 		eval {
+			# Skip to the right game.
+			while (defined($remoteglotconf::pgn_filter) &&
+			       !&$remoteglotconf::pgn_filter($pgn)) {
+				$pgn->read_game() or die "Out of games during filtering";
+			}
+
 			$pgn->parse_game({ save_comments => 'yes' });
 			my $pos = Position->start_pos($pgn->white, $pgn->black);
 			my $moves = $pgn->moves;
@@ -309,7 +315,7 @@ sub handle_pgn {
 			}
 		};
 		if ($@) {
-			warn "Error in parsing moves from $url\n";
+			warn "Error in parsing moves from $url: $@\n";
 		}
 	}
 	
