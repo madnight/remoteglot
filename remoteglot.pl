@@ -1017,6 +1017,9 @@ sub extract_clock {
 		$pos->{'black_clock'} = $1;
 		return;
 	}
+
+	delete $pos->{'white_clock'};
+	delete $pos->{'black_clock'};
 }
 
 sub find_clock_start {
