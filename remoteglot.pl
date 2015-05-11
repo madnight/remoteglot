@@ -1009,12 +1009,15 @@ sub extract_clock {
 
 	if (exists($comments->{$white_key}) &&
 	    exists($comments->{$black_key}) &&
-	    $comments->{$white_key} =~ /tl=(\d+:\d+:\d+)/ &&
-	    $comments->{$black_key} =~ /tl=(\d+:\d+:\d+)/) {
-		$comments->{$white_key} =~ /tl=(\d+:\d+:\d+)/;
+	    $comments->{$white_key} =~ /(?:tl=|clk )(\d+:\d+:\d+)/ &&
+	    $comments->{$black_key} =~ /(?:tl=|clk )(\d+:\d+:\d+)/) {
+		$comments->{$white_key} =~ /(?:tl=|clk )(\d+:\d+:\d+)/;
 		$pos->{'white_clock'} = $1;
-		$comments->{$black_key} =~ /tl=(\d+:\d+:\d+)/;
+		$comments->{$black_key} =~ /(?:tl=|clk )(\d+:\d+:\d+)/;
 		$pos->{'black_clock'} = $1;
+
+		$pos->{'white_clock'} =~ s/\b(\d)\b/0$1/g;
+		$pos->{'black_clock'} =~ s/\b(\d)\b/0$1/g;
 		return;
 	}
 
