@@ -1039,6 +1039,7 @@ sub find_clock_start {
 	}
 
 	# TODO(sesse): Maybe we can get the number of moves somehow else for FICS games.
+	# The history is needed for id_for_pos.
 	if (!exists($pos->{'pretty_history'})) {
 		return;
 	}
