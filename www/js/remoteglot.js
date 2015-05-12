@@ -634,6 +634,28 @@ var update_refutation_lines = function() {
 }
 
 /**
+ * @param {?string} fen
+ * @param {Array.<string>} moves
+ * @param {number} last_move
+ */
+var chess_from = function(fen, moves, last_move) {
+	var hiddenboard = new Chess();
+	if (fen !== null) {
+		hiddenboard.load(fen);
+	}
+	for (var i = 0; i <= last_move; ++i) {
+		if (moves[i] === '0-0') {
+			hiddenboard.move('O-O');
+		} else if (moves[i] === '0-0-0') {
+			hiddenboard.move('O-O-O');
+		} else {
+			hiddenboard.move(moves[i]);
+		}
+	}
+	return hiddenboard;
+}
+
+/**
  * @param {Object} data
  * @param {?Object} display_data
  */
@@ -706,10 +728,7 @@ var update_board = function(current_data, display_data) {
 		// We don't have historic analysis for this position, but we
 		// can reconstruct what the last move was by just replaying
 		// from the start.
-		var hiddenboard = new Chess();
-		for (var i = 0; i <= current_display_move; ++i) {
-			hiddenboard.move(current_display_line.pretty_pv[i]);
-		}
+		var hiddenboard = chess_from(null, current_display_line.pretty_pv, current_display_move);
 		var moves = hiddenboard.history({ verbose: true });
 		var last_move = moves.pop();
 		highlight_from = last_move.from;
@@ -1038,10 +1057,7 @@ var update_historic_analysis = function() {
 	}
 
 	// Fetch old analysis for this line if it exists.
-	var hiddenboard = new Chess();
-	for (var i = 0; i <= current_display_move; ++i) {
-		hiddenboard.move(current_display_line.pretty_pv[i]);
-	}
+	var hiddenboard = chess_from(null, current_display_line.pretty_pv, current_display_move);
 	var filename = "/history/move" + (current_display_move + 1) + "-" +
 		hiddenboard.fen().replace(/ /g, '_').replace(/\//g, '-') + ".json";
 
@@ -1081,15 +1097,10 @@ var update_displayed_line = function() {
 		$("#nextmove").html("<a href=\"javascript:next_move();\">Next</a></span>");
 	}
 
-	var hiddenboard = new Chess();
-	hiddenboard.load(current_display_line.start_fen);
-	for (var i = 0; i <= current_display_move; ++i) {
-		hiddenboard.move(current_display_line.pretty_pv[i]);
-	}
-
 	highlighted_move = $("#automove" + current_display_line.line_number + "-" + current_display_move);
 	highlighted_move.addClass('highlight'); 
 
+	var hiddenboard = chess_from(current_display_line.start_fen, current_display_line.pretty_pv, current_display_move);
 	board.position(hiddenboard.fen());
 }
 
