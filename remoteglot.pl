@@ -328,13 +328,19 @@ sub handle_position {
 	my ($pos) = @_;
 	find_clock_start($pos);
 		
-	# if this is already in the queue, ignore it
-	return if (defined($pos_waiting) && $pos->fen() eq $pos_waiting->fen());
+	# if this is already in the queue, ignore it (just update the result)
+	if (defined($pos_waiting) && $pos->fen() eq $pos_waiting->fen()) {
+		$pos_waiting->{'result'} = $pos->{'result'};
+		return;
+	}
 
 	# if we're already chewing on this and there's nothing else in the queue,
 	# also ignore it
-	return if (!defined($pos_waiting) && defined($pos_calculating) &&
-		 $pos->fen() eq $pos_calculating->fen());
+	if (!defined($pos_waiting) && defined($pos_calculating) &&
+	    $pos->fen() eq $pos_calculating->fen()) {
+		$pos_calculating->{'result'} = $pos->{'result'};
+		return;
+	}
 
 	# if we're already thinking on something, stop and wait for the engine
 	# to approve
