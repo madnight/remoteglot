@@ -28,8 +28,8 @@ sub new {
 	$pos->{'player_b'} = $x[18];
 	$pos->{'player_w'} =~ s/^W?[FCIG]M//;
 	$pos->{'player_b'} =~ s/^W?[FCIG]M//;
-	$pos->{'white_clock'} = _parse_fics_clock($x[24]);
-	$pos->{'black_clock'} = _parse_fics_clock($x[25]);
+	$pos->{'white_clock'} = $x[24];
+	$pos->{'black_clock'} = $x[25];
 	$pos->{'move_num'} = $x[26];
 	if ($x[27] =~ /([a-h][1-8])-([a-h][1-8])/) {
 		$pos->{'last_move_uci'} = $1 . $2;
@@ -298,20 +298,6 @@ sub _parse_uci_move {
         my $to_row   = _row_letter_to_num(substr($move, 3, 1));
         my $promo    = substr($move, 4, 1);
         return ($from_row, $from_col, $to_row, $to_col, $promo);
-}
-
-sub _parse_fics_clock {
-	my $x = shift;
-	if ($x =~ /^\d+$/) {
-		my $s = $x % 60;
-		$x = ($x - $s) / 60;
-		my $m = $x % 60;
-		$x = ($x - $m) / 60;
-		my $h = $x;
-		return sprintf "%02d:%02d:%02d", $h, $m, $s;
-	} else {
-		return $x;
-	}
 }
 
 1;

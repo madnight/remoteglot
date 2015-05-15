@@ -996,11 +996,8 @@ sub extract_clock {
 	# Look for extended PGN clock tags.
 	my $tags = $pgn->tags;
 	if (exists($tags->{'WhiteClock'}) && exists($tags->{'BlackClock'})) {
-		$pos->{'white_clock'} = $tags->{'WhiteClock'};
-		$pos->{'black_clock'} = $tags->{'BlackClock'};
-
-		$pos->{'white_clock'} =~ s/\b(\d)\b/0$1/g;
-		$pos->{'black_clock'} =~ s/\b(\d)\b/0$1/g;
+		$pos->{'white_clock'} = hms_to_sec($tags->{'WhiteClock'});
+		$pos->{'black_clock'} = hms_to_sec($tags->{'BlackClock'});
 		return;
 	}
 
@@ -1018,17 +1015,21 @@ sub extract_clock {
 	    $comments->{$white_key} =~ /(?:tl=|clk )(\d+:\d+:\d+)/ &&
 	    $comments->{$black_key} =~ /(?:tl=|clk )(\d+:\d+:\d+)/) {
 		$comments->{$white_key} =~ /(?:tl=|clk )(\d+:\d+:\d+)/;
-		$pos->{'white_clock'} = $1;
+		$pos->{'white_clock'} = hms_to_sec($1);
 		$comments->{$black_key} =~ /(?:tl=|clk )(\d+:\d+:\d+)/;
-		$pos->{'black_clock'} = $1;
-
-		$pos->{'white_clock'} =~ s/\b(\d)\b/0$1/g;
-		$pos->{'black_clock'} =~ s/\b(\d)\b/0$1/g;
+		$pos->{'black_clock'} = hms_to_sec($1);
 		return;
 	}
 
 	delete $pos->{'white_clock'};
 	delete $pos->{'black_clock'};
+}
+
+sub hms_to_sec {
+	my $hms = shift;
+	return undef if (!defined($hms));
+	$hms =~ /(\d+):(\d+):(\d+)/;
+	return $1 * 3600 + $2 * 60 + $3;
 }
 
 sub find_clock_start {
@@ -1070,8 +1071,7 @@ sub find_clock_start {
 		# No clock information.
 		return;
 	}
-	$pos->{$key} =~ /(\d+):(\d+):(\d+)/;
-	my $time_left = $1 * 3600 + $2 * 60 + $3;
+	my $time_left = $pos->{$key};
 	$clock_target_for_pos{$id} = time + $time_left;
 	if ($pos->{'toplay'} eq 'W') {
 		$pos->{'white_clock_target'} = $clock_target_for_pos{$id};

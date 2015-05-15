@@ -894,15 +894,16 @@ var update_clock = function() {
 		}
 	}
 
-	var white_clock = "";
-	var black_clock = "";
+	var white_clock_ms = null;
+	var black_clock_ms = null;
+	var show_seconds = false;
 
 	// Static clocks.
 	if (data['position'] &&
 	    data['position']['white_clock'] &&
 	    data['position']['black_clock']) {
-		white_clock = data['position']['white_clock'].replace(/:[0-5][0-9]$/, "");
-		black_clock = data['position']['black_clock'].replace(/:[0-5][0-9]$/, "");
+		white_clock_ms = data['position']['white_clock'] * 1000;
+		black_clock_ms = data['position']['black_clock'] * 1000;
 	}
 
 	// Dynamic clock (only one, obviously).
@@ -919,30 +920,52 @@ var update_clock = function() {
 		$("#whiteclock").removeClass("running-clock");
 		$("#blackclock").removeClass("running-clock");
 	}
+	var remaining_ms;
 	if (color) {
 		var now = new Date().getTime() + client_clock_offset_ms;
-		var remaining_ms = data['position'][color + '_clock_target'] * 1000 - now;
+		remaining_ms = data['position'][color + '_clock_target'] * 1000 - now;
 		if (color === "white") {
-			white_clock = format_clock(remaining_ms);
+			white_clock_ms = remaining_ms;
 		} else {
-			black_clock = format_clock(remaining_ms);
+			black_clock_ms = remaining_ms;
 		}
+	}
 
+	if (white_clock_ms === null || black_clock_ms === null) {
+		$("#whiteclock").empty();
+		$("#blackclock").empty();
+		return;
+	}
+
+	// If either player has ten minutes or less left, add the second counters.
+	var show_seconds = (white_clock_ms < 60 * 10 * 1000 || black_clock_ms < 60 * 10 * 1000);
+
+	if (color) {
 		// See when the clock will change next, and update right after that.
-		var next_update_ms = remaining_ms % 60000 + 100;
+		var next_update_ms;
+		if (show_seconds) {
+			next_update_ms = remaining_ms % 1000 + 100;
+		} else {
+			next_update_ms = remaining_ms % 60000 + 100;
+		}
 		clock_timer = setTimeout(update_clock, next_update_ms);
 	}
 
-	$("#whiteclock").text(white_clock);
-	$("#blackclock").text(black_clock);
+	$("#whiteclock").text(format_clock(white_clock_ms, show_seconds));
+	$("#blackclock").text(format_clock(black_clock_ms, show_seconds));
 }
 
 /**
  * @param {Number} remaining_ms
+ * @param {boolean} show_seconds
  */
-var format_clock = function(remaining_ms) {
+var format_clock = function(remaining_ms, show_seconds) {
 	if (remaining_ms <= 0) {
-		return "00:00";
+		if (show_seconds) {
+			return "00:00:00";
+		} else {
+			return "00:00";
+		}
 	}
 
 	var remaining = Math.floor(remaining_ms / 1000);
@@ -951,7 +974,11 @@ var format_clock = function(remaining_ms) {
 	var minutes = remaining % 60;
 	remaining = (remaining - minutes) / 60;
 	var hours = remaining;
-	return format_2d(hours) + ":" + format_2d(minutes);
+	if (show_seconds) {
+		return format_2d(hours) + ":" + format_2d(minutes) + ":" + format_2d(seconds);
+	} else {
+		return format_2d(hours) + ":" + format_2d(minutes);
+	}
 }
 
 /**
