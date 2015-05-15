@@ -16,6 +16,23 @@ our $pgn_filter = undef;
 #	return $pgn->round() eq '7' && $pgn->white eq 'Carlsen,M';
 #};
 
+# Set to non-undef to override the clock information with our own calculations.
+# The example implements a simple 60+60 (with bonus added before the move).
+our $adjust_clocks_before_move = undef;
+#our $adjust_clocks_before_move = sub {
+#        my ($white_clock_left, $black_clock_left, $move, $toplay) = @_;
+#
+#        if (!defined($$white_clock_left) || !defined($$black_clock_left)) {
+#                $$white_clock_left = 3600;
+#                $$black_clock_left = 3600;
+#        }
+#        if ($toplay eq 'W') {
+#                $$white_clock_left += 60;
+#        } else {
+#                $$black_clock_left += 60;
+#        }
+#};
+
 our $json_output = "/srv/analysis.sesse.net/www/analysis.json";
 our $json_history_dir = "/srv/analysis.sesse.net/www/history/";  # undef for none.
 

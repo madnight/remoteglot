@@ -326,7 +326,7 @@ sub handle_pgn {
 
 sub handle_position {
 	my ($pos) = @_;
-	find_clock_start($pos);
+	find_clock_start($pos, $pos_calculating);
 		
 	# if this is already in the queue, ignore it (just update the result)
 	if (defined($pos_waiting) && $pos->fen() eq $pos_waiting->fen()) {
@@ -1033,7 +1033,7 @@ sub hms_to_sec {
 }
 
 sub find_clock_start {
-	my $pos = shift;
+	my ($pos, $prev_pos) = @_;
 
 	# If the game is over, the clock is stopped.
 	if (exists($pos->{'result'}) &&
@@ -1045,6 +1045,9 @@ sub find_clock_start {
 
 	# When we don't have any moves, we assume the clock hasn't started yet.
 	if ($pos->{'move_num'} == 1 && $pos->{'toplay'} eq 'W') {
+		if (defined($remoteglotconf::adjust_clocks_before_move)) {
+			&$remoteglotconf::adjust_clocks_before_move(\$pos->{'white_clock'}, \$pos->{'black_clock'}, 1, 'W');
+		}
 		return;
 	}
 
@@ -1066,6 +1069,23 @@ sub find_clock_start {
 
 	# OK, we haven't seen this position before, so we assume the move
 	# happened right now.
+
+	# See if we should do our own clock management (ie., clock information
+	# is spurious or non-existent).
+	if (defined($remoteglotconf::adjust_clocks_before_move)) {
+		my $wc = $pos->{'white_clock'} // $prev_pos->{'white_clock'};
+		my $bc = $pos->{'black_clock'} // $prev_pos->{'black_clock'};
+		if (defined($prev_pos->{'white_clock_target'})) {
+			$wc = $prev_pos->{'white_clock_target'} - time;
+		}
+		if (defined($prev_pos->{'black_clock_target'})) {
+			$bc = $prev_pos->{'black_clock_target'} - time;
+		}
+		&$remoteglotconf::adjust_clocks_before_move(\$wc, \$bc, $pos->{'move_num'}, $pos->{'toplay'});
+		$pos->{'white_clock'} = $wc;
+		$pos->{'black_clock'} = $bc;
+	}
+
 	my $key = ($pos->{'toplay'} eq 'W') ? 'white_clock' : 'black_clock';
 	if (!exists($pos->{$key})) {
 		# No clock information.
@@ -1075,8 +1095,10 @@ sub find_clock_start {
 	$clock_target_for_pos{$id} = time + $time_left;
 	if ($pos->{'toplay'} eq 'W') {
 		$pos->{'white_clock_target'} = $clock_target_for_pos{$id};
+		delete $pos->{'black_clock_target'};
 	} else {
 		$pos->{'black_clock_target'} = $clock_target_for_pos{$id};
+		delete $pos->{'white_clock_target'};
 	}
 }
 
