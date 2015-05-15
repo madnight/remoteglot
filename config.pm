@@ -18,6 +18,8 @@ our $pgn_filter = undef;
 
 # Set to non-undef to override the clock information with our own calculations.
 # The example implements a simple 60+60 (with bonus added before the move).
+# FIXME(sesse): We might not see all moves in a PGN individually, so this might
+# skip some moves for bonus.
 our $adjust_clocks_before_move = undef;
 #our $adjust_clocks_before_move = sub {
 #        my ($white_clock_left, $black_clock_left, $move, $toplay) = @_;
