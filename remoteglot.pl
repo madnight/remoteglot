@@ -20,6 +20,7 @@ use IPC::Open2;
 use Time::HiRes;
 use JSON::XS;
 use URI::Escape;
+use Tie::Persistent;
 require 'Position.pm';
 require 'Engine.pm';
 require 'config.pm';
@@ -37,8 +38,9 @@ my %tb_cache = ();
 my $tb_lookup_running = 0;
 my $last_written_json = undef;
 
-# TODO: Persist (parts of) this so that we can restart.
-my %clock_target_for_pos = ();
+# Persisted so that we can restart.
+tie my %clock_info_for_pos, 'Tie::Persistent', 'clock_info.db', 'rw';
+(tied %clock_info_for_pos)->autosync(1);       # turn on write back on every modify
 
 $| = 1;
 
@@ -1058,11 +1060,13 @@ sub find_clock_start {
 	}
 
 	my $id = id_for_pos($pos);
-	if (exists($clock_target_for_pos{$id})) {
+	if (exists($clock_info_for_pos{$id})) {
+		$pos->{'white_clock'} //= $clock_info_for_pos{$id}{'white_clock'};
+		$pos->{'black_clock'} //= $clock_info_for_pos{$id}{'black_clock'};
 		if ($pos->{'toplay'} eq 'W') {
-			$pos->{'white_clock_target'} = $clock_target_for_pos{$id};
+			$pos->{'white_clock_target'} = $clock_info_for_pos{$id}->{'white_clock_target'};
 		} else {
-			$pos->{'black_clock_target'} = $clock_target_for_pos{$id};
+			$pos->{'black_clock_target'} = $clock_info_for_pos{$id}->{'black_clock_target'};
 		}
 		return;
 	}
@@ -1092,14 +1096,16 @@ sub find_clock_start {
 		return;
 	}
 	my $time_left = $pos->{$key};
-	$clock_target_for_pos{$id} = time + $time_left;
+	my $clock_info = {
+		white_clock => $pos->{'white_clock'},
+		black_clock => $pos->{'black_clock'}
+	};
 	if ($pos->{'toplay'} eq 'W') {
-		$pos->{'white_clock_target'} = $clock_target_for_pos{$id};
-		delete $pos->{'black_clock_target'};
+		$clock_info->{'white_clock_target'} = $pos->{'white_clock_target'} = time + $time_left;
 	} else {
-		$pos->{'black_clock_target'} = $clock_target_for_pos{$id};
-		delete $pos->{'white_clock_target'};
+		$clock_info->{'black_clock_target'} = $pos->{'black_clock_target'} = time + $time_left;
 	}
+	$clock_info_for_pos{$id} = $clock_info;
 }
 
 sub schedule_tb_lookup {
