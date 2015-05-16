@@ -94,15 +94,24 @@ p {
 	width: auto;
 	text-align: center;
 }
-#whiteclock {
+#whiteinfo {
 	float: left;
-	width: 20%;
 	text-align: left;
+	min-width: 20%;
 }
-#blackclock {
+#blackinfo {
 	float: right;
-	width: 20%;
 	text-align: right;
+	min-width: 20%;
+	margin-right: 5px;
+}
+#whiteimbalance img, #blackimbalance img {
+	vertical-align: text-top;
+}
+#whiteimbalance {
+	margin-left: 5px;
+}
+#blackimbalance {
 	margin-right: 5px;
 }
 .running-clock {

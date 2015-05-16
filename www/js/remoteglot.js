@@ -1099,6 +1099,41 @@ var update_historic_analysis = function() {
 	});
 }
 
+/**
+ * @param {string} fen
+ */
+var update_imbalance = function(fen) {
+	var hiddenboard = new Chess(fen);
+	var imbalance = {'k': 0, 'q': 0, 'r': 0, 'b': 0, 'n': 0, 'p': 0};
+	for (var row = 0; row < 8; ++row) {
+		for (var col = 0; col < 8; ++col) {
+			var col_text = String.fromCharCode('a1'.charCodeAt(0) + col);
+			var row_text = String.fromCharCode('a1'.charCodeAt(1) + row);
+			var square = col_text + row_text;
+			var contents = hiddenboard.get(square);
+			if (contents !== null) {
+				if (contents.color === 'w') {
+					++imbalance[contents.type];
+				} else {
+					--imbalance[contents.type];
+				}
+			}
+		}
+	}
+	var white_imbalance = '';
+	var black_imbalance = '';
+	for (var piece in imbalance) {
+		for (var i = 0; i < imbalance[piece]; ++i) {
+			white_imbalance += '<img src="img/chesspieces/wikipedia/w' + piece.toUpperCase() + '.png" alt="" style="width: 15px;height: 15px;">';
+		}
+		for (var i = 0; i < -imbalance[piece]; ++i) {
+			black_imbalance += '<img src="img/chesspieces/wikipedia/b' + piece.toUpperCase() + '.png" alt="" style="width: 15px;height: 15px;">';
+		}
+	}
+	$('#whiteimbalance').html(white_imbalance);
+	$('#blackimbalance').html(black_imbalance);
+}
+
 var update_displayed_line = function() {
 	if (highlighted_move !== null) {
 		highlighted_move.removeClass('highlight'); 
@@ -1107,6 +1142,7 @@ var update_displayed_line = function() {
 		$("#linenav").hide();
 		$("#linemsg").show();
 		board.position(fen);
+		update_imbalance(fen);
 		return;
 	}
 
@@ -1129,6 +1165,7 @@ var update_displayed_line = function() {
 
 	var hiddenboard = chess_from(current_display_line.start_fen, current_display_line.pretty_pv, current_display_move);
 	board.position(hiddenboard.fen());
+	update_imbalance(hiddenboard.fen());
 }
 
 /**
