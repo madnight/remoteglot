@@ -12,13 +12,17 @@ open my $fh, "-|", "varnishncsa -F '%{%s}t %U %q tffb=%{Varnish:time_firstbyte}x
 	or die "varnishncsa: $!";
 my %uniques = ();
 
-my $ev = AnyEvent->io(
+my $ev = AnyEvent::Handle->new(
 	fh => $fh,
-        poll => 'r',
-	cb => sub {
-		chomp (my $input = <$fh>);
-		handle_line($input);
-	}
+	on_read => sub {
+		my ($hdl) = @_;
+		$hdl->push_read(
+			line => sub {
+				my ($hdl, $line, $eof) = @_;
+				handle_line($line);
+			}
+		);
+	},
 );
 my $ev2 = AnyEvent->timer(
 	interval => 1.0,
