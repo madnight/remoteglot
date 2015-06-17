@@ -137,12 +137,14 @@ var request_update = function() {
 		sync_server_clock(xhr.getResponseHeader('Date'));
 		ims = xhr.getResponseHeader('X-RGLM');
 		var num_viewers = xhr.getResponseHeader('X-RGNV');
-		possibly_play_sound(current_analysis_data, data);
+		var new_data;
 		if (Array.isArray(data)) {
-			current_analysis_data = JSON_delta.patch(current_analysis_data, data);
+			new_data = JSON_delta.patch(current_analysis_data, data);
 		} else {
-			current_analysis_data = data;
+			new_data = data;
 		}
+		possibly_play_sound(current_analysis_data, new_data);
+		current_analysis_data = new_data;
 		update_board(current_analysis_data, displayed_analysis_data);
 		update_num_viewers(num_viewers);
 
