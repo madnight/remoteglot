@@ -139,7 +139,8 @@ var request_update = function() {
 		var num_viewers = xhr.getResponseHeader('X-RGNV');
 		var new_data;
 		if (Array.isArray(data)) {
-			new_data = JSON_delta.patch(current_analysis_data, data);
+			new_data = JSON.parse(JSON.stringify(current_analysis_data));
+			JSON_delta.patch(new_data, data);
 		} else {
 			new_data = data;
 		}
