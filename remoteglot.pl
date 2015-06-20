@@ -774,7 +774,9 @@ sub output_json {
 	}
 	$json->{'refutation_lines'} = \%refutation_lines;
 
-	my $encoded = JSON::XS::encode_json($json);
+	my $json_enc = JSON::XS->new;
+	$json_enc->canonical(1);
+	my $encoded = $json_enc->encode($json);
 	unless ($historic_json_only || !defined($remoteglotconf::json_output) ||
 	        (defined($last_written_json) && $last_written_json eq $encoded)) {
 		atomic_set_contents($remoteglotconf::json_output, $encoded);
