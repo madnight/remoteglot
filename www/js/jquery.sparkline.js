@@ -78,9 +78,6 @@
 *   chartRangeClip - Clip out of range values to the max/min specified by chartRangeMin and chartRangeMax
 *   chartRangeMinX - Specify the minimum value to use for the X range of the chart - Defaults to the minimum value supplied
 *   chartRangeMaxX - Specify the maximum value to use for the X range of the chart - Defaults to the maximum value supplied
-*   composite - If true then don't erase any existing chart attached to the tag, but draw
-*           another chart over the top - Note that width and height are ignored if an
-*           existing chart is detected.
 *   tagValuesAttribute - Name of tag attribute to check for data values - Defaults to 'values'
 *   enableTagOptions - Whether to check tags for sparkline options
 *   tagOptionPrefix - Prefix used for options supplied as tag attributes - Defaults to 'spark'
@@ -168,7 +165,6 @@
                 defaultPixelsPerValue: 3,
                 width: 'auto',
                 height: 'auto',
-                composite: false,
                 tagValuesAttribute: 'values',
                 tagOptionsPrefix: 'spark',
                 enableTagOptions: false,
@@ -189,8 +185,6 @@
             bar: {
                 barColor: '#3366cc',
                 negBarColor: '#f44',
-                stackedBarColor: ['#3366cc', '#dc3912', '#ff9900', '#109618', '#66aa00',
-                    '#dd4477', '#0099c6', '#990099'],
                 zeroColor: undefined,
                 nullColor: undefined,
                 zeroAxis: true,
@@ -806,7 +800,6 @@
 
                 width = options.get('width') === 'auto' ? values.length * options.get('defaultPixelsPerValue') : options.get('width');
                 if (options.get('height') === 'auto') {
-                    if (!options.get('composite') || !$.data(this, '_jqs_vcanvas')) {
                         // must be a better way to get the line height
                         tmp = document.createElement('span');
                         tmp.innerHTML = 'a';
@@ -814,7 +807,6 @@
                         height = $(tmp).innerHeight() || $(tmp).height();
                         $(tmp).remove();
                         tmp = null;
-                    }
                 } else {
                     height = options.get('height');
                 }
@@ -824,19 +816,11 @@
                     if (!mhandler) {
                         mhandler = new MouseHandler(this, options);
                         $.data(this, '_jqs_mhandler', mhandler);
-                    } else if (!options.get('composite')) {
+                    } else {
                         mhandler.reset();
                     }
                 } else {
                     mhandler = false;
-                }
-
-                if (options.get('composite') && !$.data(this, '_jqs_vcanvas')) {
-                    if (!$.data(this, '_jqs_errnotify')) {
-                        alert('Attempted to attach a composite sparkline to an element with no existing sparkline');
-                        $.data(this, '_jqs_errnotify', true);
-                    }
-                    return;
                 }
 
                 sp = new $.fn.sparkline[options.get('type')](this, values, options, width, height);
@@ -848,7 +832,7 @@
                 }
             };
             if (($(this).html() && !options.get('disableHiddenCheck') && $(this).is(':hidden')) || !$(this).parents('body').length) {
-                if (!options.get('composite') && $.data(this, '_jqs_pending')) {
+                if ($.data(this, '_jqs_pending')) {
                     // remove any existing references to the element
                     for (i = pending.length; i; i--) {
                         if (pending[i - 1][0] == this) {
@@ -975,7 +959,7 @@
          */
         initTarget: function () {
             var interactive = !this.options.get('disableInteraction');
-            if (!(this.target = this.$el.simpledraw(this.width, this.height, this.options.get('composite'), interactive))) {
+            if (!(this.target = this.$el.simpledraw(this.width, this.height, false, interactive))) {
                 this.disabled = true;
             } else {
                 this.canvasWidth = this.target.pixelWidth;
@@ -1207,35 +1191,11 @@
                 chartRangeMin = options.get('chartRangeMin'),
                 chartRangeMax = options.get('chartRangeMax'),
                 chartRangeClip = options.get('chartRangeClip'),
-                stackMin = Infinity,
-                stackMax = -Infinity,
-                isStackString, groupMin, groupMax, stackRanges,
+                groupMin, groupMax,
                 numValues, i, vlen, range, zeroAxis, xaxisOffset, min, max, clipMin, clipMax,
-                stacked, vlist, j, slen, svals, val, yoffset, yMaxCalc, canvasHeightEf;
+                vlist, j, slen, svals, val, yoffset, yMaxCalc, canvasHeightEf;
             bar._super.init.call(this, el, values, options, width, height);
 
-            // scan values to determine whether to stack bars
-            for (i = 0, vlen = values.length; i < vlen; i++) {
-                val = values[i];
-                isStackString = typeof(val) === 'string' && val.indexOf(':') > -1;
-                if (isStackString || $.isArray(val)) {
-                    stacked = true;
-                    if (isStackString) {
-                        val = values[i] = normalizeValues(val.split(':'));
-                    }
-                    val = remove(val, null); // min/max will treat null as zero
-                    groupMin = Math.min.apply(Math, val);
-                    groupMax = Math.max.apply(Math, val);
-                    if (groupMin < stackMin) {
-                        stackMin = groupMin;
-                    }
-                    if (groupMax > stackMax) {
-                        stackMax = groupMax;
-                    }
-                }
-            }
-
-            this.stacked = stacked;
             this.regionShapes = {};
             this.barWidth = barWidth;
             this.barSpacing = barSpacing;
@@ -1250,45 +1210,15 @@
             }
 
             numValues = [];
-            stackRanges = stacked ? [] : numValues;
-            var stackTotals = [];
-            var stackRangesNeg = [];
             for (i = 0, vlen = values.length; i < vlen; i++) {
-                if (stacked) {
-                    vlist = values[i];
-                    values[i] = svals = [];
-                    stackTotals[i] = 0;
-                    stackRanges[i] = stackRangesNeg[i] = 0;
-                    for (j = 0, slen = vlist.length; j < slen; j++) {
-                        val = svals[j] = chartRangeClip ? clipval(vlist[j], clipMin, clipMax) : vlist[j];
-                        if (val !== null) {
-                            if (val > 0) {
-                                stackTotals[i] += val;
-                            }
-                            if (stackMin < 0 && stackMax > 0) {
-                                if (val < 0) {
-                                    stackRangesNeg[i] += Math.abs(val);
-                                } else {
-                                    stackRanges[i] += val;
-                                }
-                            } else {
-                                stackRanges[i] += Math.abs(val - (val < 0 ? stackMax : stackMin));
-                            }
-                            numValues.push(val);
-                        }
-                    }
-                } else {
                     val = chartRangeClip ? clipval(values[i], clipMin, clipMax) : values[i];
                     val = values[i] = normalizeValue(val);
                     if (val !== null) {
                         numValues.push(val);
                     }
-                }
             }
             this.max = max = Math.max.apply(Math, numValues);
             this.min = min = Math.min.apply(Math, numValues);
-            this.stackMax = stackMax = stacked ? Math.max.apply(Math, stackTotals) : max;
-            this.stackMin = stackMin = stacked ? Math.min.apply(Math, numValues) : min;
 
             if (options.get('chartRangeMin') !== undefined && (options.get('chartRangeClip') || options.get('chartRangeMin') < min)) {
                 min = options.get('chartRangeMin');
@@ -1309,14 +1239,14 @@
             }
             this.xaxisOffset = xaxisOffset;
 
-            range = stacked ? (Math.max.apply(Math, stackRanges) + Math.max.apply(Math, stackRangesNeg)) : max - min;
+            range = max - min;
 
             // as we plot zero/min values a single pixel line, we add a pixel to all other
             // values - Reduce the effective canvas size to suit
             this.canvasHeightEf = (zeroAxis && min < 0) ? this.canvasHeight - 2 : this.canvasHeight - 1;
 
             if (min < xaxisOffset) {
-                yMaxCalc = (stacked && max >= 0) ? stackMax : max;
+                yMaxCalc = max;
                 yoffset = (yMaxCalc - xaxisOffset) / range * this.canvasHeight;
                 if (yoffset !== Math.ceil(yoffset)) {
                     this.canvasHeightEf -= 2;
@@ -1368,11 +1298,7 @@
                 colorMapByValue = this.colorMapByValue,
                 options = this.options,
                 color, newColor;
-            if (this.stacked) {
-                color = options.get('stackedBarColor');
-            } else {
                 color = (value < 0) ? options.get('negBarColor') : options.get('barColor');
-            }
             if (value === 0 && options.get('zeroColor') !== undefined) {
                 color = options.get('zeroColor');
             }
@@ -1393,7 +1319,6 @@
                 xaxisOffset = this.xaxisOffset,
                 result = [],
                 range = this.range,
-                stacked = this.stacked,
                 target = this.target,
                 x = valuenum * this.totalBarWidth,
                 canvasHeightEf = this.canvasHeightEf,
@@ -1418,13 +1343,6 @@
             yoffsetNeg = yoffset;
             for (i = 0; i < valcount; i++) {
                 val = vals[i];
-
-                if (stacked && val === xaxisOffset) {
-                    if (!allMin || minPlotted) {
-                        continue;
-                    }
-                    minPlotted = true;
-                }
 
                 if (range > 0) {
                     height = Math.floor(canvasHeightEf * ((Math.abs(val - xaxisOffset) / range))) + 1;
@@ -1490,14 +1408,6 @@
 
         drawShape: function (path, lineColor, fillColor, lineWidth) {
             return this._genShape('Shape', [path, lineColor, fillColor, lineWidth]);
-        },
-
-        drawCircle: function (x, y, radius, lineColor, fillColor, lineWidth) {
-            return this._genShape('Circle', [x, y, radius, lineColor, fillColor, lineWidth]);
-        },
-
-        drawPieSlice: function (x, y, radius, startAngle, endAngle, lineColor, fillColor) {
-            return this._genShape('PieSlice', [x, y, radius, startAngle, endAngle, lineColor, fillColor]);
         },
 
         drawRect: function (x, y, width, height, lineColor, fillColor) {
@@ -1650,41 +1560,6 @@
                 context.stroke();
             }
             if (fillColor !== undefined) {
-                context.fill();
-            }
-            if (this.targetX !== undefined && this.targetY !== undefined &&
-                context.isPointInPath(this.targetX, this.targetY)) {
-                this.currentTargetShapeId = shapeid;
-            }
-        },
-
-        _drawCircle: function (shapeid, x, y, radius, lineColor, fillColor, lineWidth) {
-            var context = this._getContext(lineColor, fillColor, lineWidth);
-            context.beginPath();
-            context.arc(x, y, radius, 0, 2 * Math.PI, false);
-            if (this.targetX !== undefined && this.targetY !== undefined &&
-                context.isPointInPath(this.targetX, this.targetY)) {
-                this.currentTargetShapeId = shapeid;
-            }
-            if (lineColor !== undefined) {
-                context.stroke();
-            }
-            if (fillColor !== undefined) {
-                context.fill();
-            }
-        },
-
-        _drawPieSlice: function (shapeid, x, y, radius, startAngle, endAngle, lineColor, fillColor) {
-            var context = this._getContext(lineColor, fillColor);
-            context.beginPath();
-            context.moveTo(x, y);
-            context.arc(x, y, radius, startAngle, endAngle, false);
-            context.lineTo(x, y);
-            context.closePath();
-            if (lineColor !== undefined) {
-                context.stroke();
-            }
-            if (fillColor) {
                 context.fill();
             }
             if (this.targetX !== undefined && this.targetY !== undefined &&
