@@ -450,3 +450,6 @@ JSON_delta = {
         return struc;
     }
 };
+
+// node.js
+if (typeof exports !== 'undefined') exports.JSON_delta = JSON_delta;
