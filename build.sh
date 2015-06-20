@@ -17,5 +17,6 @@ java -jar closure/compiler.jar \
 	www/js/chessboard-0.3.0.js \
 	www/js/chess.js \
 	www/js/json_delta.js \
+	www/js/jquery.sparkline.js \
 	www/js/remoteglot.js
 

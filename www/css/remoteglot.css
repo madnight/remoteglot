@@ -5,9 +5,22 @@ h3 {
 	margin-top: 1em;
 	margin-bottom: 0;
 }
-#score {
+#scorecontainer {
 	font-size: x-large;
 	margin-top: 0;
+}
+#score {
+	float: left;
+}
+#scoresparkcontainer {
+	overflow: hidden;
+}
+#scorespark {
+	margin-left: 0.5em;
+	margin-right: 0.5em;
+}
+#pvcontainer {
+	clear: left;
 }
 .window {
 	position: absolute;    

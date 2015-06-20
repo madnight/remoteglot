@@ -24,8 +24,13 @@
   </div>
 </div>
 <div id="analysis">
-  <p id="score">Score:</p>
-  <p><strong>PV:</strong> <span id="pv"></span></p>
+  <div id="scorecontainer">
+    <span id="score">Score:</span>
+    <div id="scoresparkcontainer">
+      <span id="scorespark"></span>
+    </div>
+  </div>
+  <p id="pvcontainer"><strong>PV:</strong> <span id="pv"></span></p>
   <p id="searchstats"></p>
   <h3>History and potential moves (multi-PV)</h3>
   <p id="sortbyscoreholder">
@@ -77,6 +82,7 @@
 <script type="text/javascript" src="js/chessboard-0.3.0.min.js"></script>
 <script type="text/javascript" src="js/chess.min.js"></script>
 <script type="text/javascript" src="js/json_delta.js"></script>
+<script type="text/javascript" src="js/jquery.sparkline.js"></script>
 <script type="text/javascript" src="js/remoteglot.js"></script>
 <!--
 -->

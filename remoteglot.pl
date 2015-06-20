@@ -40,7 +40,10 @@ my $last_written_json = undef;
 
 # Persisted so that we can restart.
 tie my %clock_info_for_pos, 'Tie::Persistent', 'clock_info.db', 'rw';
-(tied %clock_info_for_pos)->autosync(1);       # turn on write back on every modify
+(tied %clock_info_for_pos)->autosync(1);
+
+tie my %json_for_pos, 'Tie::Persistent', 'analysis_info.db', 'rw';
+(tied %json_for_pos)->autosync(1);
 
 $| = 1;
 
@@ -737,6 +740,7 @@ sub output_json {
 	$json->{'id'} = $engine->{'id'};
 	$json->{'score'} = long_score($info, $pos_calculating, '');
 	$json->{'short_score'} = short_score($info, $pos_calculating, '');
+	$json->{'plot_score'} = plot_score($info, $pos_calculating, '');
 
 	$json->{'nodes'} = $info->{'nodes'};
 	$json->{'nps'} = $info->{'nps'};
@@ -774,6 +778,46 @@ sub output_json {
 	}
 	$json->{'refutation_lines'} = \%refutation_lines;
 
+	# Piece together historic score information, to the degree we have it.
+	if (!$historic_json_only && exists($pos_calculating->{'pretty_history'})) {
+		my %score_history = ();
+
+		my $pos = Position->start_pos('white', 'black');
+		my $halfmove_num = 0;
+		for my $move (@{$pos_calculating->{'pretty_history'}}) {
+			my $id = id_for_pos($pos, $halfmove_num);
+			if (exists($json_for_pos{$id}) && defined($json_for_pos{$id}->{'plot_score'})) {
+				$score_history{$halfmove_num} = [
+					$json_for_pos{$id}->{'plot_score'},
+					$json_for_pos{$id}->{'short_score'}
+				];
+			}
+			++$halfmove_num;
+			($pos) = $pos->make_pretty_move($move);
+		}
+
+		# If at any point we are missing 10 consecutive moves,
+		# truncate the history there. This is so we don't get into
+		# a situation where we e.g. start analyzing at move 45,
+		# but we have analysis for 1. e4 from some completely different game
+		# and thus show a huge hole.
+		my $consecutive_missing = 0;
+		my $truncate_until = 0;
+		for (my $i = $halfmove_num; $i --> 0; ) {
+			if ($consecutive_missing >= 10) {
+				delete $score_history{$i};
+				next;
+			}
+			if (exists($score_history{$i})) {
+				$consecutive_missing = 0;
+			} else {
+				++$consecutive_missing;
+			}
+		}
+
+		$json->{'score_history'} = \%score_history;
+	}
+
 	my $json_enc = JSON::XS->new;
 	$json_enc->canonical(1);
 	my $encoded = $json_enc->encode($json);
@@ -785,7 +829,8 @@ sub output_json {
 
 	if (exists($pos_calculating->{'pretty_history'}) &&
 	    defined($remoteglotconf::json_history_dir)) {
-		my $filename = $remoteglotconf::json_history_dir . "/" . id_for_pos($pos_calculating) . ".json";
+		my $id = id_for_pos($pos_calculating);
+		my $filename = $remoteglotconf::json_history_dir . "/" . $id . ".json";
 
 		# Overwrite old analysis (assuming it exists at all) if we're
 		# using a different engine, or if we've calculated deeper.
@@ -799,6 +844,7 @@ sub output_json {
 		    $new_depth > $old_depth ||
 		    ($new_depth == $old_depth && $new_nodes >= $old_nodes)) {
 			atomic_set_contents($filename, $encoded);
+			$json_for_pos{$id} = $json;
 		}
 	}
 }
@@ -814,9 +860,9 @@ sub atomic_set_contents {
 }
 
 sub id_for_pos {
-	my $pos = shift;
+	my ($pos, $halfmove_num) = @_;
 
-	my $halfmove_num = scalar @{$pos->{'pretty_history'}};
+	$halfmove_num //= scalar @{$pos->{'pretty_history'}};
 	(my $fen = $pos->fen()) =~ tr,/ ,-_,;
 	return "move$halfmove_num-$fen";
 }
@@ -936,6 +982,36 @@ sub long_score {
 				$score = -$score;
 			}
 			return sprintf "Score: %+5.2f", $score;
+		}
+	}
+
+	return undef;
+}
+
+# For graphs; a single number in centipawns, capped at +/- 500.
+sub plot_score {
+	my ($info, $pos, $mpv) = @_;
+
+	my $invert = ($pos->{'toplay'} eq 'B');
+	if (defined($info->{'score_mate' . $mpv})) {
+		my $mate = $info->{'score_mate' . $mpv};
+		if ($invert) {
+			$mate = -$mate;
+		}
+		if ($mate > 0) {
+			return 500;
+		} else {
+			return -500;
+		}
+	} else {
+		if (exists($info->{'score_cp' . $mpv})) {
+			my $score = $info->{'score_cp' . $mpv};
+			if ($invert) {
+				$score = -$score;
+			}
+			$score = 500 if ($score > 500);
+			$score = -500 if ($score < -500);
+			return int($score);
 		}
 	}
 

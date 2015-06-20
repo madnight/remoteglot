@@ -852,6 +852,69 @@ var update_board = function(current_data, display_data) {
 	toplay = data['position']['toplay'];
 	refutation_lines = data['refutation_lines'];
 	update_refutation_lines();
+
+	// Update the sparkline last, since its size depends on how everything else reflowed.
+	update_sparkline(data);
+}
+
+var update_sparkline = function(data) {
+	if (data && data['score_history']) {
+		var first_move_num = undefined;
+		for (var halfmove_num in data['score_history']) {
+			halfmove_num = parseInt(halfmove_num);
+			if (first_move_num === undefined || halfmove_num < first_move_num) {
+				first_move_num = halfmove_num;
+			}
+		}
+		if (first_move_num !== undefined) {
+			var last_move_num = data['position']['move_num'] * 2 - 3;
+			if (data['position']['toplay'] === 'B') {
+				++last_move_num;
+			}
+
+			// Possibly truncate some moves if we don't have enough width.
+			// FIXME: Sometimes width() for #scorecontainer (and by extent,
+			// #scoresparkcontainer) on Chrome for mobile seems to start off
+			// at something very small, and then suddenly snap back into place.
+			// Figure out why.
+			var max_moves = Math.floor($("#scoresparkcontainer").width() / 5) - 5;
+			if (last_move_num - first_move_num > max_moves) {
+				first_move_num = last_move_num - max_moves;
+			}
+
+			var min_score = -100;
+			var max_score = 100;
+			var last_score = null;
+			var scores = [];
+			for (var halfmove_num = first_move_num; halfmove_num <= last_move_num; ++halfmove_num) {
+				if (data['score_history'][halfmove_num]) {
+					var score = data['score_history'][halfmove_num][0];
+					if (score < min_score) min_score = score;
+					if (score > max_score) max_score = score;
+					last_score = data['score_history'][halfmove_num][0];
+				}
+				scores.push(last_score);
+			}
+			if (data['plot_score']) {
+				scores.push(data['plot_score']);
+			}
+			// FIXME: at some widths, calling sparkline() seems to push
+			// #scorecontainer under the board.
+			$("#scorespark").sparkline(scores, {
+				type: 'bar',
+				zeroColor: 'gray',
+				chartRangeMin: min_score,
+				chartRangeMax: max_score,
+				tooltipFormatter: function(sparkline, options, fields) {
+					return format_tooltip(data, fields[0].offset + first_move_num);
+				}
+			});
+		} else {
+			$("#scorespark").text("");
+		}
+	} else {
+		$("#scorespark").text("");
+	}
 }
 
 /**
@@ -1019,6 +1082,35 @@ var format_halfmove_with_number = function(move, halfmove_num) {
 		move,
 		Math.floor(halfmove_num / 2) + 1,
 		halfmove_num % 2 == 0);
+}
+
+/**
+ * @param {Object} data
+ * @param {Number} halfmove_num
+ */
+var format_tooltip = function(data, halfmove_num) {
+	if (data['score_history'][halfmove_num] ||
+	    halfmove_num === data['position']['pretty_history'].length) {
+		var move;
+		var short_score;
+		if (halfmove_num === data['position']['pretty_history'].length) {
+			move = data['position']['last_move'];
+			short_score = data['short_score'];
+		} else {
+			move = data['position']['pretty_history'][halfmove_num];
+			short_score = data['score_history'][halfmove_num][1];
+		}
+		var move_with_number = format_halfmove_with_number(move, halfmove_num);
+
+		return "After " + move_with_number + ": " + short_score;
+	} else {
+		for (var i = halfmove_num; i --> 0; ) {
+			if (data['score_history'][i]) {
+				var move = data['position']['pretty_history'][i];
+				return "[Analysis kept from " + format_halfmove_with_number(move, i) + "]";
+			}
+		}
+	}
 }
 
 /**
@@ -1228,6 +1320,7 @@ var init = function() {
 	request_update();
 	$(window).resize(function() {
 		board.resize();
+		update_sparkline(displayed_analysis_data || current_analysis_data);
 		update_highlight();
 		redraw_arrows();
 	});
