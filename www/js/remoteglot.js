@@ -692,10 +692,9 @@ var update_board = function(current_data, display_data) {
 	if (display_data) {
 		// Displaying some non-current position, pick out the last move
 		// from the history. This will work even if the fetch failed.
-		last_move = format_move_with_number(
+		last_move = format_halfmove_with_number(
 			current_display_line.pretty_pv[current_display_move],
-			Math.floor((current_display_move + 1) / 2) + 1,
-			(current_display_move % 2 == 1));
+			current_display_move + 1);
 		headline += ' after ' + last_move;
 	} else if (data['position']['last_move'] !== 'none') {
 		last_move = format_move_with_number(
@@ -1009,6 +1008,17 @@ var format_move_with_number = function(move, move_num, white_to_play) {
 	}
 	ret += move;
 	return ret;
+}
+
+/**
+ * @param {string} move
+ * @param {Number} halfmove_num
+ */
+var format_halfmove_with_number = function(move, halfmove_num) {
+	return format_move_with_number(
+		move,
+		Math.floor(halfmove_num / 2) + 1,
+		halfmove_num % 2 == 0);
 }
 
 /**
