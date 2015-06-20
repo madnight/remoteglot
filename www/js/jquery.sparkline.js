@@ -62,12 +62,6 @@
 * By default, options should be passed in as teh second argument to the sparkline function:
 *   $('.sparkline').sparkline([1,2,3,4], {type: 'bar'})
 *
-* Options can also be set by passing them on the tag itself.  This feature is disabled by default though
-* as there's a slight performance overhead:
-*   $('.sparkline').sparkline([1,2,3,4], {enableTagOptions: true})
-*   <p>Sparkline: <span class="sparkline" sparkType="bar" sparkBarColor="red">loading</span></p>
-* Prefix all options supplied as tag attribute with "spark" (configurable by setting tagOptionPrefix)
-*
 * Supported options:
 *   lineColor - Color of the line used for the chart
 *   fillColor - Color used to fill in the chart - Set to '' or false for a transparent chart
@@ -79,8 +73,6 @@
 *   chartRangeMinX - Specify the minimum value to use for the X range of the chart - Defaults to the minimum value supplied
 *   chartRangeMaxX - Specify the maximum value to use for the X range of the chart - Defaults to the maximum value supplied
 *   tagValuesAttribute - Name of tag attribute to check for data values - Defaults to 'values'
-*   enableTagOptions - Whether to check tags for sparkline options
-*   tagOptionPrefix - Prefix used for options supplied as tag attributes - Defaults to 'spark'
 *   disableHiddenCheck - If set to true, then the plugin will assume that charts will never be drawn into a
 *           hidden dom element, avoding a browser reflow
 *   disableInteraction - If set to true then all mouseover/click interaction behaviour will be disabled,
@@ -96,8 +88,6 @@
 *   tooltipFormatter  - Optional callback that allows you to override the HTML displayed in the tooltip
 *       callback is given arguments of (sparkline, options, fields)
 *   tooltipChartTitle - If specified then the tooltip uses the string specified by this setting as a title
-*   tooltipFormat - A format string or SPFormat object  (or an array thereof for multiple entries)
-*       to control the format of the tooltip
 *   tooltipPrefix - A string to prepend to each field displayed in a tooltip
 *   tooltipSuffix - A string to append to each field displayed in a tooltip
 *   tooltipSkipNull - If true then null values will not have a tooltip displayed (defaults to true)
@@ -116,9 +106,6 @@
 *       zeroColor - Color of bars with zero values
 *       nullColor - Color of bars with null values - Defaults to omitting the bar entirely
 *       barWidth - Width of bars in pixels
-*       colorMap - Optional mappnig of values to colors to override the *BarColor values above
-*                  can be an Array of values to control the color of individual bars or a range map
-*                  to specify colors for individual ranges of values
 *       barSpacing - Gap between bars in pixels
 *       zeroAxis - Centers the y-axis around zero if true
 *
@@ -146,8 +133,8 @@
     'use strict';
 
     var UNSET_OPTION = {},
-        getDefaults, createClass, SPFormat, clipval, quartile, normalizeValue, normalizeValues,
-        remove, isNumber, all, sum, addCSS, ensureArray, formatNumber, RangeMap,
+        getDefaults, createClass, clipval, quartile, normalizeValue, normalizeValues,
+        remove, isNumber, all, sum, addCSS, ensureArray, formatNumber,
         MouseHandler, Tooltip, barHighlightMixin,
         bar, defaultStyles, initStyles,
         VShape, VCanvas_base, VCanvas_canvas, pending, shapeCount = 0;
@@ -166,8 +153,6 @@
                 width: 'auto',
                 height: 'auto',
                 tagValuesAttribute: 'values',
-                tagOptionsPrefix: 'spark',
-                enableTagOptions: false,
                 enableHighlight: true,
                 highlightLighten: 1.4,
                 tooltipSkipNull: true,
@@ -193,8 +178,7 @@
                 chartRangeMax: undefined,
                 chartRangeMin: undefined,
                 chartRangeClip: false,
-                colorMap: undefined,
-                tooltipFormat: new SPFormat('<span style="color: {{color}}">&#9679;</span> {{prefix}}{{value}}{{suffix}}')
+                tooltipFormat: '',
             },
         };
     };
@@ -249,68 +233,6 @@
         }
         Class.prototype.cls = Class;
         return Class;
-    };
-
-    /**
-     * Wraps a format string for tooltips
-     * {{x}}
-     * {{x.2}
-     * {{x:months}}
-     */
-    $.SPFormatClass = SPFormat = createClass({
-        fre: /\{\{([\w.]+?)(:(.+?))?\}\}/g,
-        precre: /(\w+)\.(\d+)/,
-
-        init: function (format, fclass) {
-            this.format = format;
-            this.fclass = fclass;
-        },
-
-        render: function (fieldset, lookups, options) {
-            var self = this,
-                fields = fieldset,
-                match, token, lookupkey, fieldvalue, prec;
-            return this.format.replace(this.fre, function () {
-                var lookup;
-                token = arguments[1];
-                lookupkey = arguments[3];
-                match = self.precre.exec(token);
-                if (match) {
-                    prec = match[2];
-                    token = match[1];
-                } else {
-                    prec = false;
-                }
-                fieldvalue = fields[token];
-                if (fieldvalue === undefined) {
-                    return '';
-                }
-                if (lookupkey && lookups && lookups[lookupkey]) {
-                    lookup = lookups[lookupkey];
-                    if (lookup.get) { // RangeMap
-                        return lookups[lookupkey].get(fieldvalue) || fieldvalue;
-                    } else {
-                        return lookups[lookupkey][fieldvalue] || fieldvalue;
-                    }
-                }
-                if (isNumber(fieldvalue)) {
-                    if (options.get('numberFormatter')) {
-                        fieldvalue = options.get('numberFormatter')(fieldvalue);
-                    } else {
-                        fieldvalue = formatNumber(fieldvalue, prec,
-                            options.get('numberDigitGroupCount'),
-                            options.get('numberDigitGroupSep'),
-                            options.get('numberDecimalMark'));
-                    }
-                }
-                return fieldvalue;
-            });
-        }
-    });
-
-    // convience method to avoid needing the new operator
-    $.spformat = function(format, fclass) {
-        return new SPFormat(format, fclass);
     };
 
     clipval = function (val, min, max) {
@@ -486,45 +408,6 @@
         if (target) {
             target.reset();
         }
-    };
-
-    $.RangeMapClass = RangeMap = createClass({
-        init: function (map) {
-            var key, range, rangelist = [];
-            for (key in map) {
-                if (map.hasOwnProperty(key) && typeof key === 'string' && key.indexOf(':') > -1) {
-                    range = key.split(':');
-                    range[0] = range[0].length === 0 ? -Infinity : parseFloat(range[0]);
-                    range[1] = range[1].length === 0 ? Infinity : parseFloat(range[1]);
-                    range[2] = map[key];
-                    rangelist.push(range);
-                }
-            }
-            this.map = map;
-            this.rangelist = rangelist || false;
-        },
-
-        get: function (value) {
-            var rangelist = this.rangelist,
-                i, range, result;
-            if ((result = this.map[value]) !== undefined) {
-                return result;
-            }
-            if (rangelist) {
-                for (i = rangelist.length; i--;) {
-                    range = rangelist[i];
-                    if (range[0] <= value && range[1] >= value) {
-                        return range[2];
-                    }
-                }
-            }
-            return undefined;
-        }
-    });
-
-    // Convenience function
-    $.range_map = function(map) {
-        return new RangeMap(map);
     };
 
     MouseHandler = createClass({
@@ -880,62 +763,20 @@
      */
     $.fn.sparkline.options = createClass({
         init: function (tag, userOptions) {
-            var extendedOptions, defaults, base, tagOptionType;
+            var extendedOptions, defaults, base;
             this.userOptions = userOptions = userOptions || {};
             this.tag = tag;
             this.tagValCache = {};
             defaults = $.fn.sparkline.defaults;
             base = defaults.common;
-            this.tagOptionsPrefix = userOptions.enableTagOptions && (userOptions.tagOptionsPrefix || base.tagOptionsPrefix);
 
-            tagOptionType = this.getTagSetting('type');
-            if (tagOptionType === UNSET_OPTION) {
-                extendedOptions = defaults[userOptions.type || base.type];
-            } else {
-                extendedOptions = defaults[tagOptionType];
-            }
+            extendedOptions = defaults[userOptions.type || base.type];
             this.mergedOptions = $.extend({}, base, extendedOptions, userOptions);
         },
 
 
-        getTagSetting: function (key) {
-            var prefix = this.tagOptionsPrefix,
-                val, i, pairs, keyval;
-            if (prefix === false || prefix === undefined) {
-                return UNSET_OPTION;
-            }
-            if (this.tagValCache.hasOwnProperty(key)) {
-                val = this.tagValCache.key;
-            } else {
-                val = this.tag.getAttribute(prefix + key);
-                if (val === undefined || val === null) {
-                    val = UNSET_OPTION;
-                } else if (val.substr(0, 1) === '[') {
-                    val = val.substr(1, val.length - 2).split(',');
-                    for (i = val.length; i--;) {
-                        val[i] = normalizeValue(val[i].replace(/(^\s*)|(\s*$)/g, ''));
-                    }
-                } else if (val.substr(0, 1) === '{') {
-                    pairs = val.substr(1, val.length - 2).split(',');
-                    val = {};
-                    for (i = pairs.length; i--;) {
-                        keyval = pairs[i].split(':', 2);
-                        val[keyval[0].replace(/(^\s*)|(\s*$)/g, '')] = normalizeValue(keyval[1].replace(/(^\s*)|(\s*$)/g, ''));
-                    }
-                } else {
-                    val = normalizeValue(val);
-                }
-                this.tagValCache.key = val;
-            }
-            return val;
-        },
-
         get: function (key, defaultval) {
-            var tagOption = this.getTagSetting(key),
-                result;
-            if (tagOption !== UNSET_OPTION) {
-                return tagOption;
-            }
+            var result;
             return (result = this.mergedOptions[key]) === undefined ? defaultval : result;
         }
     });
@@ -1078,9 +919,6 @@
             fieldlen = fields.length;
             for (i = 0; i < formatlen; i++) {
                 format = formats[i];
-                if (typeof format === 'string') {
-                    format = new SPFormat(format);
-                }
                 fclass = format.fclass || 'jqsfield';
                 for (j = 0; j < fieldlen; j++) {
                     if (!fields[j].isNull || !options.get('tooltipSkipNull')) {
@@ -1257,17 +1095,6 @@
             }
             this.yoffset = yoffset;
 
-            if ($.isArray(options.get('colorMap'))) {
-                this.colorMapByIndex = options.get('colorMap');
-                this.colorMapByValue = null;
-            } else {
-                this.colorMapByIndex = null;
-                this.colorMapByValue = options.get('colorMap');
-                if (this.colorMapByValue && this.colorMapByValue.get === undefined) {
-                    this.colorMapByValue = new RangeMap(this.colorMapByValue);
-                }
-            }
-
             this.range = range;
         },
 
@@ -1294,20 +1121,13 @@
         },
 
         calcColor: function (stacknum, value, valuenum) {
-            var colorMapByIndex = this.colorMapByIndex,
-                colorMapByValue = this.colorMapByValue,
-                options = this.options,
-                color, newColor;
+            var color, newColor,
+	        options = this.options;
                 color = (value < 0) ? options.get('negBarColor') : options.get('barColor');
             if (value === 0 && options.get('zeroColor') !== undefined) {
                 color = options.get('zeroColor');
             }
-            if (colorMapByValue && (newColor = colorMapByValue.get(value))) {
-                color = newColor;
-            } else if (colorMapByIndex && colorMapByIndex.length > valuenum) {
-                color = colorMapByIndex[valuenum];
-            }
-            return $.isArray(color) ? color[stacknum % color.length] : color;
+            return color;
         },
 
         /**
