@@ -35,7 +35,7 @@ EV::run;
 
 sub handle_line {
 	my $line = shift;
-	$line =~ m#(\d+) /analysis.pl \?ims=\d+&unique=(.*) tffb=(.*)# or return;
+	$line =~ m#(\d+) $url \?ims=\d+&unique=(.*) tffb=(.*)# or return;
 	$uniques{$2} = {
 		last_seen => $1 + $3,
 		grace => undef,
