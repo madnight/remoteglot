@@ -2,6 +2,7 @@
 
 vcl 4.0;
 
+# You can have multiple ones; see vcl_recv.
 backend analysis {
     .host = "127.0.0.1";
     .port = "5000";
@@ -18,8 +19,12 @@ sub vcl_recv {
     }
     if (req.http.host ~ "analysis\.sesse\.net$" && req.url ~ "^/analysis\.pl") {
         set req.backend_hint = analysis;
+        # Ignored by the backend; just to identify it in vcl_backend_response.
+        set req.http.x-analysis-backend = "backend1";
         return (hash);
     }
+    # You can check on e.g. /analysis2\.pl here if you have multiple
+    # backends; just remember to set x-analysis-backend to something unique.
 }
 
 sub vcl_deliver { 
@@ -31,6 +36,7 @@ sub vcl_deliver {
         unset resp.http.X-Powered-By;
     }
     unset resp.http.x-analysis;
+    unset resp.http.x-analysis-backend;
 }
 
 sub vcl_hash {
@@ -51,7 +57,10 @@ sub vcl_backend_response {
         }
         if (beresp.http.content-type ~ "json") {
              set beresp.http.x-analysis = 1;
-             ban ( "obj.http.x-analysis == 1 && obj.http.x-rglm != " + beresp.http.x-rglm );
+             set beresp.http.x-analysis-backend = bereq.http.x-analysis-backend;
+             ban ( "obj.http.x-analysis == 1 && " +
+                   "obj.http.x-analysis-backend == " + bereq.http.x-analysis-backend + " && " +
+                   "obj.http.x-rglm != " + beresp.http.x-rglm );
         }
         return (deliver);
     }
