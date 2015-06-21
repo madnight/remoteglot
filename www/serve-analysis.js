@@ -248,7 +248,7 @@ server.on('request', function(request, response) {
 	var ims = (u.query)['ims'];
 	var unique = (u.query)['unique'];
 
-	console.log((new Date).getTime()*1e-3 + " " + request.url);
+	console.log(((new Date).getTime()*1e-3).toFixed(3) + " " + request.url);
 	if (u.pathname === '/override-num-viewers') {
 		handle_viewer_override(request, u, response);
 		return;
