@@ -13,7 +13,7 @@ var delta = require('./js/json_delta.js');
 // Constants.
 var JSON_FILENAME = '/srv/analysis.sesse.net/www/analysis.json';
 var HISTORY_TO_KEEP = 5;
-var MINIMUM_VERSION = 2015062104;
+var MINIMUM_VERSION = null;
 
 // If set to 1, we are already processing a JSON update and should not
 // start a new one. If set to 2, we are _also_ having one in the queue.
