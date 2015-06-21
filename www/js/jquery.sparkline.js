@@ -73,8 +73,6 @@
 *   chartRangeMinX - Specify the minimum value to use for the X range of the chart - Defaults to the minimum value supplied
 *   chartRangeMaxX - Specify the maximum value to use for the X range of the chart - Defaults to the maximum value supplied
 *   tagValuesAttribute - Name of tag attribute to check for data values - Defaults to 'values'
-*   disableHiddenCheck - If set to true, then the plugin will assume that charts will never be drawn into a
-*           hidden dom element, avoding a browser reflow
 *   disableInteraction - If set to true then all mouseover/click interaction behaviour will be disabled,
 *       making the plugin perform much like it did in 1.x
 *   disableTooltips - If set to true then tooltips will be disabled - Defaults to false (tooltips enabled)
@@ -158,7 +156,6 @@
                 tooltipSkipNull: true,
                 tooltipPrefix: '',
                 tooltipSuffix: '',
-                disableHiddenCheck: false,
                 numberFormatter: false,
                 numberDigitGroupCount: 3,
                 numberDigitGroupSep: ',',
@@ -714,20 +711,7 @@
                     mhandler.registerSparkline(sp);
                 }
             };
-            if (($(this).html() && !options.get('disableHiddenCheck') && $(this).is(':hidden')) || !$(this).parents('body').length) {
-                if ($.data(this, '_jqs_pending')) {
-                    // remove any existing references to the element
-                    for (i = pending.length; i; i--) {
-                        if (pending[i - 1][0] == this) {
-                            pending.splice(i - 1, 1);
-                        }
-                    }
-                }
-                pending.push([this, render]);
-                $.data(this, '_jqs_pending', true);
-            } else {
-                render.call(this);
-            }
+            render.call(this);
         });
     };
 
@@ -739,18 +723,9 @@
         var done = [];
         for (i = 0, pl = pending.length; i < pl; i++) {
             el = pending[i][0];
-            if ($(el).is(':visible') && !$(el).parents().is(':hidden')) {
                 pending[i][1].call(el);
                 $.data(pending[i][0], '_jqs_pending', false);
                 done.push(i);
-            } else if (!$(el).closest('html').length && !$.data(el, '_jqs_pending')) {
-                // element has been inserted and removed from the DOM
-                // If it was not yet inserted into the dom then the .data request
-                // will return true.
-                // removing from the dom causes the data to be removed.
-                $.data(pending[i][0], '_jqs_pending', false);
-                done.push(i);
-            }
         }
         for (i = done.length; i; i--) {
             pending.splice(done[i - 1], 1);
