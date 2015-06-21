@@ -15,6 +15,9 @@ var JSON_FILENAME = '/srv/analysis.sesse.net/www/analysis.json';
 var HISTORY_TO_KEEP = 5;
 var MINIMUM_VERSION = null;
 
+// TCP port to listen on; can be overridden with flags.
+var port = 5000;
+
 // If set to 1, we are already processing a JSON update and should not
 // start a new one. If set to 2, we are _also_ having one in the queue.
 var json_lock = 0;
@@ -297,4 +300,8 @@ server.on('connection', function(socket) {
 		}
 	});
 });
-server.listen(5000);
+
+if (process.argv.length >= 3) {
+	port = parseInt(process.argv[2]);
+}
+server.listen(port);
