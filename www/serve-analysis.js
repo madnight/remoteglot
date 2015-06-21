@@ -11,12 +11,20 @@ var zlib = require('zlib');
 var delta = require('./js/json_delta.js');
 
 // Constants.
-var JSON_FILENAME = '/srv/analysis.sesse.net/www/analysis.json';
 var HISTORY_TO_KEEP = 5;
 var MINIMUM_VERSION = null;
 
-// TCP port to listen on; can be overridden with flags.
+// Filename to serve.
+var json_filename = '/srv/analysis.sesse.net/www/analysis.json';
+if (process.argv.length >= 3) {
+	json_filename = process.argv[2];
+}
+
+// TCP port to listen on.
 var port = 5000;
+if (process.argv.length >= 4) {
+	port = parseInt(process.argv[3]);
+}
 
 // If set to 1, we are already processing a JSON update and should not
 // start a new one. If set to 2, we are _also_ having one in the queue.
@@ -107,7 +115,7 @@ var create_json_historic_diff = function(new_json, history_left, new_diff_json, 
 }
 
 var reread_file = function(event, filename) {
-	if (filename != path.basename(JSON_FILENAME)) {
+	if (filename != path.basename(json_filename)) {
 		return;
 	}
 	if (json_lock >= 2) {
@@ -121,8 +129,8 @@ var reread_file = function(event, filename) {
 	}
 	json_lock = 1;
 
-	console.log("Rereading " + JSON_FILENAME);
-	fs.open(JSON_FILENAME, 'r+', function(err, fd) {
+	console.log("Rereading " + json_filename);
+	fs.open(json_filename, 'r+', function(err, fd) {
 		if (err) throw err;
 		fs.fstat(fd, function(err, st) {
 			if (err) throw err;
@@ -143,7 +151,7 @@ var reread_file = function(event, filename) {
 	touch_timer = setTimeout(function() {
 		console.log("Touching analysis.json due to no other activity");
 		var now = Date.now() / 1000;
-		fs.utimes(JSON_FILENAME, now, now);
+		fs.utimes(json_filename, now, now);
 	}, 30000);
 }
 var possibly_wakeup_clients = function() {
@@ -242,8 +250,8 @@ var count_viewers = function() {
 
 // Set up a watcher to catch changes to the file, then do an initial read
 // to make sure we have a copy.
-fs.watch(path.dirname(JSON_FILENAME), reread_file);
-reread_file(null, path.basename(JSON_FILENAME));
+fs.watch(path.dirname(json_filename), reread_file);
+reread_file(null, path.basename(json_filename));
 
 var server = http.createServer();
 server.on('request', function(request, response) {
@@ -301,7 +309,4 @@ server.on('connection', function(socket) {
 	});
 });
 
-if (process.argv.length >= 3) {
-	port = parseInt(process.argv[2]);
-}
 server.listen(port);
