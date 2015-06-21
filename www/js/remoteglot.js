@@ -9,6 +9,14 @@
  * @private */
 var SCRIPT_VERSION = 2015062104;
 
+/**
+ * The current backend URL.
+ *
+ * @type {!string}
+ * @private
+ */
+var backend_url = "/analysis.pl";
+
 /** @type {window.ChessBoard} @private */
 var board = null;
 
@@ -117,6 +125,32 @@ var current_display_line_is_history = false;
 /** @type {?number} @private */
 var current_display_move = null;
 
+/**
+ * The current backend request to get main analysis (not history), if any,
+ * so that we can abort it.
+ *
+ * @type {?jqXHR}
+ * @private
+ */
+var current_analysis_xhr = null;
+
+/**
+ * The current timer to fire off a request to get main analysis (not history),
+ * if any, so that we can abort it.
+ *
+ * @type {?Number}
+ * @private
+ */
+var current_analysis_request_timer = null;
+
+/**
+ * The current backend request to get historic data, if any.
+ *
+ * @type {?jqXHR}
+ * @private
+ */
+var current_historic_xhr = null;
+
 var supports_html5_storage = function() {
 	try {
 		return 'localStorage' in window && window['localStorage'] !== null;
@@ -140,8 +174,10 @@ var get_unique = function() {
 }
 
 var request_update = function() {
-	$.ajax({
-		url: "/analysis.pl?ims=" + ims + "&unique=" + unique
+	current_analysis_request_timer = null;
+
+	current_analysis_xhr = $.ajax({
+		url: backend_url + "?ims=" + ims + "&unique=" + unique
 	}).done(function(data, textstatus, xhr) {
 		sync_server_clock(xhr.getResponseHeader('Date'));
 		ims = xhr.getResponseHeader('X-RGLM');
@@ -166,10 +202,15 @@ var request_update = function() {
 		update_num_viewers(num_viewers);
 
 		// Next update.
-		setTimeout(function() { request_update(); }, 100);
-	}).fail(function() {
-		// Wait ten seconds, then try again.
-		setTimeout(function() { request_update(); }, 10000);
+		current_analysis_request_timer = setTimeout(function() { request_update(); }, 100);
+	}).fail(function(jqXHR, textStatus, errorThrown) {
+		if (textStatus === "abort") {
+			// Aborted because we are switching backends. Abandon and don't retry,
+			// because another one is already started for us.
+		} else {
+			// Backend error or similar. Wait ten seconds, then try again.
+			current_analysis_request_timer = setTimeout(function() { request_update(); }, 10000);
+		}
 	});
 }
 
@@ -1209,14 +1250,19 @@ var update_historic_analysis = function() {
 	var filename = "/history/move" + (current_display_move + 1) + "-" +
 		hiddenboard.fen().replace(/ /g, '_').replace(/\//g, '-') + ".json";
 
-	$.ajax({
+	current_historic_xhr = $.ajax({
 		url: filename
 	}).done(function(data, textstatus, xhr) {
 		displayed_analysis_data = data;
 		update_board(current_analysis_data, displayed_analysis_data);
-	}).fail(function() {
-		displayed_analysis_data = {'failed': true};
-		update_board(current_analysis_data, displayed_analysis_data);
+	}).fail(function(jqXHR, textStatus, errorThrown) {
+		if (textStatus === "abort") {
+			// Aborted because we are switching backends. Don't do anything;
+			// we will already have been cleared.
+		} else {
+			displayed_analysis_data = {'failed': true};
+			update_board(current_analysis_data, displayed_analysis_data);
+		}
 	});
 }
 
@@ -1314,6 +1360,37 @@ var set_sound = function(param_enable_sound) {
 	}
 }
 window['set_sound'] = set_sound;
+
+/**
+ * @param {string} new_backend_url
+ */
+var switch_backend = function(new_backend_url) {
+	// Stop looking at historic data.
+	current_display_line = null;
+	current_display_move = null;
+	displayed_analysis_data = null;
+	if (current_historic_xhr) {
+		current_historic_xhr.abort();
+	}
+
+	// If we already have a backend response going, abort it.
+	if (current_analysis_xhr) {
+		current_analysis_xhr.abort();
+	}
+
+	// Otherwise, we should have a timer going to start a new one.
+	// Kill that, too.
+	if (current_analysis_request_timer) {
+		clearTimeout(current_analysis_request_timer);
+		current_analysis_request_timer = null;
+	}
+
+	// Request an immediate fetch with the new backend.
+	backend_url = new_backend_url;
+	ims = 0;
+	request_update();
+}
+window['switch_backend'] = switch_backend;
 
 var init = function() {
 	unique = get_unique();
