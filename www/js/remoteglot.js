@@ -1387,6 +1387,7 @@ var switch_backend = function(new_backend_url) {
 
 	// Request an immediate fetch with the new backend.
 	backend_url = new_backend_url;
+	current_analysis_data = null;
 	ims = 0;
 	request_update();
 }
