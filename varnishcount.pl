@@ -8,7 +8,10 @@ use strict;
 use warnings;
 no warnings qw(once);
 
-open my $fh, "-|", "varnishncsa -F '%{%s}t %U %q tffb=%{Varnish:time_firstbyte}x' -q 'ReqURL ~ \"^/analysis.pl\"'"
+my $url = $ARGV[0] // "/analysis.pl";  # Technically an URL regex, not an URL.
+my $port = $ARGV[1] // 5000;
+
+open my $fh, "-|", "varnishncsa -F '%{%s}t %U %q tffb=%{Varnish:time_firstbyte}x' -q 'ReqURL ~ \"^$url\"'"
 	or die "varnishncsa: $!";
 my %uniques = ();
 
@@ -74,5 +77,5 @@ sub output {
 
 	my $num_viewers = scalar keys %uniques;	
 	printf "%d entries in hash, mtime=$mtime\n", scalar keys %uniques;
-	LWP::Simple::get('http://127.0.0.1:5000/override-num-viewers?num=' . $num_viewers);	
+	LWP::Simple::get('http://127.0.0.1:' . $port . '/override-num-viewers?num=' . $num_viewers);	
 }
