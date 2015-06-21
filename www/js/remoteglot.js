@@ -7,7 +7,7 @@
  * @type {Number}
  * @const
  * @private */
-var SCRIPT_VERSION = 2015062103;
+var SCRIPT_VERSION = 2015062104;
 
 /** @type {window.ChessBoard} @private */
 var board = null;

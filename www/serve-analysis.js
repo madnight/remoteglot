@@ -13,7 +13,7 @@ var delta = require('./js/json_delta.js');
 // Constants.
 var JSON_FILENAME = '/srv/analysis.sesse.net/www/analysis.json';
 var HISTORY_TO_KEEP = 5;
-var MINIMUM_VERSION = null;
+var MINIMUM_VERSION = 2015062104;
 
 // If set to 1, we are already processing a JSON update and should not
 // start a new one. If set to 2, we are _also_ having one in the queue.
@@ -183,7 +183,7 @@ var send_json = function(response, ims, accept_gzip, num_viewers) {
 		'Content-Type': 'text/json',
 		'X-RGLM': this_json.last_modified,
 		'X-RGNV': num_viewers,
-		'Access-Control-Expose-Headers': 'X-RGLM, X-RGNV',
+		'Access-Control-Expose-Headers': 'X-RGLM, X-RGNV, X-RGMV',
 		'Vary': 'Accept-Encoding',
 	};
 
