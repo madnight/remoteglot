@@ -1,5 +1,14 @@
 (function() {
 
+/**
+ * Version of this script. If the server returns a version larger than
+ * this, it is a sign we should reload to upgrade ourselves.
+ *
+ * @type {Number}
+ * @const
+ * @private */
+var SCRIPT_VERSION = 2015062103;
+
 /** @type {window.ChessBoard} @private */
 var board = null;
 
@@ -144,6 +153,13 @@ var request_update = function() {
 		} else {
 			new_data = data;
 		}
+
+		var minimum_version = xhr.getResponseHeader('X-RGMV');
+		if (minimum_version && minimum_version > SCRIPT_VERSION) {
+			// Upgrade to latest version with a force-reload.
+			location.reload(true);
+		}
+
 		possibly_play_sound(current_analysis_data, new_data);
 		current_analysis_data = new_data;
 		update_board(current_analysis_data, displayed_analysis_data);
