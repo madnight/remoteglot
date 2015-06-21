@@ -67,5 +67,6 @@ our @masters = (
 our $tb_serial_key = undef;
 
 eval {
-	require 'config.local.pm';
+	my $config_filename = $ENV{'REMOTEGLOT_CONFIG'} // 'config.local.pm';
+	require $config_filename;
 };
