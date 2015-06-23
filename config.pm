@@ -66,6 +66,11 @@ our @masters = (
 # you probably need specific prior permission to use this.
 our $tb_serial_key = undef;
 
+# Postgres configuration.
+our $dbistr = "dbi:Pg:dbname=remoteglot";
+our $dbiuser = undef;
+our $dbipass = undef;
+
 eval {
 	my $config_filename = $ENV{'REMOTEGLOT_CONFIG'} // 'config.local.pm';
 	require $config_filename;

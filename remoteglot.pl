@@ -21,6 +21,8 @@ use Time::HiRes;
 use JSON::XS;
 use URI::Escape;
 use Tie::Persistent;
+use DBI;
+use DBD::Pg;
 require 'Position.pm';
 require 'Engine.pm';
 require 'config.pm';
@@ -38,12 +40,12 @@ my %tb_cache = ();
 my $tb_lookup_running = 0;
 my $last_written_json = undef;
 
-# Persisted so that we can restart.
-tie my %clock_info_for_pos, 'Tie::Persistent', 'clock_info.db', 'rw';
-(tied %clock_info_for_pos)->autosync(1);
-
-tie my %json_for_pos, 'Tie::Persistent', 'analysis_info.db', 'rw';
-(tied %json_for_pos)->autosync(1);
+# Persisted so we can restart.
+# TODO: Figure out an appropriate way to deal with database restarts
+# and/or Postgres going away entirely.
+my $dbh = DBI->connect($remoteglotconf::dbistr, $remoteglotconf::dbiuser, $remoteglotconf::dbipass)
+	or die DBI->errstr;
+$dbh->{RaiseError} = 1;
 
 $| = 1;
 
@@ -782,19 +784,22 @@ sub output_json {
 	if (!$historic_json_only && exists($pos_calculating->{'pretty_history'})) {
 		my %score_history = ();
 
+		my $q = $dbh->prepare('SELECT * FROM scores WHERE id=?');
 		my $pos = Position->start_pos('white', 'black');
 		my $halfmove_num = 0;
 		for my $move (@{$pos_calculating->{'pretty_history'}}) {
 			my $id = id_for_pos($pos, $halfmove_num);
-			if (exists($json_for_pos{$id}) && defined($json_for_pos{$id}->{'plot_score'})) {
+			my $ref = $dbh->selectrow_hashref($q, undef, $id);
+			if (defined($ref)) {
 				$score_history{$halfmove_num} = [
-					$json_for_pos{$id}->{'plot_score'},
-					$json_for_pos{$id}->{'short_score'}
+					$ref->{'plot_score'},
+					$ref->{'short_score'}
 				];
 			}
 			++$halfmove_num;
 			($pos) = $pos->make_pretty_move($move);
 		}
+		$q->finish;
 
 		# If at any point we are missing 10 consecutive moves,
 		# truncate the history there. This is so we don't get into
@@ -836,7 +841,7 @@ sub output_json {
 		# using a different engine, or if we've calculated deeper.
 		# nodes is used as a tiebreaker. Don't bother about Multi-PV
 		# data; it's not that important.
-		my ($old_engine, $old_depth, $old_nodes) = get_json_analysis_stats($filename);
+		my ($old_engine, $old_depth, $old_nodes) = get_json_analysis_stats($id);
 		my $new_depth = $json->{'depth'} // 0;
 		my $new_nodes = $json->{'nodes'} // 0;
 		if (!defined($old_engine) ||
@@ -844,7 +849,14 @@ sub output_json {
 		    $new_depth > $old_depth ||
 		    ($new_depth == $old_depth && $new_nodes >= $old_nodes)) {
 			atomic_set_contents($filename, $encoded);
-			$json_for_pos{$id} = $json;
+			if (defined($json->{'plot_score'})) {
+				local $dbh->{AutoCommit} = 0;
+				$dbh->do('DELETE FROM scores WHERE id=?', undef, $id);
+				$dbh->do('INSERT INTO scores (id, plot_score, short_score, engine, depth, nodes) VALUES (?,?,?,?,?,?)', undef,
+					$id, $json->{'plot_score'}, $json->{'short_score'},
+					$json->{'id'}{'name'}, $new_depth, $new_nodes);
+				$dbh->commit;
+			}
 		}
 	}
 }
@@ -868,25 +880,13 @@ sub id_for_pos {
 }
 
 sub get_json_analysis_stats {
-	my $filename = shift;
-
-	my ($engine, $depth, $nodes);
-
-	open my $fh, "<", $filename
-		or return undef;
-	local $/ = undef;
-	eval {
-		my $json = JSON::XS::decode_json(<$fh>);
-		$engine = $json->{'id'}{'name'} // die;
-		$depth = $json->{'depth'} // 0;
-		$nodes = $json->{'nodes'} // 0;
-	};
-	close $fh;
-	if ($@) {
-		warn "Error in decoding $filename: $@";
-		return undef;
+	my $id = shift;
+	my $ref = $dbh->selectrow_hashref('SELECT * FROM scores WHERE id=?', undef, $id);
+	if (defined($ref)) {
+		return ($ref->{'engine'}, $ref->{'depth'}, $ref->{'nodes'});
+	} else {
+		return ('', 0, 0);
 	}
-	return ($engine, $depth, $nodes);
 }
 
 sub uciprint {
@@ -1138,13 +1138,14 @@ sub find_clock_start {
 	}
 
 	my $id = id_for_pos($pos);
-	if (exists($clock_info_for_pos{$id})) {
-		$pos->{'white_clock'} //= $clock_info_for_pos{$id}{'white_clock'};
-		$pos->{'black_clock'} //= $clock_info_for_pos{$id}{'black_clock'};
+	my $clock_info = $dbh->selectrow_hashref('SELECT * FROM clock_info WHERE id=?', undef, $id);
+	if (defined($clock_info)) {
+		$pos->{'white_clock'} //= $clock_info->{'white_clock'};
+		$pos->{'black_clock'} //= $clock_info->{'black_clock'};
 		if ($pos->{'toplay'} eq 'W') {
-			$pos->{'white_clock_target'} = $clock_info_for_pos{$id}->{'white_clock_target'};
+			$pos->{'white_clock_target'} = $clock_info->{'white_clock_target'};
 		} else {
-			$pos->{'black_clock_target'} = $clock_info_for_pos{$id}->{'black_clock_target'};
+			$pos->{'black_clock_target'} = $clock_info->{'black_clock_target'};
 		}
 		return;
 	}
@@ -1174,16 +1175,17 @@ sub find_clock_start {
 		return;
 	}
 	my $time_left = $pos->{$key};
-	my $clock_info = {
-		white_clock => $pos->{'white_clock'},
-		black_clock => $pos->{'black_clock'}
-	};
+	my ($white_clock_target, $black_clock_target);
 	if ($pos->{'toplay'} eq 'W') {
-		$clock_info->{'white_clock_target'} = $pos->{'white_clock_target'} = time + $time_left;
+		$white_clock_target = $pos->{'white_clock_target'} = time + $time_left;
 	} else {
-		$clock_info->{'black_clock_target'} = $pos->{'black_clock_target'} = time + $time_left;
+		$black_clock_target = $pos->{'black_clock_target'} = time + $time_left;
 	}
-	$clock_info_for_pos{$id} = $clock_info;
+	local $dbh->{AutoCommit} = 0;
+	$dbh->do('DELETE FROM clock_info WHERE id=?', undef, $id);
+	$dbh->do('INSERT INTO clock_info (id, white_clock, black_clock, white_clock_target, black_clock_target)', undef,
+		$id, $pos->{'white_clock'}, $pos->{'black_clock'}, $white_clock_target, $black_clock_target);
+	$dbh->commit;
 }
 
 sub schedule_tb_lookup {
