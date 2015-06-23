@@ -252,7 +252,9 @@ var sync_server_clock = function(server_date_string) {
 var clear_arrows = function() {
 	for (var i = 0; i < arrows.length; ++i) {
 		if (arrows[i].svg) {
-			arrows[i].svg.parentElement.removeChild(arrows[i].svg);
+			if (arrows[i].svg.parentElement) {
+				arrows[i].svg.parentElement.removeChild(arrows[i].svg);
+			}
 			delete arrows[i].svg;
 		}
 	}
@@ -367,7 +369,9 @@ var point_from_end = function(x1, y1, x2, y2, t, u) {
 
 var position_arrow = function(arrow) {
 	if (arrow.svg) {
-		arrow.svg.parentElement.removeChild(arrow.svg);
+		if (arrow.svg.parentElement) {
+			arrow.svg.parentElement.removeChild(arrow.svg);
+		}
 		delete arrow.svg;
 	}
 	if (current_display_line !== null && !current_display_line_is_history) {
