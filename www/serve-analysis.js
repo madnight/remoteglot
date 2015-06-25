@@ -20,10 +20,16 @@ if (process.argv.length >= 3) {
 	json_filename = process.argv[2];
 }
 
+// Expected destination filename.
+var serve_url = '/analysis.pl';
+if (process.argv.length >= 4) {
+	serve_url = process.argv[3];
+}
+
 // TCP port to listen on.
 var port = 5000;
-if (process.argv.length >= 4) {
-	port = parseInt(process.argv[3]);
+if (process.argv.length >= 5) {
+	port = parseInt(process.argv[4]);
 }
 
 // If set to 1, we are already processing a JSON update and should not
@@ -264,7 +270,7 @@ server.on('request', function(request, response) {
 		handle_viewer_override(request, u, response);
 		return;
 	}
-	if (u.pathname !== '/analysis.pl') {
+	if (u.pathname !== serve_url) {
 		// This is not the request you are looking for.
 		send_404(response);
 		return;
