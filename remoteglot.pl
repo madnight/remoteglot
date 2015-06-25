@@ -1183,7 +1183,7 @@ sub find_clock_start {
 	}
 	local $dbh->{AutoCommit} = 0;
 	$dbh->do('DELETE FROM clock_info WHERE id=?', undef, $id);
-	$dbh->do('INSERT INTO clock_info (id, white_clock, black_clock, white_clock_target, black_clock_target)', undef,
+	$dbh->do('INSERT INTO clock_info (id, white_clock, black_clock, white_clock_target, black_clock_target) VALUES (?, ?, ?, ?, ?)', undef,
 		$id, $pos->{'white_clock'}, $pos->{'black_clock'}, $white_clock_target, $black_clock_target);
 	$dbh->commit;
 }
