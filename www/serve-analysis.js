@@ -8,11 +8,14 @@ var url = require('url');
 var querystring = require('querystring');
 var path = require('path');
 var zlib = require('zlib');
+var readline = require('readline');
+var child_process = require('child_process');
 var delta = require('./js/json_delta.js');
 
 // Constants.
 var HISTORY_TO_KEEP = 5;
 var MINIMUM_VERSION = null;
+var COUNT_FROM_VARNISH_LOG = true;
 
 // Filename to serve.
 var json_filename = '/srv/analysis.sesse.net/www/analysis.json';
@@ -59,7 +62,7 @@ var last_seen_clients = {};
 var touch_timer = undefined;
 
 // If we are behind Varnish, we can't count the number of clients
-// ourselves, so some external log-tailing daemon needs to tell us.
+// ourselves, so we need to get it from parsing varnishncsa.
 var viewer_count_override = undefined;
 
 var replace_json = function(new_json_contents, mtime) {
@@ -178,21 +181,6 @@ var send_404 = function(response) {
 	response.write('Something went wrong. Sorry.');
 	response.end();
 }
-var handle_viewer_override = function(request, u, response) {
-	// Only accept requests from localhost.
-	var peer = request.socket.localAddress;
-	if ((peer != '127.0.0.1' && peer != '::1') || request.headers['x-forwarded-for']) {
-		console.log("Refusing viewer override from " + peer);
-		send_404(response);
-	} else {
-		viewer_count_override = (u.query)['num'];
-		response.writeHead(200, {
-			'Content-Type': 'text/plain',
-		});
-		response.write('OK.');
-		response.end();
-	}
-}
 var send_json = function(response, ims, accept_gzip, num_viewers) {
 	var this_json = diff_json[ims] || json;
 
@@ -253,11 +241,77 @@ var count_viewers = function() {
 	last_seen_clients = new_last_seen_clients;
 	return num_viewers;
 }
+var log = function(str) {
+	console.log("[" + ((new Date).getTime()*1e-3).toFixed(3) + "] " + str);
+}
 
 // Set up a watcher to catch changes to the file, then do an initial read
 // to make sure we have a copy.
 fs.watch(path.dirname(json_filename), reread_file);
 reread_file(null, path.basename(json_filename));
+
+if (COUNT_FROM_VARNISH_LOG) {
+	// Note: We abuse serve_url as a regex.
+	var varnishncsa = child_process.spawn(
+		'varnishncsa', ['-F', '%{%s}t %U %q tffb=%{Varnish:time_firstbyte}x',
+		'-q', 'ReqURL ~ "^' + serve_url + '"']);
+	var rl = readline.createInterface({
+		input: varnishncsa.stdout,
+		output: varnishncsa.stdin,
+		terminal: false
+	});
+
+	var uniques = [];
+	rl.on('line', function(line) {
+		var v = line.match(/(\d+) .*\?ims=\d+&unique=(.*) tffb=(.*)/);
+		if (v) {
+			uniques[v[2]] = {
+				last_seen: (parseInt(v[1]) + parseFloat(v[3])) * 1e3,
+				grace: null,
+			};
+			log(v[1] + " " + v[2] + " " + v[3]);
+		} else {
+			log("VARNISHNCSA UNPARSEABLE LINE: " + line);
+		}
+	});
+	setInterval(function() {
+		var mtime = json.last_modified - 1000;  // Compensate for subsecond issues.
+		var now = (new Date).getTime();
+		var num_viewers = 0;
+
+		for (var unique in uniques) {
+			++num_viewers;
+			var last_seen = uniques[unique].last_seen;
+			if (now - last_seen <= 5000) {
+				// We've seen this user in the last five seconds;
+				// it's okay.
+				continue;
+			}
+			if (last_seen >= mtime) {
+				// This user has the latest version;
+				// they are probably just hanging.
+				continue;
+			}
+			if (uniques[unique].grace === null) {
+				// They have five seconds after a new JSON has been
+				// provided to get get it, or they're out.
+				// We don't simply use mtime, since we don't want to
+				// reset the grace timer just because a new JSON is
+				// published.
+				uniques[unique].grace = mtime;
+			}
+			if (now - uniques[unique].grace > 5000) {
+				log("Timing out " + unique + " (last_seen=" + last_seen + ", now=" + now +
+					", mtime=" + mtime, ", grace=" + uniques[unique].grace + ")");
+				delete uniques[unique]; // ???
+				--num_viewers;
+			}
+		}
+
+		log(num_viewers + " entries in hash, mtime=" + mtime);
+		viewer_count_override = num_viewers;
+	}, 1000);
+}
 
 var server = http.createServer();
 server.on('request', function(request, response) {
@@ -265,11 +319,7 @@ server.on('request', function(request, response) {
 	var ims = (u.query)['ims'];
 	var unique = (u.query)['unique'];
 
-	console.log(((new Date).getTime()*1e-3).toFixed(3) + " " + request.url);
-	if (u.pathname === '/override-num-viewers') {
-		handle_viewer_override(request, u, response);
-		return;
-	}
+	log(request.url);
 	if (u.pathname !== serve_url) {
 		// This is not the request you are looking for.
 		send_404(response);
