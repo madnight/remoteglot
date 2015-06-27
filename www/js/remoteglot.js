@@ -738,6 +738,28 @@ var update_board = function(current_data, display_data) {
 	}
 	update_history();
 
+	// Games currently in progress, if any.
+	$("#games").text("");
+	if (current_data['games']) {
+		var games_div = document.getElementById('games');
+		for (var game_num = 0; game_num < current_data['games'].length; ++game_num) {
+			var game = current_data['games'][game_num];
+			var game_span = document.createElement("span");
+			game_span.setAttribute("class", "game");
+
+			var game_name = document.createTextNode(game['name']);
+			if (game['url'] === backend_url) {
+				game_span.appendChild(game_name);
+			} else {
+				var game_a = document.createElement("a");
+				game_a.setAttribute("href", "javascript:switch_backend('" + game['url'] + "')");
+				game_a.appendChild(game_name);
+				game_span.appendChild(game_a);
+			}
+			games_div.appendChild(game_span);
+		}
+	}
+
 	// The headline. Names are always fetched from current_data;
 	// the rest can depend a bit.
 	var headline;

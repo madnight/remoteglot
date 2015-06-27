@@ -15,12 +15,11 @@ use AnyEvent::HTTP;
 use Chess::PGN::Parse;
 use EV;
 use Net::Telnet;
-use FileHandle;
+use File::Slurp;
 use IPC::Open2;
 use Time::HiRes;
 use JSON::XS;
 use URI::Escape;
-use Tie::Persistent;
 use DBI;
 use DBD::Pg;
 require 'Position.pm';
@@ -821,6 +820,37 @@ sub output_json {
 		}
 
 		$json->{'score_history'} = \%score_history;
+	}
+
+	# Give out a list of other games going on. (Empty is fine.)
+	if (!$historic_json_only) {
+		my @games = ();
+
+		my $q = $dbh->prepare('SELECT * FROM current_games ORDER BY priority DESC, id');
+		$q->execute;
+		while (my $ref = $q->fetchrow_hashref) {
+			eval {
+				my $other_game_contents = File::Slurp::read_file($ref->{'json_path'});
+				my $other_game_json = JSON::XS::decode_json($other_game_contents);
+
+				die "Missing position" if (!exists($other_game_json->{'position'}));
+				my $white = $other_game_json->{'position'}{'player_w'} // die 'Missing white';
+				my $black = $other_game_json->{'position'}{'player_b'} // die 'Missing black';
+
+				push @games, {
+					id => $ref->{'id'},
+					name => "$white–$black",
+					url => $ref->{'url'}
+				};
+			};
+			if ($@) {
+				warn "Could not add external game " . $ref->{'json_path'} . ": $@";
+			}
+		}
+
+		if (scalar @games > 0) {
+			$json->{'games'} = \@games;
+		}
 	}
 
 	my $json_enc = JSON::XS->new;
