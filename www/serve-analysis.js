@@ -303,7 +303,7 @@ if (COUNT_FROM_VARNISH_LOG) {
 			if (now - uniques[unique].grace > 5000) {
 				log("Timing out " + unique + " (last_seen=" + last_seen + ", now=" + now +
 					", mtime=" + mtime, ", grace=" + uniques[unique].grace + ")");
-				delete uniques[unique]; // ???
+				delete uniques[unique];
 				--num_viewers;
 			}
 		}
