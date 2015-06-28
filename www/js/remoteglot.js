@@ -37,6 +37,18 @@ var current_analysis_data = null;
  */
 var displayed_analysis_data = null;
 
+/**
+ * Games currently in progress, if any.
+ *
+ * @type {?Array.<{
+ *      name: string,
+ *      url: string,
+ *      id: string,
+ * }>}
+ * @private
+ */
+var current_games = null;
+
 /** @type {Array.<{
  *      from_col: number,
  *      from_row: number,
@@ -719,6 +731,51 @@ var chess_from = function(fen, moves, last_move) {
 	return hiddenboard;
 }
 
+var update_game_list = function(games) {
+	$("#games").text("");
+	if (games === null) {
+		return;
+	}
+
+	var games_div = document.getElementById('games');
+	for (var game_num = 0; game_num < games.length; ++game_num) {
+		var game = games[game_num];
+		var game_span = document.createElement("span");
+		game_span.setAttribute("class", "game");
+
+		var game_name = document.createTextNode(game['name']);
+		if (game['url'] === backend_url) {
+			game_span.appendChild(game_name);
+		} else {
+			var game_a = document.createElement("a");
+			game_a.setAttribute("href", "#" + game['id']);
+			game_a.appendChild(game_name);
+			game_span.appendChild(game_a);
+		}
+		games_div.appendChild(game_span);
+	}
+}
+
+/**
+ * Try to find a running game that matches with the current hash,
+ * and switch to it if we're not already displaying it.
+ */
+var possibly_switch_game_from_hash = function() {
+	if (current_games === null) {
+		return;
+	}
+
+	var hash = window.location.hash.replace(/^#/,'');
+	for (var i = 0; i < current_games.length; ++i) {
+		if (current_games[i]['id'] === hash) {
+			if (backend_url !== current_games[i]['url']) {
+				switch_backend(current_games[i]['url']);
+			}
+			return;
+		}
+	}
+}
+
 /**
  * @param {Object} data
  * @param {?Object} display_data
@@ -739,25 +796,13 @@ var update_board = function(current_data, display_data) {
 	update_history();
 
 	// Games currently in progress, if any.
-	$("#games").text("");
 	if (current_data['games']) {
-		var games_div = document.getElementById('games');
-		for (var game_num = 0; game_num < current_data['games'].length; ++game_num) {
-			var game = current_data['games'][game_num];
-			var game_span = document.createElement("span");
-			game_span.setAttribute("class", "game");
-
-			var game_name = document.createTextNode(game['name']);
-			if (game['url'] === backend_url) {
-				game_span.appendChild(game_name);
-			} else {
-				var game_a = document.createElement("a");
-				game_a.setAttribute("href", "javascript:switch_backend('" + game['url'] + "')");
-				game_a.appendChild(game_name);
-				game_span.appendChild(game_a);
-			}
-			games_div.appendChild(game_span);
-		}
+		current_games = current_data['games'];
+		possibly_switch_game_from_hash();
+		update_game_list(current_data['games']);
+	} else {
+		current_games = null;
+		update_game_list(null);
 	}
 
 	// The headline. Names are always fetched from current_data;
@@ -1490,6 +1535,7 @@ var init = function() {
 			prev_move();
 		}
 	});
+	window.addEventListener('hashchange', possibly_switch_game_from_hash, false);
 };
 $(document).ready(init);
 
