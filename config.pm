@@ -66,6 +66,12 @@ our @masters = (
 # you probably need specific prior permission to use this.
 our $tb_serial_key = undef;
 
+# Credits to show in the footer.
+our $engine_url = "http://www.stockfishchess.org/";
+our $engine_details = undef;  # For hardware.
+our $move_source = "FICS";
+our $move_source_url = "http://www.freechess.org/";
+
 # Postgres configuration.
 our $dbistr = "dbi:Pg:dbname=remoteglot";
 our $dbiuser = undef;

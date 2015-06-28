@@ -482,10 +482,9 @@ sub parse_ids {
 	my ($engine, @x) = @_;
 
 	while (scalar @x > 0) {
-		if ($x[0] =~ /^(name|author)$/) {
-			my $key = shift @x;
+		if ($x[0] eq 'name') {
 			my $value = join(' ', @x);
-			$engine->{'id'}{$key} = $value;
+			$engine->{'id'}{'author'} = $value;
 			last;
 		}
 
@@ -738,10 +737,23 @@ sub output_json {
 
 	my $json = {};
 	$json->{'position'} = $pos_calculating->to_json_hash();
-	$json->{'id'} = $engine->{'id'};
+	$json->{'engine'} = $engine->{'id'};
+	if (defined($remoteglotconf::engine_url)) {
+		$json->{'engine'}{'url'} = $remoteglotconf::engine_url;
+	}
+	if (defined($remoteglotconf::engine_details)) {
+		$json->{'engine'}{'details'} = $remoteglotconf::engine_details;
+	}
+	if (defined($remoteglotconf::move_source)) {
+		$json->{'move_source'} = $remoteglotconf::move_source;
+	}
+	if (defined($remoteglotconf::move_source_url)) {
+		$json->{'move_source_url'} = $remoteglotconf::move_source_url;
+	}
 	$json->{'score'} = long_score($info, $pos_calculating, '');
 	$json->{'short_score'} = short_score($info, $pos_calculating, '');
 	$json->{'plot_score'} = plot_score($info, $pos_calculating, '');
+	$json->{'using_lomonosov'} = defined($remoteglotconf::tb_serial_key);
 
 	$json->{'nodes'} = $info->{'nodes'};
 	$json->{'nps'} = $info->{'nps'};
@@ -875,7 +887,7 @@ sub output_json {
 		my $new_depth = $json->{'depth'} // 0;
 		my $new_nodes = $json->{'nodes'} // 0;
 		if (!defined($old_engine) ||
-		    $old_engine ne $json->{'id'}{'name'} ||
+		    $old_engine ne $json->{'engine'}{'name'} ||
 		    $new_depth > $old_depth ||
 		    ($new_depth == $old_depth && $new_nodes >= $old_nodes)) {
 			atomic_set_contents($filename, $encoded);
@@ -884,7 +896,7 @@ sub output_json {
 				$dbh->do('DELETE FROM scores WHERE id=?', undef, $id);
 				$dbh->do('INSERT INTO scores (id, plot_score, short_score, engine, depth, nodes) VALUES (?,?,?,?,?,?)', undef,
 					$id, $json->{'plot_score'}, $json->{'short_score'},
-					$json->{'id'}{'name'}, $new_depth, $new_nodes);
+					$json->{'engine'}{'name'}, $new_depth, $new_nodes);
 				$dbh->commit;
 			}
 		}

@@ -178,6 +178,9 @@ a.move:hover {
 #linenav {
 	display: none;
 }
+#lomonosov {
+	display: none;
+}
 
 #games {
 	font-size: smaller;

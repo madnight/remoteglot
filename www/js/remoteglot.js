@@ -771,6 +771,50 @@ var update_board = function(current_data, display_data) {
 		headline = 'Analysis';
 	}
 
+	// Credits, where applicable. Note that we don't want the footer to change a lot
+	// when e.g. viewing history, so if any of these changed during the game,
+	// use the current one still.
+	if (current_data['using_lomonosov']) {
+		$("#lomonosov").show();
+	} else {
+		$("#lomonosov").hide();
+	}
+
+	// Credits: The engine name/version.
+	if (current_data['engine'] && current_data['engine']['name'] !== null) {
+		$("#engineid").text(current_data['engine']['name']);
+	}
+
+	// Credits: The engine URL.
+	if (current_data['engine'] && current_data['engine']['url']) {
+		$("#engineid").attr("href", current_data['engine']['url']);
+	} else {
+		$("#engineid").removeAttr("href");
+	}
+
+	// Credits: Engine details.
+	if (current_data['engine'] && current_data['engine']['details']) {
+		$("#enginedetails").text(" (" + current_data['engine']['details'] + ")");
+	} else {
+		$("#enginedetails").text("");
+	}
+
+	// Credits: Move source, possibly with URL.
+	if (current_data['move_source'] && current_data['move_source_url']) {
+		$("#movesource").text("Moves provided by ");
+		var movesource_a = document.createElement("a");
+		movesource_a.setAttribute("href", current_data['move_source_url']);
+		var movesource_text = document.createTextNode(current_data['move_source']);
+		movesource_a.appendChild(movesource_text);
+		var movesource_period = document.createTextNode(".");
+		document.getElementById("movesource").appendChild(movesource_a);
+		document.getElementById("movesource").appendChild(movesource_period);
+	} else if (current_data['move_source']) {
+		$("#movesource").text("Moves provided by " + current_data['move_source'] + ".");
+	} else {
+		$("#movesource").text("");
+	}
+
 	var last_move;
 	if (display_data) {
 		// Displaying some non-current position, pick out the last move
@@ -838,11 +882,6 @@ var update_board = function(current_data, display_data) {
 	}
 
 	update_clock();
-
-	// The engine id.
-	if (data['id'] && data['id']['name'] !== null) {
-		$("#engineid").text(data['id']['name']);
-	}
 
 	// The score.
 	if (data['score'] !== null) {
