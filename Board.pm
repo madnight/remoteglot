@@ -177,23 +177,26 @@ sub parse_pretty_move {
 	}
 
 	$move =~ /^([KQRBN])?([a-h])?([1-8])?x?([a-h][1-8])$/ or die "Invalid move $move";
-	my $piece = $1 // 'P';
+	my $piece = $1;
 	my $from_col = defined($2) ? _col_letter_to_num($2) : undef;
 	my $from_row = defined($3) ? _row_letter_to_num($3) : undef;
+	if (!defined($piece) && (!defined($from_col) || !defined($from_row))) {
+		$piece = 'P';
+	}
 	my ($to_row, $to_col) = _square_to_pos($4);
 	
 	# Find all possible from-squares that could have been meant.
 	my @squares = ();
 	my $side = 'K';
 	if ($toplay eq 'B') {
-		$piece = lc($piece);
+		$piece = lc($piece) if defined($piece);
 		$side = 'k';
 	}
 	for my $row (0..7) {
 		next if (defined($from_row) && $from_row != $row);
 		for my $col (0..7) {
 			next if (defined($from_col) && $from_col != $col);
-			next if ($board->[$row][$col] ne $piece);
+			next if (defined($piece) && $board->[$row][$col] ne $piece);
 			push @squares, [ $row, $col ];
 		}
 	}
