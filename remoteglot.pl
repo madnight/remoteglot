@@ -289,13 +289,19 @@ sub handle_pgn {
 			my $pos = Position->start_pos($pgn->white, $pgn->black);
 			my $moves = $pgn->moves;
 			my @uci_moves = ();
+			my @repretty_moves = ();
 			for my $move (@$moves) {
-				my $uci_move;
-				($pos, $uci_move) = $pos->make_pretty_move($move);
+				my ($npos, $uci_move) = $pos->make_pretty_move($move);
 				push @uci_moves, $uci_move;
+
+				# Re-prettyprint the move.
+				my ($from_col, $from_row, $to_col, $to_row, $promo) = parse_uci_move($uci_move);
+				my ($pretty, undef) = $pos->{'board'}->prettyprint_move($from_row, $from_col, $to_row, $to_col, $promo);
+				push @repretty_moves, $pretty;
+				$pos = $npos;
 			}
 			$pos->{'result'} = $pgn->result;
-			$pos->{'pretty_history'} = $moves;
+			$pos->{'pretty_history'} = \@repretty_moves;
 
 			extract_clock($pgn, $pos);
 
