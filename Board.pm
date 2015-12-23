@@ -387,6 +387,20 @@ sub can_reach {
 	return 0;
 }
 
+# Like can_reach, but also checks the move doesn't put the side in check.
+# We use this in prettyprint_move to reduce the disambiguation, because Chess.js
+# needs moves to be in minimally disambiguated form.
+sub can_legally_reach {
+	my ($board, $piece, $from_row, $from_col, $to_row, $to_col) = @_;
+
+	return 0 if (!can_reach($board, $piece, $from_row, $from_col, $to_row, $to_col));
+
+	my $nb = $board->make_move($from_row, $from_col, $to_row, $to_col);
+	my $side = ($piece eq lc($piece)) ? 'k' : 'K';
+
+	return !in_check($nb, $side);
+}
+
 my %pieces_against_side = (
 	k => { K => 1, Q => 1, R => 1, N => 1, B => 1, P => 1 },
 	K => { k => 1, q => 1, r => 1, n => 1, b => 1, p => 1 },
@@ -544,7 +558,7 @@ sub _prettyprint_move_no_check_or_mate {
 	for my $col (0..7) {
 		for my $row (0..7) {
 			next unless ($board->[$row][$col] eq $piece);
-			++$num_total if ($board->can_reach($piece, $row, $col, $to_row, $to_col));
+			++$num_total if ($board->can_legally_reach($piece, $row, $col, $to_row, $to_col));
 		}
 	}
 
@@ -552,14 +566,14 @@ sub _prettyprint_move_no_check_or_mate {
 	my $num_row = 0;
 	for my $col (0..7) {
 		next unless ($board->[$from_row][$col] eq $piece);
-		++$num_row if ($board->can_reach($piece, $from_row, $col, $to_row, $to_col));
+		++$num_row if ($board->can_legally_reach($piece, $from_row, $col, $to_row, $to_col));
 	}
 
 	# and same for columns
 	my $num_col = 0;
 	for my $row (0..7) {
 		next unless ($board->[$row][$from_col] eq $piece);
-		++$num_col if ($board->can_reach($piece, $row, $from_col, $to_row, $to_col));
+		++$num_col if ($board->can_legally_reach($piece, $row, $from_col, $to_row, $to_col));
 	}
 
 	# see if we need to disambiguate
