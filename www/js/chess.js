@@ -1,6 +1,6 @@
 'use strict';
 /*
- * Copyright (c) 2014, Jeff Hlywa (jhlywa@gmail.com)
+ * Copyright (c) 2015, Jeff Hlywa (jhlywa@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,12 +28,12 @@
 
 /* minified license below  */
 
-/*! Copyright (c) 2014, Jeff Hlywa (jhlywa@gmail.com)
- *  Released under the BSD license
- *  https://github.com/jhlywa/chess.js/blob/master/LICENSE
+/* @license
+ * Copyright (c) 2015, Jeff Hlywa (jhlywa@gmail.com)
+ * Released under the BSD license
+ * https://github.com/jhlywa/chess.js/blob/master/LICENSE
  */
 
-/** @constructor */
 var Chess = function(fen) {
 
   /* jshint indent: false */
@@ -194,7 +194,6 @@ var Chess = function(fen) {
     var tokens = fen.split(/\s+/);
     var position = tokens[0];
     var square = 0;
-    var valid = SYMBOLS + '12345678/';
 
     if (!validate_fen(fen).valid) {
       return false;
@@ -523,15 +522,15 @@ var Chess = function(fen) {
             add_move(board, moves, i, square, BITS.NORMAL);
 
           /* double square */
-          square = i + PAWN_OFFSETS[us][1];
+          var square = i + PAWN_OFFSETS[us][1];
           if (second_rank[us] === rank(i) && board[square] == null) {
             add_move(board, moves, i, square, BITS.BIG_PAWN);
           }
         }
 
         /* pawn captures */
-        for (var j = 2; j < 4; j++) {
-          square = i + PAWN_OFFSETS[us][j];
+        for (j = 2; j < 4; j++) {
+          var square = i + PAWN_OFFSETS[us][j];
           if (square & 0x88) continue;
 
           if (board[square] != null &&
@@ -1336,11 +1335,12 @@ var Chess = function(fen) {
        * coordinates
       */
       function move_from_san(move) {
+        /* strip off any move decorations: e.g Nf3+?! */
+        var move_replaced = move.replace(/=/,'').replace(/[+#]?[?!]*$/,'');
         var moves = generate_moves();
         for (var i = 0, len = moves.length; i < len; i++) {
-          /* strip off any trailing move decorations: e.g Nf3+?! */
-          if (move.replace(/[+#?!=]+$/,'') ==
-              move_to_san(moves[i]).replace(/[+#?!=]+$/,'')) {
+          if (move_replaced ===
+              move_to_san(moves[i]).replace(/=/,'').replace(/[+#]?[?!]*$/,'')) {
             return moves[i];
           }
         }
@@ -1402,15 +1402,31 @@ var Chess = function(fen) {
         set_header([key, headers[key]]);
       }
 
+      /* load the starting position indicated by [Setup '1'] and
+      * [FEN position] */
+      if (headers['SetUp'] === '1') {
+          if (!(('FEN' in headers) && load(headers['FEN']))) {
+            return false;
+          }
+      }
+
       /* delete header to get the moves */
       var ms = pgn.replace(header_string, '').replace(new RegExp(mask(newline_char), 'g'), ' ');
 
       /* delete comments */
       ms = ms.replace(/(\{[^}]+\})+?/g, '');
 
+      /* delete recursive annotation variations */
+      var rav_regex = /(\([^\(\)]+\))+?/g
+      while (rav_regex.test(ms)) {
+        ms = ms.replace(rav_regex, '');
+      }
+
       /* delete move numbers */
       ms = ms.replace(/\d+\./g, '');
 
+      /* delete ... indicating black to move */
+      ms = ms.replace(/\.\.\./g, '');
 
       /* trim and get array of moves */
       var moves = trim(ms).split(new RegExp(/\s+/));
@@ -1477,8 +1493,11 @@ var Chess = function(fen) {
 
       if (typeof move === 'string') {
         /* convert the move string to a move object */
+        /* strip off any move decorations: e.g Nf3+?! */
+        var move_replaced = move.replace(/=/,'').replace(/[+#]?[?!]*$/,'');
         for (var i = 0, len = moves.length; i < len; i++) {
-          if (move === move_to_san(moves[i])) {
+          if (move_replaced ===
+              move_to_san(moves[i]).replace(/=/,'').replace(/[+#]?[?!]*$/,'')) {
             move_obj = moves[i];
             break;
           }
@@ -1570,3 +1589,9 @@ var Chess = function(fen) {
 
   };
 };
+
+/* export Chess object if using node or any other CommonJS compatible
+ * environment */
+if (typeof exports !== 'undefined') exports.Chess = Chess;
+/* export Chess object for any RequireJS compatible environment */
+if (typeof define !== 'undefined') define( function () { return Chess;  });
