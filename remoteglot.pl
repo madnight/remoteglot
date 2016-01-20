@@ -898,12 +898,16 @@ sub output_json {
 		    ($new_depth == $old_depth && $new_nodes >= $old_nodes)) {
 			atomic_set_contents($filename, $encoded);
 			if (defined($json->{'plot_score'})) {
-				local $dbh->{AutoCommit} = 0;
-				$dbh->do('DELETE FROM scores WHERE id=?', undef, $id);
-				$dbh->do('INSERT INTO scores (id, plot_score, short_score, engine, depth, nodes) VALUES (?,?,?,?,?,?)', undef,
+				$dbh->do('INSERT INTO scores (id, plot_score, short_score, engine, depth, nodes) VALUES (?,?,?,?,?,?) ' .
+				         '    ON CONFLICT (id) DO UPDATE SET ' .
+				         '        plot_score=EXCLUDED.plot_score, ' .
+					 '        short_score=EXCLUDED.short_score, ' .
+					 '        engine=EXCLUDED.engine, ' .
+					 '        depth=EXCLUDED.depth, ' .
+					 '        nodes=EXCLUDED.nodes',
+					undef,
 					$id, $json->{'plot_score'}, $json->{'short_score'},
 					$json->{'engine'}{'name'}, $new_depth, $new_nodes);
-				$dbh->commit;
 			}
 		}
 	}
