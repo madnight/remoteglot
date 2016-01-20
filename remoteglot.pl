@@ -275,8 +275,12 @@ sub handle_pgn {
 	}
 
 	my $pgn = Chess::PGN::Parse->new(undef, $body);
-	if (!defined($pgn) || !$pgn->read_game() || $body !~ /^\[/) {
-		warn "Error in parsing PGN from $url\n";
+	if (!defined($pgn)) {
+		warn "Error in parsing PGN from $url [body='$body']\n";
+	} elsif (!$pgn->read_game()) {
+		warn "Error in reading PGN game from $url [body='$body']\n";
+	} elsif ($body !~ /^\[/) {
+		warn "Malformed PGN from $url [body='$body']\n";
 	} else {
 		eval {
 			# Skip to the right game.
