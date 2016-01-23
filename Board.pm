@@ -514,22 +514,22 @@ sub _prettyprint_move_no_check_or_mate {
 
 	# white short castling
 	if ($move eq 'e1g1' && $piece eq 'K') {
-		return '0-0';
+		return 'O-O';
 	}
 
 	# white long castling
 	if ($move eq 'e1c1' && $piece eq 'K') {
-		return '0-0-0';
+		return 'O-O-O';
 	}
 
 	# black short castling
 	if ($move eq 'e8g8' && $piece eq 'k') {
-		return '0-0';
+		return 'O-O';
 	}
 
 	# black long castling
 	if ($move eq 'e8c8' && $piece eq 'k') {
-		return '0-0-0';
+		return 'O-O-O';
 	}
 
 	my $pretty;
