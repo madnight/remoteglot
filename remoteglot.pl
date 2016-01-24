@@ -67,6 +67,7 @@ select(TBLOG);
 $| = 1;
 
 select(STDOUT);
+umask 0022;
 
 # open the chess engine
 my $engine = open_engine($remoteglotconf::engine_cmdline, 'E1', sub { handle_uci(@_, 1); });
