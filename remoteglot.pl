@@ -594,6 +594,8 @@ sub output {
 		for my $key (qw(pv score_cp score_mate nodes nps depth seldepth tbhits)) {
 			if (exists($info->{$key . '1'})) {
 				$info->{$key} = $info->{$key . '1'};
+			} else {
+				delete $info->{$key};
 			}
 		}
 	}
