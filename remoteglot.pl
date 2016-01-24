@@ -300,7 +300,7 @@ sub handle_pgn {
 				push @uci_moves, $uci_move;
 
 				# Re-prettyprint the move.
-				my ($from_col, $from_row, $to_col, $to_row, $promo) = parse_uci_move($uci_move);
+				my ($from_row, $from_col, $to_row, $to_col, $promo) = parse_uci_move($uci_move);
 				my ($pretty, undef) = $pos->{'board'}->prettyprint_move($from_row, $from_col, $to_row, $to_col, $promo);
 				push @repretty_moves, $pretty;
 				$pos = $npos;
@@ -512,7 +512,7 @@ sub prettyprint_pv_no_cache {
 	}
 
 	my $pv = shift @pvs;
-	my ($from_col, $from_row, $to_col, $to_row, $promo) = parse_uci_move($pv);
+	my ($from_row, $from_col, $to_row, $to_col, $promo) = parse_uci_move($pv);
 	my ($pretty, $nb) = $board->prettyprint_move($from_row, $from_col, $to_row, $to_col, $promo);
 	return ( $pretty, prettyprint_pv_no_cache($nb, @pvs) );
 }
@@ -1344,5 +1344,5 @@ sub parse_uci_move {
 	my $to_col   = col_letter_to_num(substr($move, 2, 1));
 	my $to_row   = row_letter_to_num(substr($move, 3, 1));
 	my $promo    = substr($move, 4, 1);
-	return ($from_col, $from_row, $to_col, $to_row, $promo);
+	return ($from_row, $from_col, $to_row, $to_col, $promo);
 }
