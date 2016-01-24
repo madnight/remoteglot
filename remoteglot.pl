@@ -530,6 +530,61 @@ sub prettyprint_pv {
 	}
 }
 
+sub complete_using_tbprobe {
+	my ($pos, $info, $mpv) = @_;
+
+	# We need Fathom installed to do standalone TB probes.
+	return if (!defined($remoteglotconf::fathom_cmdline));
+
+	# If we already have a mate, don't bother; in some cases, it would even be
+	# better than a tablebase score.
+	return if defined($info->{'score_mate' . $mpv});
+
+	# If we have a draw or near-draw score, there's also not much interesting
+	# we could add from a tablebase. We only really want mates.
+	return if ($info->{'score_cp' . $mpv} >= -12250 && $info->{'score_cp' . $mpv} <= 12250);
+
+	# Run through the PV until we are at a 6-man position.
+	# TODO: We could in theory only have 5-man data.
+	my @pv = @{$info->{'pv' . $mpv}};
+	my $key = join('', @pv);
+	my @moves = ();
+	if (exists($pos->{'tbprobe_cache'}{$key})) {
+		@moves = $pos->{'tbprobe_cache'}{$key};
+	} else {
+		while ($pos->num_pieces() > 6 && $#pv > -1) {
+			my $move = shift @pv;
+			push @moves, $move;
+			$pos = $pos->make_move(parse_uci_move($move));
+		}
+
+		return if ($pos->num_pieces() > 6);
+
+		my $fen = $pos->fen();
+		my $pgn_text = `fathom --path=/srv/syzygy "$fen"`;
+		my $pgn = Chess::PGN::Parse->new(undef, $pgn_text);
+		return if (!defined($pgn) || !$pgn->read_game() || ($pgn->result ne '0-1' && $pgn->result ne '1-0'));
+		$pgn->quick_parse_game;
+		$info->{'pv' . $mpv} = \@moves;
+
+		# Splice the PV from the tablebase onto what we have so far.
+		for my $move (@{$pgn->moves}) {
+			my $uci_move;
+			($pos, $uci_move) = $pos->make_pretty_move($move);
+			push @moves, $uci_move;
+		}
+	}
+
+	$info->{'pv' . $mpv} = \@moves;
+
+	my $matelen = int((1 + scalar @moves) / 2);
+	if ((scalar @moves) % 2 == 0) {
+		$info->{'score_mate' . $mpv} = -$matelen;
+	} else {
+		$info->{'score_mate' . $mpv} = $matelen;
+	}
+}
+
 sub output {
 	#return;
 
@@ -622,6 +677,17 @@ sub output {
 		return;
 	}
 
+	# Now do our own Syzygy tablebase probes to convert scores like +123.45 to mate.
+	if (exists($info->{'pv'})) {
+		complete_using_tbprobe($pos_calculating, $info, '');
+	}
+
+	my $mpv = 1;
+	while (exists($info->{'pv' . $mpv})) {
+		complete_using_tbprobe($pos_calculating, $info, $mpv);
+		++$mpv;
+	}
+
 	output_screen();
 	output_json(0);
 	$latest_update = [Time::HiRes::gettimeofday];
@@ -710,8 +776,8 @@ sub output_screen {
 			my $info = $engine2->{'info'};
 			last if (!exists($info->{'pv' . $mpv}));
 			eval {
+				complete_using_tbprobe($pos_calculating_second_engine, $info, $mpv);
 				my $pv = $info->{'pv' . $mpv};
-
 				my $pretty_move = join('', prettyprint_pv($pos_calculating_second_engine, $pv->[0]));
 				my @pretty_pv = prettyprint_pv($pos_calculating_second_engine, @$pv);
 				if (scalar @pretty_pv > 5) {
@@ -788,6 +854,7 @@ sub output_json {
 			last if (!exists($info->{'pv' . $mpv}));
 
 			eval {
+				complete_using_tbprobe($pos_calculating, $info, $mpv);
 				my $pv = $info->{'pv' . $mpv};
 				my $pretty_move = join('', prettyprint_pv($pos_calculating, $pv->[0]));
 				my @pretty_pv = prettyprint_pv($pos_calculating, @$pv);

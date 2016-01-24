@@ -38,6 +38,7 @@ sub new {
 	}
 	$pos->{'last_move'} = $x[29];
 	$pos->{'prettyprint_cache'} = {};
+	$pos->{'tbprobe_cache'} = {};
 
 	bless $pos, $class;
 	return $pos;
@@ -78,6 +79,7 @@ sub from_fen {
 	$pos->{'last_move_uci'} = undef;
 	$pos->{'last_move'} = undef;
 	$pos->{'prettyprint_cache'} = {};
+	$pos->{'tbprobe_cache'} = {};
 	
 	bless $pos, $class;
 	return $pos;
@@ -164,6 +166,7 @@ sub to_json_hash {
 	my $json = { %$pos, fen => $pos->fen() };
 	delete $json->{'board'};
 	delete $json->{'prettyprint_cache'};
+	delete $json->{'tbprobe_cache'};
 	delete $json->{'black_castle_k'};
 	delete $json->{'black_castle_q'};
 	delete $json->{'white_castle_k'};
