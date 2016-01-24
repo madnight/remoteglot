@@ -541,12 +541,12 @@ sub _prettyprint_move_no_check_or_mate {
 			$pretty = substr($move, 0, 1) . 'x' . _pos_to_square($to_row, $to_col);
 		} else {
 			$pretty = _pos_to_square($to_row, $to_col);
+		}
 
-			if (defined($promo) && $promo ne '') {
-				# promotion
-				$pretty .= "=";
-				$pretty .= uc($promo);
-			}
+		if (defined($promo) && $promo ne '') {
+			# promotion
+			$pretty .= "=";
+			$pretty .= uc($promo);
 		}
 		return $pretty;
 	}
