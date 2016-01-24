@@ -139,7 +139,7 @@ var reread_file = function(event, filename) {
 	json_lock = 1;
 
 	console.log("Rereading " + json_filename);
-	fs.open(json_filename, 'r+', function(err, fd) {
+	fs.open(json_filename, 'r', function(err, fd) {
 		if (err) throw err;
 		fs.fstat(fd, function(err, st) {
 			if (err) throw err;
