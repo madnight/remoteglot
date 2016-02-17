@@ -5,7 +5,7 @@
 #              analysis, or for live analysis of relayed games. (Do not use for
 #              cheating! Cheating is bad for your karma, and your abuser flag.)
 #
-# Copyright 2007 Steinar H. Gunderson <sgunderson@bigfoot.com>
+# Copyright 2007 Steinar H. Gunderson <steinar+remoteglot@gunderson.no>
 # Licensed under the GNU General Public License, version 2.
 #
 
