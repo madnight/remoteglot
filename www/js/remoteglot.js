@@ -123,7 +123,13 @@ var fen = null;
  * }} DisplayLine
  */
 
-/** @type {Array.<DisplayLine>}
+/** All PVs that we currently know of.
+ *
+ * Element 0 is history (or null if no history).
+ * Element 1 is current main PV.
+ * All remaining elements are refutation lines (multi-PV).
+ *
+ * @type {Array.<DisplayLine>}
  * @private
  */
 var display_lines = [];
