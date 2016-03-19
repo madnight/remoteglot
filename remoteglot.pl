@@ -861,7 +861,7 @@ sub output_json {
 				$refutation_lines{$pv->[0]} = {
 					sort_key => $pretty_move,
 					depth => $info->{'depth' . $mpv},
-					score_sort_key => score_sort_key($info, $pos_calculating, $mpv, 0),
+					score_sort_key => score_sort_key($info, $mpv, 0),
 					pretty_score => short_score($info, $pos_calculating, $mpv),
 					pretty_move => $pretty_move,
 					pv_pretty => \@pretty_pv,
@@ -1052,7 +1052,7 @@ sub short_score {
 }
 
 sub score_sort_key {
-	my ($info, $pos, $mpv, $invert) = @_;
+	my ($info, $mpv, $invert) = @_;
 
 	if (defined($info->{'score_mate' . $mpv})) {
 		my $mate = $info->{'score_mate' . $mpv};
