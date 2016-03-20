@@ -20,6 +20,9 @@ var backend_url = "/analysis.pl";
 /** @type {window.ChessBoard} @private */
 var board = null;
 
+/** @type {boolean} @private */
+var board_is_animating = false;
+
 /**
  * The most recent analysis data we have from the server
  * (about the most recent position).
@@ -1489,7 +1492,10 @@ var update_displayed_line = function() {
 	}
 
 	var hiddenboard = chess_from(current_display_line.start_fen, current_display_line.pretty_pv, current_display_move);
+	board_is_animating = true;
+	var old_fen = board.fen();
 	board.position(hiddenboard.fen());
+	if (board.fen() === old_fen) board_is_animating = false;
 	update_imbalance(hiddenboard.fen());
 }
 
@@ -1567,7 +1573,9 @@ var init = function() {
 	}
 
 	// Create board.
-	board = new window.ChessBoard('board', 'start');
+	board = new window.ChessBoard('board', {
+		onMoveEnd: function() { board_is_animating = false; }
+	});
 
 	request_update();
 	$(window).resize(function() {
