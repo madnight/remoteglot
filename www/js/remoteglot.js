@@ -942,6 +942,7 @@ var update_board = function(current_data, display_data) {
 		update_refutation_lines();
 		clear_arrows();
 		update_displayed_line();
+		update_move_highlight();
 		return;
 	}
 
@@ -976,6 +977,7 @@ var update_board = function(current_data, display_data) {
 	// Update the board itself.
 	fen = data['position']['fen'];
 	update_displayed_line();
+	update_move_highlight();
 
 	// Print the PV.
 	$("#pv").html(add_pv(data['position']['fen'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay']));
@@ -1353,6 +1355,7 @@ var prev_move = function() {
 	}
 	update_historic_analysis();
 	update_displayed_line();
+	update_move_highlight();
 }
 window['prev_move'] = prev_move;
 
@@ -1362,6 +1365,7 @@ var next_move = function() {
 	}
 	update_historic_analysis();
 	update_displayed_line();
+	update_move_highlight();
 }
 window['next_move'] = next_move;
 
@@ -1430,10 +1434,19 @@ var update_imbalance = function(fen) {
 	$('#blackimbalance').html(black_imbalance);
 }
 
-var update_displayed_line = function() {
+/** Mark the currently selected move in red.
+ */
+var update_move_highlight = function() {
 	if (highlighted_move !== null) {
 		highlighted_move.removeClass('highlight'); 
 	}
+	if (current_display_line !== null) {
+		highlighted_move = $("#automove" + current_display_line.line_number + "-" + current_display_move);
+		highlighted_move.addClass('highlight'); 
+	}
+}
+
+var update_displayed_line = function() {
 	if (current_display_line === null) {
 		$("#linenav").hide();
 		$("#linemsg").show();
@@ -1455,9 +1468,6 @@ var update_displayed_line = function() {
 	} else {
 		$("#nextmove").html("<a href=\"javascript:next_move();\">Next</a></span>");
 	}
-
-	highlighted_move = $("#automove" + current_display_line.line_number + "-" + current_display_move);
-	highlighted_move.addClass('highlight'); 
 
 	var hiddenboard = chess_from(current_display_line.start_fen, current_display_line.pretty_pv, current_display_move);
 	board.position(hiddenboard.fen());
