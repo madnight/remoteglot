@@ -655,11 +655,16 @@ var collapse_history = function(truncate_history) {
 }
 window['collapse_history'] = collapse_history;
 
+/** Update the HTML display of multi-PV from the global "refutation_lines".
+ *
+ * Also recreates the global "display_lines".
+ */
 var update_refutation_lines = function() {
 	if (fen === null) {
 		return;
 	}
 	if (display_lines.length > 2) {
+		// Truncate so that only the history and PV is left.
 		display_lines = [ display_lines[0], display_lines[1] ];
 	}
 
@@ -716,6 +721,9 @@ var update_refutation_lines = function() {
 }
 
 /**
+ * Create a Chess.js board object, containing the given position plus the given moves,
+ * up to the given limit.
+ *
  * @param {?string} fen
  * @param {Array.<string>} moves
  * @param {number} last_move
