@@ -1773,6 +1773,15 @@ var get_best_move = function(game, source, target) {
 		move_hash[moves[i].san] = moves[i];
 	}
 
+	// History and PV take priority over the display lines.
+	for (var i = 0; i < 2; ++i) {
+		var line = display_lines[i];
+		var first_move = line.pretty_pv[line.start_display_move_num];
+		if (move_hash[first_move]) {
+			return move_hash[first_move];
+		}
+	}
+
 	var best_move = null;
 	var best_move_score = null;
 
