@@ -7,7 +7,14 @@ var hashprobe_proto = grpc.load(PROTO_PATH).hashprobe;
 // TODO: Make destination configurable.
 var client = new hashprobe_proto.HashProbe('localhost:50051', grpc.credentials.createInsecure());
 
+var board = new Chess();
+
 var handle_request = function(fen, response) {
+	if (!board.validate_fen(fen).valid) {
+		response.writeHead(400, {});
+		response.end();
+		return;
+	}
 	client.probe({fen: fen}, function(err, probe_response) {
 		if (err) {
 			response.writeHead(500, {});
@@ -20,8 +27,6 @@ var handle_request = function(fen, response) {
 exports.handle_request = handle_request;
 
 var handle_response = function(fen, response, probe_response) {
-	var board = new Chess();
-
 	var lines = {};
 
 	var root = translate_line(board, fen, probe_response['root'], true);
