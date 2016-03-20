@@ -218,7 +218,7 @@ var request_update = function() {
 
 		possibly_play_sound(current_analysis_data, new_data);
 		current_analysis_data = new_data;
-		update_board(current_analysis_data, displayed_analysis_data);
+		update_board();
 		update_num_viewers(num_viewers);
 
 		// Next update.
@@ -795,12 +795,11 @@ var possibly_switch_game_from_hash = function() {
 	}
 }
 
-/**
- * @param {Object} data
- * @param {?Object} display_data
+/** Update all the HTML on the page, based on current global state.
  */
-var update_board = function(current_data, display_data) {
-	var data = display_data || current_data;
+var update_board = function() {
+	var data = displayed_analysis_data || current_analysis_data;
+	var current_data = current_analysis_data;  // Convenience alias.
 
 	display_lines = [];
 
@@ -880,7 +879,7 @@ var update_board = function(current_data, display_data) {
 	}
 
 	var last_move;
-	if (display_data) {
+	if (displayed_analysis_data) {
 		// Displaying some non-current position, pick out the last move
 		// from the history. This will work even if the fetch failed.
 		last_move = format_halfmove_with_number(
@@ -1334,7 +1333,7 @@ var show_line = function(line_num, move_num) {
 			// TODO: Support exiting to history position if we are in an
 			// analysis line of a history position.
 			displayed_analysis_data = null;
-			update_board(current_analysis_data, displayed_analysis_data);
+			update_board();
 		}
 	} else {
 		current_display_line = display_lines[line_num];
@@ -1375,7 +1374,7 @@ var update_historic_analysis = function() {
 	}
 	if (current_display_move == current_display_line.pretty_pv.length - 1) {
 		displayed_analysis_data = null;
-		update_board(current_analysis_data, displayed_analysis_data);
+		update_board();
 	}
 
 	// Fetch old analysis for this line if it exists.
@@ -1387,14 +1386,14 @@ var update_historic_analysis = function() {
 		url: filename
 	}).done(function(data, textstatus, xhr) {
 		displayed_analysis_data = data;
-		update_board(current_analysis_data, displayed_analysis_data);
+		update_board();
 	}).fail(function(jqXHR, textStatus, errorThrown) {
 		if (textStatus === "abort") {
 			// Aborted because we are switching backends. Don't do anything;
 			// we will already have been cleared.
 		} else {
 			displayed_analysis_data = {'failed': true};
-			update_board(current_analysis_data, displayed_analysis_data);
+			update_board();
 		}
 	});
 }
