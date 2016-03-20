@@ -562,30 +562,35 @@ var thousands = function(x) {
 }
 
 /**
- * @param {!string} fen
+ * @param {!string} start_fen
  * @param {Array.<string>} pretty_pv
  * @param {number} move_num
  * @param {!string} toplay
  * @param {number=} opt_limit
  * @param {boolean=} opt_showlast
  */
-var add_pv = function(fen, pretty_pv, move_num, toplay, opt_limit, opt_showlast) {
+var add_pv = function(start_fen, pretty_pv, move_num, toplay, start_display_move_num, opt_limit, opt_showlast) {
 	display_lines.push({
-		start_fen: fen,
+		start_fen: start_fen,
 		pretty_pv: pretty_pv,
+		move_num: parseInt(move_num),
+		toplay: toplay,
+		start_display_move_num: start_display_move_num,
 	});
-	return print_pv(display_lines.length - 1, pretty_pv, move_num, toplay, opt_limit, opt_showlast);
+	return print_pv(display_lines.length - 1, opt_limit, opt_showlast);
 }
 
 /**
  * @param {number} line_num
- * @param {Array.<string>} pretty_pv
- * @param {number} move_num
- * @param {!string} toplay
  * @param {number=} opt_limit
  * @param {boolean=} opt_showlast
  */
-var print_pv = function(line_num, pretty_pv, move_num, toplay, opt_limit, opt_showlast) {
+var print_pv = function(line_num, opt_limit, opt_showlast) {
+	var display_line = display_lines[line_num];
+	var pretty_pv = display_line.pretty_pv;
+	var move_num = display_line.move_num;
+	var toplay = display_line.toplay;
+
 	var pv = '';
 	var i = 0;
 	if (opt_limit && opt_showlast && pretty_pv.length > opt_limit) {
@@ -643,11 +648,11 @@ var update_history = function() {
 	if (display_lines[0] === null || display_lines[0].pretty_pv.length == 0) {
 		$("#history").html("No history");
 	} else if (truncate_display_history) {
-		$("#history").html(print_pv(0, display_lines[0].pretty_pv, 1, 'W', 8, true));
+		$("#history").html(print_pv(0, 8, true));
 	} else {
 		$("#history").html(
 			'(<a class="move" href="javascript:collapse_history(true)">collapse</a>) ' +
-			print_pv(0, display_lines[0].pretty_pv, 1, 'W'));
+			print_pv(0, 1, 'W'));
 	}
 }
 
