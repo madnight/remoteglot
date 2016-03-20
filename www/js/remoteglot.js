@@ -108,6 +108,19 @@ var highlight_to = undefined;
  * @private */
 var highlighted_move = null;
 
+/** Currently suggested/recommended move when dragging.
+ * @type {?{from: !string, to: !string}}
+ * @private
+ */
+var recommended_move = null;
+
+/** If reverse-dragging (dragging from the destination square to the
+ * source square), the destination square.
+ * @type {?string}
+ * @private
+ */
+var reverse_dragging_from = null;
+
 /** @type {?number} @private */
 var unique = null;
 
@@ -500,7 +513,7 @@ var position_arrow = function(arrow) {
 	head.setAttribute("fill", arrow.fg_color);
 	svg.appendChild(head);
 
-	$(svg).css({ top: pos.top, left: pos.left });
+	$(svg).css({ top: pos.top, left: pos.left, 'pointer-events': 'none' });
 	document.body.appendChild(svg);
 	arrow.svg = svg;
 }
@@ -1680,6 +1693,165 @@ var show_explore_hash_results = function(data, fen) {
 	update_board();
 }
 
+// almost all of this stuff comes from the chessboard.js example page
+var onDragStart = function(source, piece, position, orientation) {
+	var pseudogame = new Chess(display_fen);
+	if (pseudogame.game_over() === true ||
+	    (pseudogame.turn() === 'w' && piece.search(/^b/) !== -1) ||
+	    (pseudogame.turn() === 'b' && piece.search(/^w/) !== -1)) {
+		return false;
+	}
+
+	recommended_move = get_best_move(pseudogame, source, null);
+	if (recommended_move) {
+		var squareEl = $('#board .square-' + recommended_move.to);
+		squareEl.addClass('highlight1-32417');
+	}
+	return true;
+}
+
+var mousedownSquare = function(e) {
+	reverse_dragging_from = null;
+	var square = $(this).attr('data-square');
+
+	var pseudogame = new Chess(display_fen);
+	if (pseudogame.game_over() === true) {
+		return;
+	}
+
+	// If the square is empty, or has a piece of the side not to move,
+	// we handle it. If not, normal piece dragging will take it.
+	var position = board.position();
+	if (!position.hasOwnProperty(square) ||
+	    (pseudogame.turn() === 'w' && position[square].search(/^b/) !== -1) ||
+	    (pseudogame.turn() === 'b' && position[square].search(/^w/) !== -1)) {
+		reverse_dragging_from = square;
+		recommended_move = get_best_move(pseudogame, null, square);
+		if (recommended_move) {
+			var squareEl = $('#board .square-' + recommended_move.from);
+			squareEl.addClass('highlight1-32417');
+			squareEl = $('#board .square-' + recommended_move.to);
+			squareEl.addClass('highlight1-32417');
+		}
+	}
+}
+
+var mouseupSquare = function(e) {
+	if (reverse_dragging_from === null) {
+		return;
+	}
+	var source = $(this).attr('data-square');
+	var target = reverse_dragging_from;
+	reverse_dragging_from = null;
+	if (onDrop(source, target) !== 'snapback') {
+		onSnapEnd(source, target);
+	}
+	$("#board").find('.square-55d63').removeClass('highlight1-32417');
+}
+
+var get_best_move = function(game, source, target) {
+	var moves = game.moves({ verbose: true });
+	if (source !== null) {
+		moves = moves.filter(function(move) { return move.from == source; });
+	}
+	if (target !== null) {
+		moves = moves.filter(function(move) { return move.to == target; });
+	}
+	if (moves.length == 0) {
+		return null;
+	}
+	if (moves.length == 1) {
+		return moves[0];
+	}
+
+	// More than one move. Use the display lines (if we have them)
+	// to disambiguate; otherwise, we have no information.
+	var move_hash = {};
+	for (var i = 0; i < moves.length; ++i) {
+		move_hash[moves[i].san] = moves[i];
+	}
+
+	var best_move = null;
+	var best_move_score = null;
+
+	for (var move in refutation_lines) {
+		var line = refutation_lines[move];
+		var score = parseInt(line['score_sort_key'], 10);
+		if (score < -1000000) {  // Two zeros less than in the server (just some margin).
+			continue;
+		}
+		var first_move = line['pv_pretty'][0];
+		if (move_hash[first_move]) {
+			if (best_move_score === null || line['score_sort_key'] > best_move_score) {
+				best_move = move_hash[first_move];
+				best_move_score = line['score_sort_key'];
+			}
+		}
+	}
+	return best_move;
+}
+
+var onDrop = function(source, target) {
+	if (source === target) {
+		if (recommended_move === null) {
+			return 'snapback';
+		} else {
+			// Accept the move. It will be changed in onSnapEnd.
+			return;
+		}
+	} else {
+		// Suggestion not asked for.
+		recommended_move = null;
+	}
+
+	// see if the move is legal
+	var pseudogame = new Chess(display_fen);
+	var move = pseudogame.move({
+		from: source,
+		to: target,
+		promotion: 'q' // NOTE: always promote to a queen for example simplicity
+	});
+
+	// illegal move
+	if (move === null) return 'snapback';
+}
+
+var onSnapEnd = function(source, target) {
+	if (source === target && recommended_move !== null) {
+		source = recommended_move.from;
+		target = recommended_move.to;
+	}
+	recommended_move = null;
+	var pseudogame = new Chess(display_fen);
+	var move = pseudogame.move({
+		from: source,
+		to: target,
+		promotion: 'q' // NOTE: always promote to a queen for example simplicity
+	});
+
+	if (current_display_line &&
+	    current_display_move < current_display_line.pretty_pv.length - 1 &&
+	    current_display_line.pretty_pv[current_display_move] === move.san) {
+		next_move();
+		return;
+	}
+
+	// Walk down the displayed lines until we find one that starts with
+	// this move, then select that. Note that this gives us a good priority
+	// order (history first, then PV, then multi-PV lines).
+	for (var i = 0; i < display_lines.length; ++i) {
+		var line = display_lines[i];
+		if (line.pretty_pv[line.start_display_move_num] === move.san) {
+			show_line(i, 0);
+			return;
+		}
+	}
+
+	// Shouldn't really be here if we have hash probes, but there's really
+	// nothing we can do.
+}
+// End of dragging-related code.
+
 /**
  * @param {string} new_backend_url
  */
@@ -1736,8 +1908,15 @@ var init = function() {
 
 	// Create board.
 	board = new window.ChessBoard('board', {
-		onMoveEnd: function() { board_is_animating = false; }
+		onMoveEnd: function() { board_is_animating = false; },
+
+		draggable: true,
+		onDragStart: onDragStart,
+		onDrop: onDrop,
+		onSnapEnd: onSnapEnd
 	});
+	$("#board").on('mousedown', '.square-55d63', mousedownSquare);
+	$("#board").on('mouseup', '.square-55d63', mouseupSquare);
 
 	request_update();
 	$(window).resize(function() {
