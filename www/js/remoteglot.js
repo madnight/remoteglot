@@ -1793,9 +1793,10 @@ var get_best_move = function(game, source, target) {
 		}
 		var first_move = line['pv_pretty'][0];
 		if (move_hash[first_move]) {
-			if (best_move_score === null || line['score_sort_key'] > best_move_score) {
+			var score = parseInt(line['score_sort_key'], 10);
+			if (best_move_score === null || score > best_move_score) {
 				best_move = move_hash[first_move];
-				best_move_score = line['score_sort_key'];
+				best_move_score = score;
 			}
 		}
 	}
