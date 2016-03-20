@@ -1,0 +1,46 @@
+syntax = "proto3";
+package hashprobe;
+
+message HashProbeRequest {
+	string fen = 1;
+}
+message HashProbeResponse {
+	HashProbeLine root = 2;
+	repeated HashProbeLine line = 1;
+}
+message HashProbeLine {
+	HashProbeMove move = 1;
+	bool found = 2;
+
+	repeated HashProbeMove pv = 3;
+	HashProbeScore value = 4;  // Dynamic eval (may be inexact, see the "bound" field)
+	HashProbeScore eval = 5;  // Static eval
+	int32 depth = 6;
+
+	enum ValueBound {
+		BOUND_NONE = 0;
+		BOUND_UPPER = 1;
+		BOUND_LOWER = 2;
+		BOUND_EXACT = 3;
+	};
+	ValueBound bound = 7;
+}
+
+message HashProbeMove {
+	string from_sq = 1;  // a1, a2, etc.
+	string to_sq = 2;
+	string promotion = 3;  // Q, R, etc.
+}
+message HashProbeScore {
+	enum ScoreType {
+		SCORE_CP = 0;
+		SCORE_MATE = 1;
+	}
+	ScoreType score_type = 1;
+	int32 score_cp = 2;
+	int32 score_mate = 3;
+}
+
+service HashProbe {
+	rpc Probe(HashProbeRequest) returns (HashProbeResponse) {}
+}

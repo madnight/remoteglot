@@ -11,6 +11,7 @@ var zlib = require('zlib');
 var readline = require('readline');
 var child_process = require('child_process');
 var delta = require('./js/json_delta.js');
+var hash_lookup = require('./js/hash-lookup.js');
 
 // Constants.
 var HISTORY_TO_KEEP = 5;
@@ -23,10 +24,14 @@ if (process.argv.length >= 3) {
 	json_filename = process.argv[2];
 }
 
-// Expected destination filename.
+// Expected destination filenames.
 var serve_url = '/analysis.pl';
+var hash_serve_url = '/hash';
 if (process.argv.length >= 4) {
 	serve_url = process.argv[3];
+}
+if (process.argv.length >= 5) {
+	hash_serve_url = process.argv[4];
 }
 
 // TCP port to listen on.
@@ -320,6 +325,11 @@ server.on('request', function(request, response) {
 	var unique = (u.query)['unique'];
 
 	log(request.url);
+	if (u.pathname === hash_serve_url) {
+		var fen = (u.query)['fen'];
+		hash_lookup.handle_request(fen, response);
+		return;
+	}
 	if (u.pathname !== serve_url) {
 		// This is not the request you are looking for.
 		send_404(response);

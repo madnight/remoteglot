@@ -55,6 +55,12 @@ sub vcl_backend_response {
         if (beresp.http.content-type ~ "text" || beresp.http.content-type ~ "json") {
              set beresp.do_gzip = true;
         }
+        if (bereq.url ~ "^/hash/") {
+             set beresp.ttl = 5s;
+             set beresp.http.x-analysis = 1;
+             set beresp.http.x-analysis-backend = bereq.http.x-analysis-backend;
+             return (deliver);
+        }
         if (beresp.http.content-type ~ "json") {
              set beresp.http.x-analysis = 1;
              set beresp.http.x-analysis-backend = bereq.http.x-analysis-backend;

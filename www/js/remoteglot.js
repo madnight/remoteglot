@@ -7,7 +7,7 @@
  * @type {Number}
  * @const
  * @private */
-var SCRIPT_VERSION = 2015062104;
+var SCRIPT_VERSION = 2016032000;
 
 /**
  * The current backend URL.
@@ -16,6 +16,7 @@ var SCRIPT_VERSION = 2015062104;
  * @private
  */
 var backend_url = "/analysis.pl";
+var backend_hash_url = "/hash";
 
 /** @type {window.ChessBoard} @private */
 var board = null;
@@ -32,7 +33,7 @@ var board_is_animating = false;
 var current_analysis_data = null;
 
 /**
- * If we are displaying previous analysis, this is non-null,
+ * If we are displaying previous analysis or from hash, this is non-null,
  * and will override most of current_analysis_data.
  *
  * @type {?Object}
@@ -68,7 +69,18 @@ var arrows = [];
 /** @type {Array.<Array.<boolean>>} */
 var occupied_by_arrows = [];
 
+/** Currently displayed refutation lines (on-screen).
+ * Can either come from the current_analysis_data, displayed_analysis_data,
+ * or hash_refutation_lines.
+ */
 var refutation_lines = [];
+
+/** Refutation lines from current hash probe.
+ *
+ * If non-null, will override refutation lines from the base position.
+ * Note that these are relative to display_fen, not base_fen.
+ */
+var hash_refutation_lines = null;
 
 /** @type {!number} @private */
 var move_num = 1;
@@ -114,22 +126,35 @@ var client_clock_offset_ms = null;
 
 var clock_timer = null;
 
-/** The current position on the board, represented as a FEN string.
+/** The current position being analyzed, represented as a FEN string.
+ * Note that this is not necessarily the same as display_fen.
  * @type {?string}
  * @private
  */
-var fen = null;
+var base_fen = null;
+
+/** The current position on the board, represented as a FEN string.
+ * Note that board.fen() does not contain e.g. who is to play.
+ * @type {?string}
+ * @private
+ */
+var display_fen = null;
 
 /** @typedef {{
  *    start_fen: string,
  *    pretty_pv: Array.<string>,
+ *    move_num: number,
+ *    toplay: string,
+ *    start_display_move_num: number
  * }} DisplayLine
+ *
+ * "start_display_move_num" is the (half-)move number to start displaying the PV at.
  */
 
 /** All PVs that we currently know of.
  *
  * Element 0 is history (or null if no history).
- * Element 1 is current main PV.
+ * Element 1 is current main PV, or explored line if nowhere else on the screen.
  * All remaining elements are refutation lines (multi-PV).
  *
  * @type {Array.<DisplayLine>}
@@ -171,6 +196,23 @@ var current_analysis_request_timer = null;
  * @private
  */
 var current_historic_xhr = null;
+
+/**
+ * The current backend request to get hash probes, if any, so that we can abort it.
+ *
+ * @type {?jqXHR}
+ * @private
+ */
+var current_hash_xhr = null;
+
+/**
+ * The current timer to display hash probe information (it could be waiting on the
+ * board to stop animating), if any, so that we can abort it.
+ *
+ * @type {?Number}
+ * @private
+ */
+var current_hash_display_timer = null;
 
 var supports_html5_storage = function() {
 	try {
@@ -566,6 +608,7 @@ var thousands = function(x) {
  * @param {Array.<string>} pretty_pv
  * @param {number} move_num
  * @param {!string} toplay
+ * @param {number} start_display_move_num
  * @param {number=} opt_limit
  * @param {boolean=} opt_showlast
  */
@@ -590,6 +633,23 @@ var print_pv = function(line_num, opt_limit, opt_showlast) {
 	var pretty_pv = display_line.pretty_pv;
 	var move_num = display_line.move_num;
 	var toplay = display_line.toplay;
+
+	// Truncate PV at the start if needed.
+	var start_display_move_num = display_line.start_display_move_num;
+	if (start_display_move_num > 0) {
+		pretty_pv = pretty_pv.slice(start_display_move_num);
+		var to_add = start_display_move_num;
+		if (toplay === 'B') {
+			++move_num;
+			toplay = 'W';
+			--to_add;
+		}
+		if (to_add % 2 == 1) {
+			toplay = 'B';
+			--to_add;
+		}
+		move_num += to_add / 2;
+	}
 
 	var pv = '';
 	var i = 0;
@@ -670,16 +730,23 @@ window['collapse_history'] = collapse_history;
  * Also recreates the global "display_lines".
  */
 var update_refutation_lines = function() {
-	if (fen === null) {
+	if (base_fen === null) {
 		return;
 	}
 	if (display_lines.length > 2) {
 		// Truncate so that only the history and PV is left.
 		display_lines = [ display_lines[0], display_lines[1] ];
 	}
-
 	var tbl = $("#refutationlines");
 	tbl.empty();
+
+	// Find out where the lines start from.
+	var base_line = [];
+	var start_display_move_num = 0;
+	if (hash_refutation_lines) {
+		base_line = current_display_line.pretty_pv.slice(0, current_display_move + 1);
+		start_display_move_num = base_line.length;
+	}
 
 	var moves = [];
 	for (var move in refutation_lines) {
@@ -695,6 +762,25 @@ var update_refutation_lines = function() {
 		var move_td = document.createElement("td");
 		tr.appendChild(move_td);
 		$(move_td).addClass("move");
+
+		if (line['pv_pretty'].length == 0) {
+			// Not found.
+			$(move_td).text(line['pretty_move']);
+			var score_td = document.createElement("td");
+
+			$(score_td).addClass("score");
+			$(score_td).text("—");
+			tr.appendChild(score_td);
+
+			var depth_td = document.createElement("td");
+			tr.appendChild(depth_td);
+			$(depth_td).addClass("depth");
+			$(depth_td).text("—");
+
+			tbl.append(tr);
+			continue;
+		}
+
 		if (line['pv_pretty'].length == 0) {
 			$(move_td).text(line['pretty_move']);
 		} else {
@@ -715,7 +801,7 @@ var update_refutation_lines = function() {
 		var pv_td = document.createElement("td");
 		tr.appendChild(pv_td);
 		$(pv_td).addClass("pv");
-		$(pv_td).html(add_pv(fen, line['pv_pretty'], move_num, toplay, 10));
+		$(pv_td).html(add_pv(base_fen, base_line.concat(line['pv_pretty']), move_num, toplay, start_display_move_num, 10));
 
 		tbl.append(tr);
 	}
@@ -815,7 +901,7 @@ var update_board = function() {
 	// unconditionally taken from current_data (we're not interested in
 	// historic history).
 	if (current_data['position']['pretty_history']) {
-		add_pv('start', current_data['position']['pretty_history'], 1, 'W', 8, true);
+		add_pv('start', current_data['position']['pretty_history'], 1, 'W', 0, 8, true);
 	} else {
 		display_lines.push(null);
 	}
@@ -962,7 +1048,9 @@ var update_board = function() {
 	}
 
 	// The search stats.
-	if (data['tablebase'] == 1) {
+	if (data['searchstats']) {
+		$("#searchstats").html(data['searchstats']);
+	} else if (data['tablebase'] == 1) {
 		$("#searchstats").text("Tablebase result");
 	} else if (data['nodes'] && data['nps'] && data['depth']) {
 		var stats = thousands(data['nodes']) + ' nodes, ' + thousands(data['nps']) + ' nodes/sec, depth ' + data['depth'] + ' ply';
@@ -983,12 +1071,12 @@ var update_board = function() {
 	}
 
 	// Update the board itself.
-	fen = data['position']['fen'];
+	base_fen = data['position']['fen'];
 	update_displayed_line();
 
 	// Print the PV.
 	$("#pvtitle").text("PV:");
-	$("#pv").html(add_pv(data['position']['fen'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay']));
+	$("#pv").html(add_pv(data['position']['fen'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay'], 0));
 
 	// Update the PV arrow.
 	clear_arrows();
@@ -1043,10 +1131,10 @@ var update_board = function() {
 	}
 
 	// Update the refutation lines.
-	fen = data['position']['fen'];
-	move_num = data['position']['move_num'];
+	base_fen = data['position']['fen'];
+	move_num = parseInt(data['position']['move_num']);
 	toplay = data['position']['toplay'];
-	refutation_lines = data['refutation_lines'];
+	refutation_lines = hash_refutation_lines || data['refutation_lines'];
 	update_refutation_lines();
 
 	// Update the sparkline last, since its size depends on how everything else reflowed.
@@ -1338,15 +1426,17 @@ var show_line = function(line_num, move_num) {
 	if (line_num == -1) {
 		current_display_line = null;
 		current_display_move = null;
+		hash_refutation_lines = null;
 		if (displayed_analysis_data) {
 			// TODO: Support exiting to history position if we are in an
 			// analysis line of a history position.
 			displayed_analysis_data = null;
-			update_board();
 		}
+		update_board();
+		return;
 	} else {
 		current_display_line = jQuery.extend({}, display_lines[line_num]);  // Shallow clone.
-		current_display_move = move_num;
+		current_display_move = move_num + current_display_line.start_display_move_num;
 	}
 	current_display_line_is_history = (line_num == 0);
 
@@ -1359,7 +1449,8 @@ var show_line = function(line_num, move_num) {
 window['show_line'] = show_line;
 
 var prev_move = function() {
-	if (current_display_move > -1) {
+	if (current_display_line &&
+	    current_display_move >= current_display_line.start_display_move_num) {
 		--current_display_move;
 	}
 	update_historic_analysis();
@@ -1369,7 +1460,8 @@ var prev_move = function() {
 window['prev_move'] = prev_move;
 
 var next_move = function() {
-	if (current_display_line && current_display_move < current_display_line.pretty_pv.length - 1) {
+	if (current_display_line &&
+	    current_display_move < current_display_line.pretty_pv.length - 1) {
 		++current_display_move;
 	}
 	update_historic_analysis();
@@ -1444,6 +1536,8 @@ var update_imbalance = function(fen) {
 }
 
 /** Mark the currently selected move in red.
+ * Also replaces the PV with the current displayed line if it's not shown
+ * anywhere else on the screen.
  */
 var update_move_highlight = function() {
 	if (highlighted_move !== null) {
@@ -1453,8 +1547,10 @@ var update_move_highlight = function() {
 		// See if the current displayed line is identical to any of the ones
 		// we have on screen. (It might not be if e.g. the analysis reloaded
 		// since we started looking.)
+		var display_line_num = null;
 		for (var i = 0; i < display_lines.length; ++i) {
 			var line = display_lines[i];
+			if (line.start_display_move_num > 0) continue;
 			if (current_display_line.start_fen !== line.start_fen) continue;
 			if (current_display_line.pretty_pv.length !== line.pretty_pv.length) continue;
 			var ok = true;
@@ -1465,11 +1561,22 @@ var update_move_highlight = function() {
 				}
 			}
 			if (ok) {
-				highlighted_move = $("#automove" + i + "-" + current_display_move);
-				highlighted_move.addClass('highlight');
+				display_line_num = i;
 				break;
 			}
 		}
+
+		if (display_line_num === null) {
+			// Replace the PV with the (complete) line.
+			$("#pvtitle").text("Exploring:");
+			current_display_line.start_display_move_num = 0;
+			display_lines.push(current_display_line);
+			$("#pv").html(print_pv(display_lines.length - 1));
+			display_line_num = display_lines.length - 1;
+		}
+
+		highlighted_move = $("#automove" + display_line_num + "-" + (current_display_move - current_display_line.start_display_move_num));
+		highlighted_move.addClass('highlight');
 	}
 }
 
@@ -1477,8 +1584,9 @@ var update_displayed_line = function() {
 	if (current_display_line === null) {
 		$("#linenav").hide();
 		$("#linemsg").show();
-		board.position(fen);
-		update_imbalance(fen);
+		display_fen = base_fen;
+		board.position(base_fen);
+		update_imbalance(base_fen);
 		return;
 	}
 
@@ -1497,10 +1605,17 @@ var update_displayed_line = function() {
 	}
 
 	var hiddenboard = chess_from(current_display_line.start_fen, current_display_line.pretty_pv, current_display_move);
+	display_fen = hiddenboard.fen();
 	board_is_animating = true;
 	var old_fen = board.fen();
 	board.position(hiddenboard.fen());
-	if (board.fen() === old_fen) board_is_animating = false;
+	if (board.fen() === old_fen) {
+		board_is_animating = false;
+	} else {
+		// Fire off a hash request, since we're now off the main position
+		// and it just changed.
+		explore_hash(display_fen);
+	}
 	update_imbalance(hiddenboard.fen());
 }
 
@@ -1530,6 +1645,41 @@ var set_sound = function(param_enable_sound) {
 }
 window['set_sound'] = set_sound;
 
+/** Send off a hash probe request to the backend.
+ * @param {string} fen
+ */
+var explore_hash = function(fen) {
+	// If we already have a backend response going, abort it.
+	if (current_hash_xhr) {
+		current_hash_xhr.abort();
+	}
+	if (current_hash_display_timer) {
+		clearTimeout(current_hash_display_timer);
+		current_hash_display_timer = null;
+	}
+	current_hash_xhr = $.ajax({
+		url: backend_hash_url + "?fen=" + fen
+	}).done(function(data, textstatus, xhr) {
+		show_explore_hash_results(data, fen);
+	});
+}
+
+/** Process the JSON response from a hash probe request.
+ * @param {!Object} data
+ * @param {string} fen
+ */
+var show_explore_hash_results = function(data, fen) {
+	if (board_is_animating) {
+		// Updating while the animation is still going causes
+		// the animation to jerk. This is pretty crude, but it will do.
+		current_hash_display_timer = setTimeout(function() { show_explore_hash_results(data, fen); }, 100);
+		return;
+	}
+	current_hash_display_timer = null;
+	hash_refutation_lines = data['lines'];
+	update_board();
+}
+
 /**
  * @param {string} new_backend_url
  */
@@ -1546,12 +1696,19 @@ var switch_backend = function(new_backend_url) {
 	if (current_analysis_xhr) {
 		current_analysis_xhr.abort();
 	}
+	if (current_hash_xhr) {
+		current_hash_xhr.abort();
+	}
 
 	// Otherwise, we should have a timer going to start a new one.
 	// Kill that, too.
 	if (current_analysis_request_timer) {
 		clearTimeout(current_analysis_request_timer);
 		current_analysis_request_timer = null;
+	}
+	if (current_hash_display_timer) {
+		clearTimeout(current_hash_display_timer);
+		current_hash_display_timer = null;
 	}
 
 	// Request an immediate fetch with the new backend.
