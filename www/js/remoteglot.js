@@ -1611,7 +1611,7 @@ var update_displayed_line = function() {
 	board.position(hiddenboard.fen());
 	if (board.fen() === old_fen) {
 		board_is_animating = false;
-	} else {
+	} else if (!current_display_line_is_history) {
 		// Fire off a hash request, since we're now off the main position
 		// and it just changed.
 		explore_hash(display_fen);
