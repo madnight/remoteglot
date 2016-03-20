@@ -777,8 +777,9 @@ var update_refutation_lines = function() {
 		$(move_td).addClass("move");
 
 		if (line['pv_pretty'].length == 0) {
-			// Not found.
-			$(move_td).text(line['pretty_move']);
+			// Not found, so just make a one-move PV.
+			var move = "<a class=\"move\" href=\"javascript:show_line(" + display_lines.length + ", " + 0 + ");\">" + line['pretty_move'] + "</a>";
+			$(move_td).html(move);
 			var score_td = document.createElement("td");
 
 			$(score_td).addClass("score");
@@ -790,16 +791,17 @@ var update_refutation_lines = function() {
 			$(depth_td).addClass("depth");
 			$(depth_td).text("—");
 
+			var pv_td = document.createElement("td");
+			tr.appendChild(pv_td);
+			$(pv_td).addClass("pv");
+			$(pv_td).html(add_pv(base_fen, base_line.concat([ line['pretty_move'] ]), move_num, toplay, start_display_move_num));
+
 			tbl.append(tr);
 			continue;
 		}
 
-		if (line['pv_pretty'].length == 0) {
-			$(move_td).text(line['pretty_move']);
-		} else {
-			var move = "<a class=\"move\" href=\"javascript:show_line(" + display_lines.length + ", " + 0 + ");\">" + line['pretty_move'] + "</a>";
-			$(move_td).html(move);
-		}
+		var move = "<a class=\"move\" href=\"javascript:show_line(" + display_lines.length + ", " + 0 + ");\">" + line['pretty_move'] + "</a>";
+		$(move_td).html(move);
 
 		var score_td = document.createElement("td");
 		tr.appendChild(score_td);
