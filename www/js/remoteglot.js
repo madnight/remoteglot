@@ -119,9 +119,7 @@ var fen = null;
 
 /** @typedef {{
  *    start_fen: string,
- *    uci_pv: Array.<string>,
  *    pretty_pv: Array.<string>,
- *    line_num: number
  * }} DisplayLine
  */
 
@@ -572,7 +570,6 @@ var add_pv = function(fen, pretty_pv, move_num, toplay, opt_limit, opt_showlast)
 	display_lines.push({
 		start_fen: fen,
 		pretty_pv: pretty_pv,
-		line_number: display_lines.length
 	});
 	return print_pv(display_lines.length - 1, pretty_pv, move_num, toplay, opt_limit, opt_showlast);
 }
@@ -723,6 +720,9 @@ var update_refutation_lines = function() {
 		$("#sortbyscore0").html("<strong>Move</strong>");
 		$("#sortbyscore1").html("<a href=\"javascript:resort_refutation_lines(true)\">Score</a>");
 	}
+
+	// Update the move highlight, as we've rewritten all the HTML.
+	update_move_highlight();
 }
 
 /**
@@ -932,6 +932,7 @@ var update_board = function() {
 
 	if (data['failed']) {
 		$("#score").text("No analysis for this move");
+		$("#pvtitle").text("PV:");
 		$("#pv").empty();
 		$("#searchstats").html("&nbsp;");
 		$("#refutationlines").empty();
@@ -976,9 +977,9 @@ var update_board = function() {
 	// Update the board itself.
 	fen = data['position']['fen'];
 	update_displayed_line();
-	update_move_highlight();
 
 	// Print the PV.
+	$("#pvtitle").text("PV:");
 	$("#pv").html(add_pv(data['position']['fen'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay']));
 
 	// Update the PV arrow.
@@ -1336,7 +1337,7 @@ var show_line = function(line_num, move_num) {
 			update_board();
 		}
 	} else {
-		current_display_line = display_lines[line_num];
+		current_display_line = jQuery.extend({}, display_lines[line_num]);  // Shallow clone.
 		current_display_move = move_num;
 	}
 	current_display_line_is_history = (line_num == 0);
@@ -1344,6 +1345,7 @@ var show_line = function(line_num, move_num) {
 	update_historic_analysis();
 	update_displayed_line();
 	update_board_highlight();
+	update_move_highlight();
 	redraw_arrows();
 }
 window['show_line'] = show_line;
@@ -1439,9 +1441,27 @@ var update_move_highlight = function() {
 	if (highlighted_move !== null) {
 		highlighted_move.removeClass('highlight'); 
 	}
-	if (current_display_line !== null) {
-		highlighted_move = $("#automove" + current_display_line.line_number + "-" + current_display_move);
-		highlighted_move.addClass('highlight'); 
+	if (current_display_line) {
+		// See if the current displayed line is identical to any of the ones
+		// we have on screen. (It might not be if e.g. the analysis reloaded
+		// since we started looking.)
+		for (var i = 0; i < display_lines.length; ++i) {
+			var line = display_lines[i];
+			if (current_display_line.start_fen !== line.start_fen) continue;
+			if (current_display_line.pretty_pv.length !== line.pretty_pv.length) continue;
+			var ok = true;
+			for (var j = 0; j < line.pretty_pv.length; ++j) {
+				if (current_display_line.pretty_pv[j] !== line.pretty_pv[j]) {
+					ok = false;
+					break;
+				}
+			}
+			if (ok) {
+				highlighted_move = $("#automove" + i + "-" + current_display_move);
+				highlighted_move.addClass('highlight');
+				break;
+			}
+		}
 	}
 }
 
