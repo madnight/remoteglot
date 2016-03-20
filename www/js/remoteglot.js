@@ -88,7 +88,9 @@ var highlight_from = undefined;
 /** @type {!string|undefined} @private */
 var highlight_to = undefined;
 
-/** @type {?jQuery} @private */
+/** The HTML object of the move currently being highlighted (in red).
+ * @type {?jQuery}
+ * @private */
 var highlighted_move = null;
 
 /** @type {?number} @private */
@@ -625,7 +627,10 @@ var print_pv = function(line_num, pretty_pv, move_num, toplay, opt_limit, opt_sh
 	return pv;
 }
 
-var update_highlight = function() {
+/** Update the highlighted to/from squares on the board.
+ * Based on the global "highlight_from" and "highlight_to" variables.
+ */
+var update_board_highlight = function() {
 	$("#board").find('.square-55d63').removeClass('nonuglyhighlight');
 	if ((current_display_line === null || current_display_line_is_history) &&
 	    highlight_from !== undefined && highlight_to !== undefined) {
@@ -924,7 +929,7 @@ var update_board = function(current_data, display_data) {
 	} else {
 		highlight_from = highlight_to = undefined;
 	}
-	update_highlight();
+	update_board_highlight();
 
 	if (data['failed']) {
 		$("#score").text("No analysis for this move");
@@ -1337,7 +1342,7 @@ var show_line = function(line_num, move_num) {
 
 	update_historic_analysis();
 	update_displayed_line();
-	update_highlight();
+	update_board_highlight();
 	redraw_arrows();
 }
 window['show_line'] = show_line;
@@ -1539,7 +1544,7 @@ var init = function() {
 	$(window).resize(function() {
 		board.resize();
 		update_sparkline(displayed_analysis_data || current_analysis_data);
-		update_highlight();
+		update_board_highlight();
 		redraw_arrows();
 	});
 	$(window).keyup(function(event) {
