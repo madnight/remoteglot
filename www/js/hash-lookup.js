@@ -86,12 +86,13 @@ var translate_line = function(board, fen, line) {
 	}
 	r['pv_pretty'] = pv;
 
-	// Convert the score.
+	// Convert the score. Use the static eval if no search.
+	var value = line['value'] || line['eval'];
 	var score = null;
-	if (line['value']['score_type'] === 'SCORE_CP') {
-		score = ['cp', line['value']['score_cp']];
-	} else if (line['value']['score_type'] === 'SCORE_MATE') {
-		score = ['m', line['value']['score_mate']];
+	if (value['score_type'] === 'SCORE_CP') {
+		score = ['cp', value['score_cp']];
+	} else if (value['score_type'] === 'SCORE_MATE') {
+		score = ['m', value['score_mate']];
 	}
 	if (score) {
 		if (line['bound'] === 'BOUND_UPPER') {
