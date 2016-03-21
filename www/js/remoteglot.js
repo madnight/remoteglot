@@ -822,7 +822,11 @@ var update_refutation_lines = function() {
 		var depth_td = document.createElement("td");
 		tr.appendChild(depth_td);
 		$(depth_td).addClass("depth");
-		$(depth_td).text("d" + line['depth']);
+		if (line['depth'] && line['depth'] >= 0) {
+			$(depth_td).text("d" + line['depth']);
+		} else {
+			$(depth_td).text("—");
+		}
 
 		var pv_td = document.createElement("td");
 		tr.appendChild(pv_td);
