@@ -1907,6 +1907,9 @@ var fmt_cp = function(v) {
 }
 
 var format_short_score = function(score) {
+	if (!score) {
+		return "???";
+	}
 	if (score[0] === 'm') {
 		if (score[2]) {  // Is a bound.
 			return score[2] + "\u00a0M" + pad(score[1], 3);
