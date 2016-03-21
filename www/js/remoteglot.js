@@ -1559,28 +1559,7 @@ var update_move_highlight = function() {
 		highlighted_move.removeClass('highlight'); 
 	}
 	if (current_display_line) {
-		// See if the current displayed line is identical to any of the ones
-		// we have on screen. (It might not be if e.g. the analysis reloaded
-		// since we started looking.)
-		var display_line_num = null;
-		for (var i = 0; i < display_lines.length; ++i) {
-			var line = display_lines[i];
-			if (line.start_display_move_num > 0) continue;
-			if (current_display_line.start_fen !== line.start_fen) continue;
-			if (current_display_line.pretty_pv.length !== line.pretty_pv.length) continue;
-			var ok = true;
-			for (var j = 0; j < line.pretty_pv.length; ++j) {
-				if (current_display_line.pretty_pv[j] !== line.pretty_pv[j]) {
-					ok = false;
-					break;
-				}
-			}
-			if (ok) {
-				display_line_num = i;
-				break;
-			}
-		}
-
+		var display_line_num = find_display_line_matching_num();
 		if (display_line_num === null) {
 			// Replace the PV with the (complete) line.
 			$("#pvtitle").text("Exploring:");
@@ -1593,6 +1572,33 @@ var update_move_highlight = function() {
 		highlighted_move = $("#automove" + display_line_num + "-" + (current_display_move - current_display_line.start_display_move_num));
 		highlighted_move.addClass('highlight');
 	}
+}
+
+/**
+ * See if the current displayed line is identical to any of the ones
+ * we have on screen. (It might not be if e.g. the analysis reloaded
+ * since we started looking.)
+ *
+ * @return {?number}
+ */
+var find_display_line_matching_num = function() {
+	for (var i = 0; i < display_lines.length; ++i) {
+		var line = display_lines[i];
+		if (line.start_display_move_num > 0) continue;
+		if (current_display_line.start_fen !== line.start_fen) continue;
+		if (current_display_line.pretty_pv.length !== line.pretty_pv.length) continue;
+		var ok = true;
+		for (var j = 0; j < line.pretty_pv.length; ++j) {
+			if (current_display_line.pretty_pv[j] !== line.pretty_pv[j]) {
+				ok = false;
+				break;
+			}
+		}
+		if (ok) {
+			return i;
+		}
+	}
+	return null;
 }
 
 var update_displayed_line = function() {
