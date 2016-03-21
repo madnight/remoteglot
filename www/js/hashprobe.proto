@@ -33,8 +33,9 @@ message HashProbeMove {
 }
 message HashProbeScore {
 	enum ScoreType {
-		SCORE_CP = 0;
-		SCORE_MATE = 1;
+		SCORE_NONE = 0;
+		SCORE_CP = 1;
+		SCORE_MATE = 2;
 	}
 	ScoreType score_type = 1;
 	int32 score_cp = 2;

@@ -90,7 +90,7 @@ var translate_line = function(board, fen, line) {
 	var score = null;
 	if (line['value']['score_type'] === 'SCORE_CP') {
 		score = ['cp', line['value']['score_cp']];
-	} else if (line['value']['score_mate'] === 'SCORE_MATE') {
+	} else if (line['value']['score_type'] === 'SCORE_MATE') {
 		score = ['m', line['value']['score_mate']];
 	}
 	if (score) {
