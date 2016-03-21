@@ -55,7 +55,12 @@ var translate_line = function(board, fen, line, pretty_score) {
 	var toplay = board.turn();
 
 	if (line['move'] && line['move']['from_sq']) {
-		r['pretty_move'] = board.move({ from: line['move']['from_sq'], to: line['move']['to_sq'], promotion: line['move']['promotion'] }).san;
+		var promo = line['move']['promotion'];
+		if (promo) {
+			r['pretty_move'] = board.move({ from: line['move']['from_sq'], to: line['move']['to_sq'], promotion: promo.toLowerCase() }).san;
+		} else {
+			r['pretty_move'] = board.move({ from: line['move']['from_sq'], to: line['move']['to_sq'] }).san;
+		}
 	} else {
 		r['pretty_move'] = '';
 	}
