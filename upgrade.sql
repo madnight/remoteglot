@@ -1,0 +1,13 @@
+BEGIN;
+ALTER TABLE scores ADD COLUMN score_type varchar;
+ALTER TABLE scores ADD COLUMN score_value integer;
+ALTER TABLE scores ALTER COLUMN plot_score DROP NOT NULL;
+ALTER TABLE scores ALTER COLUMN short_score DROP NOT NULL;
+UPDATE scores SET score_type='d',plot_score=NULL,short_score=NULL WHERE short_score='TB draw';
+UPDATE scores SET score_type='cp',score_value=0,plot_score=NULL,short_score=NULL WHERE short_score=' 0.00';
+UPDATE scores SET score_type='m',score_value=substr(short_score,2)::integer,plot_score=NULL,short_score=NULL WHERE short_score LIKE 'M%';
+UPDATE scores SET score_type='cp',score_value=REPLACE(short_score, '.', '')::integer,plot_score=NULL,short_score=NULL WHERE short_score IS NOT NULL;
+ALTER TABLE scores DROP COLUMN plot_score;
+ALTER TABLE scores DROP COLUMN short_score;
+ALTER TABLE scores ALTER COLUMN score_type SET NOT NULL;
+COMMIT;

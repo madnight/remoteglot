@@ -29,11 +29,11 @@ exports.handle_request = handle_request;
 var handle_response = function(fen, response, probe_response) {
 	var lines = {};
 
-	var root = translate_line(board, fen, probe_response['root'], true);
+	var root = translate_line(board, fen, probe_response['root']);
 	for (var i = 0; i < probe_response['line'].length; ++i) {
 		var line = probe_response['line'][i];
 		var uci_move = line['move']['from_sq'] + line['move']['to_sq'] + line['move']['promotion'];
-		lines[uci_move] = translate_line(board, fen, line, false);
+		lines[uci_move] = translate_line(board, fen, line);
 	}
 
 	var text = JSON.stringify({
@@ -49,7 +49,7 @@ var handle_response = function(fen, response, probe_response) {
 	response.end();
 }
 
-var translate_line = function(board, fen, line, pretty_score) {
+var translate_line = function(board, fen, line) {
 	var r = {};
 	board.load(fen);
 	var toplay = board.turn();
@@ -67,7 +67,6 @@ var translate_line = function(board, fen, line, pretty_score) {
 	r['sort_key'] = r['pretty_move'];
 	if (!line['found']) {
 		r['pv_pretty'] = [];
-		r['score_sort_key'] = -100000000;
 		return r;
 	}
 	r['depth'] = line['depth'];
@@ -87,54 +86,22 @@ var translate_line = function(board, fen, line, pretty_score) {
 	}
 	r['pv_pretty'] = pv;
 
-	// Write out the pretty score.
-	// TODO: mates!
-	var score = pretty_score ? 'Score: ' : '';
-
-	if (line['bound'] === 'BOUND_UPPER') {
-		score += '≤\u00a0';
-	} else if (line['bound'] === 'BOUND_LOWER') {
-		score += '≥\u00a0';
+	// Convert the score.
+	var score = null;
+	if (line['value']['score_type'] === 'SCORE_CP') {
+		score = ['cp', line['value']['score_cp']];
+	} else if (line['value']['score_mate'] === 'SCORE_MATE') {
+		score = ['m', line['value']['score_mate']];
+	}
+	if (score) {
+		if (line['bound'] === 'BOUND_UPPER') {
+			score.push('≤');
+		} else if (line['bound'] === 'BOUND_LOWER') {
+			score.push('≥');
+		}
 	}
 
-	var value = line['value']['score_cp'];
-	if (value > 0) {
-		score += '+' + (value / 100.0).toFixed(2);
-	} else if (value < 0) {
-		score += (value / 100.0).toFixed(2);
-	} else if (value == 0) {
-		score += '0.00';
-	} else {
-		score += '';
-	}
-	r['pretty_score'] = score;
-	r['score_sort_key'] = score_sort_key(line['value'], toplay === 'b') * 200 + r['depth'];
+	r['score'] = score;
 
 	return r;
-}
-
-var score_sort_key = function(score, invert) {
-	if (score['score_type'] === 'SCORE_MATE') {
-		var mate = score['score_mate'];
-		var score;
-		if (mate > 0) {
-			// Side to move mates
-			score = 99999 - mate;
-		} else {
-			// Side to move is getting mated (note the double negative for mate)
-			score = -99999 - mate;
-		}
-		if (invert) {
-			score = -score;
-		}
-		return score;
-	} else if (score['score_type'] === 'SCORE_CP') {
-		var score = score['score_cp'];
-		if (invert) {
-			score = -score;
-		}
-		return score;
-	}
-
-	return null;
 }

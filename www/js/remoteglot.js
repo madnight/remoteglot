@@ -546,7 +546,8 @@ var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_
 	arrows.push(arrow);
 }
 
-var compare_by_sort_key = function(refutation_lines, a, b) {
+// Note: invert is ignored.
+var compare_by_sort_key = function(refutation_lines, invert, a, b) {
 	var ska = refutation_lines[a]['sort_key'];
 	var skb = refutation_lines[b]['sort_key'];
 	if (ska < skb) return -1;
@@ -554,9 +555,9 @@ var compare_by_sort_key = function(refutation_lines, a, b) {
 	return 0;
 };
 
-var compare_by_score = function(refutation_lines, a, b) {
-	var sa = parseInt(refutation_lines[b]['score_sort_key'], 10);
-	var sb = parseInt(refutation_lines[a]['score_sort_key'], 10);
+var compare_by_score = function(refutation_lines, invert, a, b) {
+	var sa = compute_score_sort_key(refutation_lines[b]['score'], invert);
+	var sb = compute_score_sort_key(refutation_lines[a]['score'], invert);
 	return sa - sb;
 }
 
@@ -567,17 +568,18 @@ var compare_by_score = function(refutation_lines, a, b) {
  * @param {!Object} data
  * @param {number} margin The maximum number of centipawns worse than the
  *     best move can be and still be included.
+ * @param {boolean} margin Whether black is to play.
  * @return {Array.<string>} The UCI representation (e.g. e1g1) of all
  *     moves, in score order.
  */
-var find_nonstupid_moves = function(data, margin) {
+var find_nonstupid_moves = function(data, margin, invert) {
 	// First of all, if there are any moves that are more than 0.5 ahead of
 	// the primary move, the refutation lines are probably bunk, so just
 	// kill them all. 
 	var best_score = undefined;
 	var pv_score = undefined;
 	for (var move in data['refutation_lines']) {
-		var score = parseInt(data['refutation_lines'][move]['score_sort_key'], 10);
+		var score = compute_score_sort_key(data['refutation_lines'][move]['score'], invert);
 		if (move == data['pv_uci'][0]) {
 			pv_score = score;
 		}
@@ -597,12 +599,12 @@ var find_nonstupid_moves = function(data, margin) {
 	// The PV move will always be first.
 	var moves = [];
 	for (var move in data['refutation_lines']) {
-		var score = parseInt(data['refutation_lines'][move]['score_sort_key'], 10);
+		var score = compute_score_sort_key(data['refutation_lines'][move]['score'], invert);
 		if (move != data['pv_uci'][0] && best_score - score <= margin) {
 			moves.push(move);
 		}
 	}
-	moves = moves.sort(function(a, b) { return compare_by_score(data['refutation_lines'], a, b) });
+	moves = moves.sort(function(a, b) { return compare_by_score(data['refutation_lines'], data['position']['toplay'] === 'B', a, b) });
 	moves.unshift(data['pv_uci'][0]);
 
 	return moves;
@@ -765,8 +767,13 @@ var update_refutation_lines = function() {
 	for (var move in refutation_lines) {
 		moves.push(move);
 	}
+
+	var invert = (toplay === 'B');
+	if (current_display_line && current_display_move % 2 == 0) {
+		invert = !invert;
+	}
 	var compare = sort_refutation_lines_by_score ? compare_by_score : compare_by_sort_key;
-	moves = moves.sort(function(a, b) { return compare(refutation_lines, a, b) });
+	moves = moves.sort(function(a, b) { return compare(refutation_lines, invert, a, b) });
 	for (var i = 0; i < moves.length; ++i) {
 		var line = refutation_lines[moves[i]];
 
@@ -806,7 +813,7 @@ var update_refutation_lines = function() {
 		var score_td = document.createElement("td");
 		tr.appendChild(score_td);
 		$(score_td).addClass("score");
-		$(score_td).text(line['pretty_score']);
+		$(score_td).text(format_short_score(line['score']));
 
 		var depth_td = document.createElement("td");
 		tr.appendChild(depth_td);
@@ -1008,8 +1015,8 @@ var update_board = function() {
 
 	// The <title> contains a very brief headline.
 	var title_elems = [];
-	if (data['short_score'] !== undefined && data['short_score'] !== null) {
-		title_elems.push(data['short_score'].replace(/^ /, ""));
+	if (data['score']) {
+		title_elems.push(format_short_score(data['score']).replace(/^ /, ""));
 	}
 	if (last_move !== null) {
 		title_elems.push(last_move);
@@ -1058,8 +1065,8 @@ var update_board = function() {
 	update_clock();
 
 	// The score.
-	if (data['score'] !== null) {
-		$("#score").text(data['score']);
+	if (data['score']) {
+		$("#score").text(format_long_score(data['score']));
 	}
 
 	// The search stats.
@@ -1107,7 +1114,7 @@ var update_board = function() {
 			create_arrow(from, to, '#f66', 6, 20);
 		}
 
-		var alt_moves = find_nonstupid_moves(data, 30);
+		var alt_moves = find_nonstupid_moves(data, 30, data['position']['toplay'] === 'B');
 		for (var i = 1; i < alt_moves.length && i < 3; ++i) {
 			create_arrow(alt_moves[i].substr(0, 2),
 				     alt_moves[i].substr(2, 2), '#f66', 1, 10);
@@ -1116,7 +1123,7 @@ var update_board = function() {
 
 	// See if all semi-reasonable moves have only one possible response.
 	if (data['pv_uci'].length >= 2) {
-		var nonstupid_moves = find_nonstupid_moves(data, 300);
+		var nonstupid_moves = find_nonstupid_moves(data, 300, data['position']['toplay'] === 'B');
 		var response = data['pv_uci'][1];
 		for (var i = 0; i < nonstupid_moves.length; ++i) {
 			if (nonstupid_moves[i] == data['pv_uci'][0]) {
@@ -1187,15 +1194,15 @@ var update_sparkline = function(data) {
 			var scores = [];
 			for (var halfmove_num = first_move_num; halfmove_num <= last_move_num; ++halfmove_num) {
 				if (data['score_history'][halfmove_num]) {
-					var score = data['score_history'][halfmove_num][0];
+					var score = compute_plot_score(data['score_history'][halfmove_num]);
+					last_score = score;
 					if (score < min_score) min_score = score;
 					if (score > max_score) max_score = score;
-					last_score = data['score_history'][halfmove_num][0];
 				}
 				scores.push(last_score);
 			}
-			if (data['plot_score']) {
-				scores.push(data['plot_score']);
+			if (data['score']) {
+				scores.push(compute_plot_score(data['score']));
 			}
 			// FIXME: at some widths, calling sparkline() seems to push
 			// #scorecontainer under the board.
@@ -1394,10 +1401,10 @@ var format_tooltip = function(data, halfmove_num) {
 		var short_score;
 		if (halfmove_num === data['position']['pretty_history'].length) {
 			move = data['position']['last_move'];
-			short_score = data['short_score'];
+			short_score = format_short_score(data['score']);
 		} else {
 			move = data['position']['pretty_history'][halfmove_num];
-			short_score = data['score_history'][halfmove_num][1];
+			short_score = format_short_score(data['score_history'][halfmove_num]);
 		}
 		var move_with_number = format_halfmove_with_number(move, halfmove_num);
 
@@ -1711,7 +1718,7 @@ var onDragStart = function(source, piece, position, orientation) {
 		return false;
 	}
 
-	recommended_move = get_best_move(pseudogame, source, null);
+	recommended_move = get_best_move(pseudogame, source, null, pseudogame.turn() === 'b');
 	if (recommended_move) {
 		var squareEl = $('#board .square-' + recommended_move.to);
 		squareEl.addClass('highlight1-32417');
@@ -1735,7 +1742,7 @@ var mousedownSquare = function(e) {
 	    (pseudogame.turn() === 'w' && position[square].search(/^b/) !== -1) ||
 	    (pseudogame.turn() === 'b' && position[square].search(/^w/) !== -1)) {
 		reverse_dragging_from = square;
-		recommended_move = get_best_move(pseudogame, null, square);
+		recommended_move = get_best_move(pseudogame, null, square, pseudogame.turn() === 'b');
 		if (recommended_move) {
 			var squareEl = $('#board .square-' + recommended_move.from);
 			squareEl.addClass('highlight1-32417');
@@ -1758,7 +1765,7 @@ var mouseupSquare = function(e) {
 	$("#board").find('.square-55d63').removeClass('highlight1-32417');
 }
 
-var get_best_move = function(game, source, target) {
+var get_best_move = function(game, source, target, invert) {
 	var moves = game.moves({ verbose: true });
 	if (source !== null) {
 		moves = moves.filter(function(move) { return move.from == source; });
@@ -1794,13 +1801,12 @@ var get_best_move = function(game, source, target) {
 
 	for (var move in refutation_lines) {
 		var line = refutation_lines[move];
-		var score = parseInt(line['score_sort_key'], 10);
-		if (score < -1000000) {  // Two zeros less than in the server (just some margin).
+		if (!line['score']) {
 			continue;
 		}
 		var first_move = line['pv_pretty'][0];
 		if (move_hash[first_move]) {
-			var score = parseInt(line['score_sort_key'], 10);
+			var score = compute_score_sort_key(line['score'], invert);
 			if (best_move_score === null || score > best_move_score) {
 				best_move = move_hash[first_move];
 				best_move_score = score;
@@ -1870,6 +1876,108 @@ var onSnapEnd = function(source, target) {
 	// nothing we can do.
 }
 // End of dragging-related code.
+
+var pad = function(val, num_digits) {
+	var s = val.toString();
+	while (s.length < num_digits) {
+		s = " " + s;
+	}
+	return s;
+}
+
+var fmt_cp = function(v) {
+	if (v === 0) {
+		return "0.00";
+	} else if (v > 0) {
+		return "+" + (v / 100).toFixed(2);
+	} else {
+		v = -v;
+		return "-" + (v / 100).toFixed(2);
+	}
+}
+
+var format_short_score = function(score) {
+	if (score[0] === 'm') {
+		if (score[2]) {  // Is a bound.
+			return score[2] + "\u00a0M" + pad(score[1], 3);
+		} else {
+			return "M" + pad(score[1], 3);
+		}
+	} else if (score[0] === 'd') {
+		return "TB draw";
+	} else if (score[0] === 'cp') {
+		if (score[2]) {  // Is a bound.
+			return score[2] + "\u00a0" + fmt_cp(score[1]);
+		} else {
+			return pad(fmt_cp(score[1]), 5);
+		}
+	}
+	return null;
+}
+
+var format_long_score = function(score) {
+	if (score[0] === 'm') {
+		if (score[1] > 0) {
+			return "White mates in " + score[1];
+		} else {
+			return "Black mates in " + (-score[1]);
+		}
+	} else if (score[0] === 'd') {
+		return "Theoretical draw";
+	} else if (score[0] === 'cp') {
+		return "Score: " + format_short_score(score);
+	}
+	return null;
+}
+
+var compute_plot_score = function(score) {
+	if (score[0] === 'm') {
+		if (score[1] > 0) {
+			return 500;
+		} else {
+			return -500;
+		}
+	} else if (score[0] === 'd') {
+		return 0;
+	} else if (score[0] === 'cp') {
+		if (score[1] > 500) {
+			return 500;
+		} else if (score[1] < -500) {
+			return -500;
+		} else {
+			return score[1];
+		}
+	}
+	return null;
+}
+
+/**
+ * @param score The score digest tuple.
+ * @param {boolean} invert Whether black is to play.
+ * @return {number}
+ */
+var compute_score_sort_key = function(score, invert) {
+	var s;
+	if (!score) {
+		return -10000000;
+	}
+	if (score[0] === 'm') {
+		if (score[1] > 0) {
+			// White mates.
+			s = 99999 - score[1];
+		} else {
+			// Black mates (note the double negative for score[1]).
+			s = -99999 - score[1];
+		}
+		if (invert) s = -s;
+		return s;
+	} else if (score[0] === 'd') {
+		return 0;
+	} else if (score[0] === 'cp') {
+		return invert ? -score[1] : score[1];
+	}
+	return null;
+}
 
 /**
  * @param {string} new_backend_url

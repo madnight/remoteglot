@@ -1,7 +1,7 @@
 CREATE TABLE scores (
 	id varchar primary key,
-	plot_score integer not null,
-	short_score varchar not null,
+	score_type varchar not null,
+	score_value integer,
 	engine varchar not null,
 	depth bigint not null,
 	nodes bigint not null

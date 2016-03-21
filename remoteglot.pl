@@ -829,9 +829,7 @@ sub output_json {
 	if (defined($remoteglotconf::move_source_url)) {
 		$json->{'move_source_url'} = $remoteglotconf::move_source_url;
 	}
-	$json->{'score'} = long_score($info, $pos_calculating, '');
-	$json->{'short_score'} = short_score($info, $pos_calculating, '');
-	$json->{'plot_score'} = plot_score($info, $pos_calculating, '');
+	$json->{'score'} = score_digest($info, $pos_calculating, '');
 	$json->{'using_lomonosov'} = defined($remoteglotconf::tb_serial_key);
 
 	$json->{'nodes'} = $info->{'nodes'};
@@ -861,8 +859,7 @@ sub output_json {
 				$refutation_lines{$pv->[0]} = {
 					sort_key => $pretty_move,
 					depth => $info->{'depth' . $mpv},
-					score_sort_key => score_sort_key($info, $mpv, 0),
-					pretty_score => short_score($info, $pos_calculating, $mpv),
+					score => score_digest($info, $pos_calculating, $mpv),
 					pretty_move => $pretty_move,
 					pv_pretty => \@pretty_pv,
 				};
@@ -883,8 +880,8 @@ sub output_json {
 			my $ref = $dbh->selectrow_hashref($q, undef, $id);
 			if (defined($ref)) {
 				$score_history{$halfmove_num} = [
-					$ref->{'plot_score'},
-					$ref->{'short_score'}
+					$ref->{'score_type'},
+					$ref->{'score_value'}
 				];
 			}
 			++$halfmove_num;
@@ -971,16 +968,16 @@ sub output_json {
 		    $new_depth > $old_depth ||
 		    ($new_depth == $old_depth && $new_nodes >= $old_nodes)) {
 			atomic_set_contents($filename, $encoded);
-			if (defined($json->{'plot_score'})) {
-				$dbh->do('INSERT INTO scores (id, plot_score, short_score, engine, depth, nodes) VALUES (?,?,?,?,?,?) ' .
+			if (defined($json->{'score'})) {
+				$dbh->do('INSERT INTO scores (id, score_type, score_value, engine, depth, nodes) VALUES (?,?,?,?,?,?) ' .
 				         '    ON CONFLICT (id) DO UPDATE SET ' .
-				         '        plot_score=EXCLUDED.plot_score, ' .
-					 '        short_score=EXCLUDED.short_score, ' .
+				         '        score_type=EXCLUDED.score_type, ' .
+					 '        score_value=EXCLUDED.score_vlaue, ' .
 					 '        engine=EXCLUDED.engine, ' .
 					 '        depth=EXCLUDED.depth, ' .
 					 '        nodes=EXCLUDED.nodes',
 					undef,
-					$id, $json->{'plot_score'}, $json->{'short_score'},
+					$id, $json->{'score'}[0], $json->{'score'}[1],
 					$json->{'engine'}{'name'}, $new_depth, $new_nodes);
 			}
 		}
@@ -1051,30 +1048,28 @@ sub short_score {
 	return undef;
 }
 
-sub score_sort_key {
-	my ($info, $mpv, $invert) = @_;
+# Sufficient for computing long_score, short_score, plot_score and
+# (with side-to-play information) score_sort_key.
+sub score_digest {
+	my ($info, $pos, $mpv) = @_;
 
 	if (defined($info->{'score_mate' . $mpv})) {
 		my $mate = $info->{'score_mate' . $mpv};
-		my $score;
-		if ($mate > 0) {
-			# Side to move mates
-			$score = 99999 - $mate;
-		} else {
-			# Side to move is getting mated (note the double negative for $mate)
-			$score = -99999 - $mate;
+		if ($pos->{'toplay'} eq 'B') {
+			$mate = -$mate;
 		}
-		if ($invert) {
-			$score = -$score;
-		}
-		return $score;
+		return ['m', $mate];
 	} else {
 		if (exists($info->{'score_cp' . $mpv})) {
 			my $score = $info->{'score_cp' . $mpv};
-			if ($invert) {
+			if ($pos->{'toplay'} eq 'B') {
 				$score = -$score;
 			}
-			return $score;
+			if ($score == 0 && $info->{'tablebase'}) {
+				return ['d', undef];
+			} else {
+				return ['cp', $score];
+			}
 		}
 	}
 
