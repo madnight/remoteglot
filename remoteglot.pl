@@ -972,7 +972,7 @@ sub output_json {
 				$dbh->do('INSERT INTO scores (id, score_type, score_value, engine, depth, nodes) VALUES (?,?,?,?,?,?) ' .
 				         '    ON CONFLICT (id) DO UPDATE SET ' .
 				         '        score_type=EXCLUDED.score_type, ' .
-					 '        score_value=EXCLUDED.score_vlaue, ' .
+					 '        score_value=EXCLUDED.score_value, ' .
 					 '        engine=EXCLUDED.engine, ' .
 					 '        depth=EXCLUDED.depth, ' .
 					 '        nodes=EXCLUDED.nodes',
