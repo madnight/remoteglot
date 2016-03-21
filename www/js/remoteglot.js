@@ -1866,7 +1866,7 @@ var onSnapEnd = function(source, target) {
 
 	if (current_display_line &&
 	    current_display_move < current_display_line.pretty_pv.length - 1 &&
-	    current_display_line.pretty_pv[current_display_move] === move.san) {
+	    current_display_line.pretty_pv[current_display_move + 1] === move.san) {
 		next_move();
 		return;
 	}
