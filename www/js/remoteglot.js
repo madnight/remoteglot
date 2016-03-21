@@ -158,10 +158,12 @@ var display_fen = null;
  *    pretty_pv: Array.<string>,
  *    move_num: number,
  *    toplay: string,
+ *    score: string,
  *    start_display_move_num: number
  * }} DisplayLine
  *
  * "start_display_move_num" is the (half-)move number to start displaying the PV at.
+ * "score" is also evaluated at this point.
  */
 
 /** All PVs that we currently know of.
@@ -623,17 +625,19 @@ var thousands = function(x) {
  * @param {Array.<string>} pretty_pv
  * @param {number} move_num
  * @param {!string} toplay
+ * @param {!string} score
  * @param {number} start_display_move_num
  * @param {number=} opt_limit
  * @param {boolean=} opt_showlast
  */
-var add_pv = function(start_fen, pretty_pv, move_num, toplay, start_display_move_num, opt_limit, opt_showlast) {
+var add_pv = function(start_fen, pretty_pv, move_num, toplay, score, start_display_move_num, opt_limit, opt_showlast) {
 	display_lines.push({
 		start_fen: start_fen,
 		pretty_pv: pretty_pv,
 		move_num: parseInt(move_num),
 		toplay: toplay,
-		start_display_move_num: start_display_move_num,
+		score: score,
+		start_display_move_num: start_display_move_num
 	});
 	return print_pv(display_lines.length - 1, opt_limit, opt_showlast);
 }
@@ -801,7 +805,7 @@ var update_refutation_lines = function() {
 			var pv_td = document.createElement("td");
 			tr.appendChild(pv_td);
 			$(pv_td).addClass("pv");
-			$(pv_td).html(add_pv(base_fen, base_line.concat([ line['pretty_move'] ]), move_num, toplay, start_display_move_num));
+			$(pv_td).html(add_pv(base_fen, base_line.concat([ line['pretty_move'] ]), move_num, toplay, line['score'], start_display_move_num));
 
 			tbl.append(tr);
 			continue;
@@ -823,7 +827,7 @@ var update_refutation_lines = function() {
 		var pv_td = document.createElement("td");
 		tr.appendChild(pv_td);
 		$(pv_td).addClass("pv");
-		$(pv_td).html(add_pv(base_fen, base_line.concat(line['pv_pretty']), move_num, toplay, start_display_move_num, 10));
+		$(pv_td).html(add_pv(base_fen, base_line.concat(line['pv_pretty']), move_num, toplay, line['score'], start_display_move_num, 10));
 
 		tbl.append(tr);
 	}
@@ -923,7 +927,7 @@ var update_board = function() {
 	// unconditionally taken from current_data (we're not interested in
 	// historic history).
 	if (current_data['position']['pretty_history']) {
-		add_pv('start', current_data['position']['pretty_history'], 1, 'W', 0, 8, true);
+		add_pv('start', current_data['position']['pretty_history'], 1, 'W', null, 0, 8, true);
 	} else {
 		display_lines.push(null);
 	}
@@ -1065,7 +1069,13 @@ var update_board = function() {
 	update_clock();
 
 	// The score.
-	if (data['score']) {
+	if (current_display_line) {
+		if (current_display_line.score) {
+			$("#score").text(format_long_score(current_display_line.score));
+		} else {
+			$("#score").text("No score for this move");
+		}
+	} else if (data['score']) {
 		$("#score").text(format_long_score(data['score']));
 	}
 
@@ -1098,7 +1108,7 @@ var update_board = function() {
 
 	// Print the PV.
 	$("#pvtitle").text("PV:");
-	$("#pv").html(add_pv(data['position']['fen'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay'], 0));
+	$("#pv").html(add_pv(data['position']['fen'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay'], data['score'], 0));
 
 	// Update the PV arrow.
 	clear_arrows();
