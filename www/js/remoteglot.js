@@ -1672,6 +1672,7 @@ var explore_hash = function(fen) {
 		clearTimeout(current_hash_display_timer);
 		current_hash_display_timer = null;
 	}
+	$("#refutationlines").empty();
 	current_hash_xhr = $.ajax({
 		url: backend_hash_url + "?fen=" + fen
 	}).done(function(data, textstatus, xhr) {
