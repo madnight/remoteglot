@@ -765,7 +765,7 @@ var update_refutation_lines = function() {
 
 	// Find out where the lines start from.
 	var base_line = [];
-	var base_scores = [];
+	var base_scores = display_lines[1].scores;
 	var start_display_move_num = 0;
 	if (hash_refutation_lines) {
 		base_line = current_display_line.pretty_pv.slice(0, current_display_move + 1);
@@ -1150,7 +1150,7 @@ var update_board = function() {
 	// Print the PV.
 	$("#pvtitle").text("PV:");
 
-	var scores = [{ first_move: 0, score: data['score'] }];
+	var scores = [{ first_move: -1, score: data['score'] }];
 	$("#pv").html(add_pv(data['position']['fen'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay'], scores, 0));
 
 	// Update the PV arrow.
