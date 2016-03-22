@@ -935,6 +935,7 @@ sub output_json {
 					name => "$white–$black",
 					url => $ref->{'url'},
 					hashurl => $ref->{'hash_url'},
+					score => $other_game_json->{'score'}
 				};
 			};
 			if ($@) {

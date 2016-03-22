@@ -7,7 +7,7 @@
  * @type {Number}
  * @const
  * @private */
-var SCRIPT_VERSION = 2016032000;
+var SCRIPT_VERSION = 2016032200;
 
 /**
  * The current backend URL.
@@ -48,6 +48,7 @@ var displayed_analysis_data = null;
  *      name: string,
  *      url: string,
  *      id: string,
+ *      score: Object
  * }>}
  * @private
  */
@@ -895,6 +896,10 @@ var update_game_list = function(games) {
 			game_a.appendChild(game_name);
 			game_span.appendChild(game_a);
 		}
+
+		var score = " (" + format_short_score(game['score']) + ")";
+		game_span.appendChild(document.createTextNode(score));
+
 		games_div.appendChild(game_span);
 	}
 }
