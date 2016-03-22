@@ -1647,6 +1647,9 @@ var update_move_highlight = function() {
 			display_lines.push(current_display_line);
 			$("#pv").html(print_pv(display_lines.length - 1));
 			display_line_num = display_lines.length - 1;
+
+			// Clear out the PV, so it's not selected by anything later.
+			display_lines[1].pretty_pv = [];
 		}
 
 		highlighted_move = $("#automove" + display_line_num + "-" + (current_display_move - current_display_line.start_display_move_num));
