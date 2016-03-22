@@ -157,7 +157,7 @@ var display_fen = null;
 
 /** @typedef {{
  *    start_fen: string,
- *    pretty_pv: Array.<string>,
+ *    pv: Array.<string>,
  *    move_num: number,
  *    toplay: string,
  *    scores: Array<{first_move: number, score: Object}>,
@@ -551,9 +551,9 @@ var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_
 }
 
 // Note: invert is ignored.
-var compare_by_sort_key = function(refutation_lines, invert, a, b) {
-	var ska = refutation_lines[a]['sort_key'];
-	var skb = refutation_lines[b]['sort_key'];
+var compare_by_name = function(refutation_lines, invert, a, b) {
+	var ska = refutation_lines[a]['pretty_move'];
+	var skb = refutation_lines[b]['pretty_move'];
 	if (ska < skb) return -1;
 	if (ska > skb) return 1;
 	return 0;
@@ -573,7 +573,7 @@ var compare_by_score = function(refutation_lines, invert, a, b) {
  * @param {number} margin The maximum number of centipawns worse than the
  *     best move can be and still be included.
  * @param {boolean} margin Whether black is to play.
- * @return {Array.<string>} The UCI representation (e.g. e1g1) of all
+ * @return {Array.<string>} The FEN representation (e.g. Ne4) of all
  *     moves, in score order.
  */
 var find_nonstupid_moves = function(data, margin, invert) {
@@ -585,7 +585,7 @@ var find_nonstupid_moves = function(data, margin, invert) {
 	for (var move in data['refutation_lines']) {
 		var line = data['refutation_lines'][move];
 		var score = compute_score_sort_key(line['score'], line['depth'], invert);
-		if (move == data['pv_uci'][0]) {
+		if (move == data['pv'][0]) {
 			pv_score = score;
 		}
 		if (best_score === undefined || score > best_score) {
@@ -606,12 +606,12 @@ var find_nonstupid_moves = function(data, margin, invert) {
 	for (var move in data['refutation_lines']) {
 		var line = data['refutation_lines'][move];
 		var score = compute_score_sort_key(line['score'], line['depth'], invert);
-		if (move != data['pv_uci'][0] && best_score - score <= margin) {
+		if (move != data['pv'][0] && best_score - score <= margin) {
 			moves.push(move);
 		}
 	}
 	moves = moves.sort(function(a, b) { return compare_by_score(data['refutation_lines'], data['position']['toplay'] === 'B', a, b) });
-	moves.unshift(data['pv_uci'][0]);
+	moves.unshift(data['pv'][0]);
 
 	return moves;
 }
@@ -626,7 +626,7 @@ var thousands = function(x) {
 
 /**
  * @param {!string} start_fen
- * @param {Array.<string>} pretty_pv
+ * @param {Array.<string>} pv
  * @param {number} move_num
  * @param {!string} toplay
  * @param {Array<{ first_move: integer, score: Object }>} scores
@@ -634,10 +634,10 @@ var thousands = function(x) {
  * @param {number=} opt_limit
  * @param {boolean=} opt_showlast
  */
-var add_pv = function(start_fen, pretty_pv, move_num, toplay, scores, start_display_move_num, opt_limit, opt_showlast) {
+var add_pv = function(start_fen, pv, move_num, toplay, scores, start_display_move_num, opt_limit, opt_showlast) {
 	display_lines.push({
 		start_fen: start_fen,
-		pretty_pv: pretty_pv,
+		pv: pv,
 		move_num: parseInt(move_num),
 		toplay: toplay,
 		scores: scores,
@@ -653,14 +653,14 @@ var add_pv = function(start_fen, pretty_pv, move_num, toplay, scores, start_disp
  */
 var print_pv = function(line_num, opt_limit, opt_showlast) {
 	var display_line = display_lines[line_num];
-	var pretty_pv = display_line.pretty_pv;
+	var pv = display_line.pv;
 	var move_num = display_line.move_num;
 	var toplay = display_line.toplay;
 
 	// Truncate PV at the start if needed.
 	var start_display_move_num = display_line.start_display_move_num;
 	if (start_display_move_num > 0) {
-		pretty_pv = pretty_pv.slice(start_display_move_num);
+		pv = pv.slice(start_display_move_num);
 		var to_add = start_display_move_num;
 		if (toplay === 'B') {
 			++move_num;
@@ -674,45 +674,45 @@ var print_pv = function(line_num, opt_limit, opt_showlast) {
 		move_num += to_add / 2;
 	}
 
-	var pv = '';
+	var ret = '';
 	var i = 0;
-	if (opt_limit && opt_showlast && pretty_pv.length > opt_limit) {
+	if (opt_limit && opt_showlast && pv.length > opt_limit) {
 		// Truncate the PV at the beginning (instead of at the end).
 		// We assume here that toplay is 'W'. We also assume that if
 		// opt_showlast is set, then it is the history, and thus,
 		// the UI should be to expand the history.
-		pv = '(<a class="move" href="javascript:collapse_history(false)">…</a>) ';
-		i = pretty_pv.length - opt_limit;
+		ret = '(<a class="move" href="javascript:collapse_history(false)">…</a>) ';
+		i = pv.length - opt_limit;
 		if (i % 2 == 1) {
 			++i;
 		}
 		move_num += i / 2;
-	} else if (toplay == 'B' && pretty_pv.length > 0) {
-		var move = "<a class=\"move\" id=\"automove" + line_num + "-0\" href=\"javascript:show_line(" + line_num + ", " + 0 + ");\">" + pretty_pv[0] + "</a>";
-		pv = move_num + '. … ' + move;
+	} else if (toplay == 'B' && pv.length > 0) {
+		var move = "<a class=\"move\" id=\"automove" + line_num + "-0\" href=\"javascript:show_line(" + line_num + ", " + 0 + ");\">" + pv[0] + "</a>";
+		ret = move_num + '. … ' + move;
 		toplay = 'W';
 		++i;
 		++move_num;
 	}
-	for ( ; i < pretty_pv.length; ++i) {
-		var move = "<a class=\"move\" id=\"automove" + line_num + "-" + i + "\" href=\"javascript:show_line(" + line_num + ", " + i + ");\">" + pretty_pv[i] + "</a>";
+	for ( ; i < pv.length; ++i) {
+		var move = "<a class=\"move\" id=\"automove" + line_num + "-" + i + "\" href=\"javascript:show_line(" + line_num + ", " + i + ");\">" + pv[i] + "</a>";
 
 		if (toplay == 'W') {
 			if (i > opt_limit && !opt_showlast) {
-				return pv + ' (…)';
+				return ret + ' (…)';
 			}
-			if (pv != '') {
-				pv += ' ';
+			if (ret != '') {
+				ret += ' ';
 			}
-			pv += move_num + '. ' + move;
+			ret += move_num + '. ' + move;
 			++move_num;
 			toplay = 'B';
 		} else {
-			pv += ' ' + move;
+			ret += ' ' + move;
 			toplay = 'W';
 		}
 	}
-	return pv;
+	return ret;
 }
 
 /** Update the highlighted to/from squares on the board.
@@ -728,7 +728,7 @@ var update_board_highlight = function() {
 }
 
 var update_history = function() {
-	if (display_lines[0] === null || display_lines[0].pretty_pv.length == 0) {
+	if (display_lines[0] === null || display_lines[0].pv.length == 0) {
 		$("#history").html("No history");
 	} else if (truncate_display_history) {
 		$("#history").html(print_pv(0, 8, true));
@@ -768,7 +768,7 @@ var update_refutation_lines = function() {
 	var base_scores = display_lines[1].scores;
 	var start_display_move_num = 0;
 	if (hash_refutation_lines) {
-		base_line = current_display_line.pretty_pv.slice(0, current_display_move + 1);
+		base_line = current_display_line.pv.slice(0, current_display_move + 1);
 		base_scores = current_display_line.scores;
 		start_display_move_num = base_line.length;
 	}
@@ -782,7 +782,7 @@ var update_refutation_lines = function() {
 	if (current_display_line && current_display_move % 2 == 0) {
 		invert = !invert;
 	}
-	var compare = sort_refutation_lines_by_score ? compare_by_score : compare_by_sort_key;
+	var compare = sort_refutation_lines_by_score ? compare_by_score : compare_by_name;
 	moves = moves.sort(function(a, b) { return compare(refutation_lines, invert, a, b) });
 	for (var i = 0; i < moves.length; ++i) {
 		var line = refutation_lines[moves[i]];
@@ -795,7 +795,7 @@ var update_refutation_lines = function() {
 
 		var scores = base_scores.concat([{ first_move: start_display_move_num, score: line['score'] }]);
 
-		if (line['pv_pretty'].length == 0) {
+		if (line['pv'].length == 0) {
 			// Not found, so just make a one-move PV.
 			var move = "<a class=\"move\" href=\"javascript:show_line(" + display_lines.length + ", " + 0 + ");\">" + line['pretty_move'] + "</a>";
 			$(move_td).html(move);
@@ -839,7 +839,7 @@ var update_refutation_lines = function() {
 		var pv_td = document.createElement("td");
 		tr.appendChild(pv_td);
 		$(pv_td).addClass("pv");
-		$(pv_td).html(add_pv(base_fen, base_line.concat(line['pv_pretty']), move_num, toplay, scores, start_display_move_num, 10));
+		$(pv_td).html(add_pv(base_fen, base_line.concat(line['pv']), move_num, toplay, scores, start_display_move_num, 10));
 
 		tbl.append(tr);
 	}
@@ -1035,7 +1035,7 @@ var update_board = function() {
 		// Displaying some non-current position, pick out the last move
 		// from the history. This will work even if the fetch failed.
 		last_move = format_halfmove_with_number(
-			current_display_line.pretty_pv[current_display_move],
+			current_display_line.pv[current_display_move],
 			current_display_move + 1);
 		headline += ' after ' + last_move;
 	} else if (data['position']['last_move'] !== 'none') {
@@ -1074,7 +1074,7 @@ var update_board = function() {
 		// We don't have historic analysis for this position, but we
 		// can reconstruct what the last move was by just replaying
 		// from the start.
-		var hiddenboard = chess_from(null, current_display_line.pretty_pv, current_display_move);
+		var hiddenboard = chess_from(null, current_display_line.pv, current_display_move);
 		var moves = hiddenboard.history({ verbose: true });
 		var last_move = moves.pop();
 		highlight_from = last_move.from;
@@ -1153,48 +1153,61 @@ var update_board = function() {
 	$("#pvtitle").text("PV:");
 
 	var scores = [{ first_move: -1, score: data['score'] }];
-	$("#pv").html(add_pv(data['position']['fen'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay'], scores, 0));
+	$("#pv").html(add_pv(data['position']['fen'], data['pv'], data['position']['move_num'], data['position']['toplay'], scores, 0));
 
 	// Update the PV arrow.
 	clear_arrows();
-	if (data['pv_uci'].length >= 1) {
+	if (data['pv'].length >= 1) {
+		var hiddenboard = new Chess(base_fen);
+
 		// draw a continuation arrow as long as it's the same piece
-		for (var i = 0; i < data['pv_uci'].length; i += 2) {
-			var from = data['pv_uci'][i].substr(0, 2);
-			var to = data['pv_uci'][i].substr(2,4);
-			if ((i >= 2 && from != data['pv_uci'][i - 2].substr(2, 2)) ||
-			     interfering_arrow(from, to)) {
+		var last_to;
+		for (var i = 0; i < data['pv'].length; i += 2) {
+			var move = hiddenboard.move(data['pv'][i]);
+			if ((i >= 2 && move.from != last_to) ||
+			     interfering_arrow(move.from, move.to)) {
 				break;
 			}
-			create_arrow(from, to, '#f66', 6, 20);
+			create_arrow(move.from, move.to, '#f66', 6, 20);
+			last_to = move.from;
+			hiddenboard.move(data['pv'][i + 1]);  // To keep continuity.
 		}
 
 		var alt_moves = find_nonstupid_moves(data, 30, data['position']['toplay'] === 'B');
 		for (var i = 1; i < alt_moves.length && i < 3; ++i) {
-			create_arrow(alt_moves[i].substr(0, 2),
-				     alt_moves[i].substr(2, 2), '#f66', 1, 10);
+			hiddenboard = new Chess(base_fen);
+			var move = hiddenboard.move(alt_moves[i]);
+			create_arrow(move.from, move.to, '#f66', 1, 10);
 		}
 	}
 
 	// See if all semi-reasonable moves have only one possible response.
-	if (data['pv_uci'].length >= 2) {
+	if (data['pv'].length >= 2) {
 		var nonstupid_moves = find_nonstupid_moves(data, 300, data['position']['toplay'] === 'B');
-		var response = data['pv_uci'][1];
+		var response;
+		{
+			var hiddenboard = new Chess(base_fen);
+			hiddenboard.move(data['pv'][0]);
+			response = hiddenboard.move(data['pv'][1]);
+		}
 		for (var i = 0; i < nonstupid_moves.length; ++i) {
-			if (nonstupid_moves[i] == data['pv_uci'][0]) {
+			if (nonstupid_moves[i] == data['pv'][0]) {
 				// ignore the PV move for refutation lines.
 				continue;
 			}
 			if (!data['refutation_lines'] ||
 			    !data['refutation_lines'][nonstupid_moves[i]] ||
-			    !data['refutation_lines'][nonstupid_moves[i]]['pv_uci'] ||
-			    data['refutation_lines'][nonstupid_moves[i]]['pv_uci'].length < 1) {
+			    !data['refutation_lines'][nonstupid_moves[i]]['pv'] ||
+			    data['refutation_lines'][nonstupid_moves[i]]['pv'].length < 1) {
 				// Incomplete PV, abort.
 				response = undefined;
 				break;
 			}
-			var this_response = data['refutation_lines'][nonstupid_moves[i]]['pv_uci'][1];
-			if (response !== this_response) {
+			var line = data['refutation_lines'][nonstupid_moves[i]];
+			var hiddenboard = new Chess(base_fen);
+			hiddenboard.move(line['pv'][0]);
+			var this_response = hiddenboard.move(line['pv'][1]);
+			if (response.from !== this_response.from || response.to !== this_response.to) {
 				// Different response depending on lines, abort.
 				response = undefined;
 				break;
@@ -1202,8 +1215,7 @@ var update_board = function() {
 		}
 
 		if (nonstupid_moves.length > 0 && response !== undefined) {
-			create_arrow(response.substr(0, 2),
-				     response.substr(2, 2), '#66f', 6, 20);
+			create_arrow(response.from, response.to, '#66f', 6, 20);
 		}
 	}
 
@@ -1540,7 +1552,7 @@ window['prev_move'] = prev_move;
 
 var next_move = function() {
 	if (current_display_line &&
-	    current_display_move < current_display_line.pretty_pv.length - 1) {
+	    current_display_move < current_display_line.pv.length - 1) {
 		++current_display_move;
 	}
 	update_historic_analysis();
@@ -1571,13 +1583,13 @@ var update_historic_analysis = function() {
 	if (!current_display_line_is_history) {
 		return;
 	}
-	if (current_display_move == current_display_line.pretty_pv.length - 1) {
+	if (current_display_move == current_display_line.pv.length - 1) {
 		displayed_analysis_data = null;
 		update_board();
 	}
 
 	// Fetch old analysis for this line if it exists.
-	var hiddenboard = chess_from(null, current_display_line.pretty_pv, current_display_move);
+	var hiddenboard = chess_from(null, current_display_line.pv, current_display_move);
 	var filename = "/history/move" + (current_display_move + 1) + "-" +
 		hiddenboard.fen().replace(/ /g, '_').replace(/\//g, '-') + ".json";
 
@@ -1651,7 +1663,7 @@ var update_move_highlight = function() {
 			display_line_num = display_lines.length - 1;
 
 			// Clear out the PV, so it's not selected by anything later.
-			display_lines[1].pretty_pv = [];
+			display_lines[1].pv = [];
 		}
 
 		highlighted_move = $("#automove" + display_line_num + "-" + (current_display_move - current_display_line.start_display_move_num));
@@ -1671,10 +1683,10 @@ var find_display_line_matching_num = function() {
 		var line = display_lines[i];
 		if (line.start_display_move_num > 0) continue;
 		if (current_display_line.start_fen !== line.start_fen) continue;
-		if (current_display_line.pretty_pv.length !== line.pretty_pv.length) continue;
+		if (current_display_line.pv.length !== line.pv.length) continue;
 		var ok = true;
-		for (var j = 0; j < line.pretty_pv.length; ++j) {
-			if (current_display_line.pretty_pv[j] !== line.pretty_pv[j]) {
+		for (var j = 0; j < line.pv.length; ++j) {
+			if (current_display_line.pv[j] !== line.pv[j]) {
 				ok = false;
 				break;
 			}
@@ -1709,13 +1721,13 @@ var update_displayed_line = function() {
 	} else {
 		$("#prevmove").html("<a href=\"javascript:prev_move();\">Previous</a></span>");
 	}
-	if (current_display_move == current_display_line.pretty_pv.length - 1) {
+	if (current_display_move == current_display_line.pv.length - 1) {
 		$("#nextmove").html("Next");
 	} else {
 		$("#nextmove").html("<a href=\"javascript:next_move();\">Next</a></span>");
 	}
 
-	var hiddenboard = chess_from(current_display_line.start_fen, current_display_line.pretty_pv, current_display_move);
+	var hiddenboard = chess_from(current_display_line.start_fen, current_display_line.pv, current_display_move);
 	set_board_position(hiddenboard.fen());
 	if (display_fen !== hiddenboard.fen() && !current_display_line_is_history) {
 		// Fire off a hash request, since we're now off the main position
@@ -1877,8 +1889,8 @@ var get_best_move = function(game, source, target, invert) {
 
 	// See if we're already exploring some line.
 	if (current_display_line &&
-	    current_display_move < current_display_line.pretty_pv.length - 1) {
-		var first_move = current_display_line.pretty_pv[current_display_move + 1];
+	    current_display_move < current_display_line.pv.length - 1) {
+		var first_move = current_display_line.pv[current_display_move + 1];
 		if (move_hash[first_move]) {
 			return move_hash[first_move];
 		}
@@ -1887,7 +1899,7 @@ var get_best_move = function(game, source, target, invert) {
 	// History and PV take priority over the display lines.
 	for (var i = 0; i < 2; ++i) {
 		var line = display_lines[i];
-		var first_move = line.pretty_pv[line.start_display_move_num];
+		var first_move = line.pv[line.start_display_move_num];
 		if (move_hash[first_move]) {
 			return move_hash[first_move];
 		}
@@ -1901,7 +1913,7 @@ var get_best_move = function(game, source, target, invert) {
 		if (!line['score']) {
 			continue;
 		}
-		var first_move = line['pv_pretty'][0];
+		var first_move = line['pv'][0];
 		if (move_hash[first_move]) {
 			var score = compute_score_sort_key(line['score'], line['depth'], invert);
 			if (best_move_score === null || score > best_move_score) {
@@ -1952,8 +1964,8 @@ var onSnapEnd = function(source, target) {
 	});
 
 	if (current_display_line &&
-	    current_display_move < current_display_line.pretty_pv.length - 1 &&
-	    current_display_line.pretty_pv[current_display_move + 1] === move.san) {
+	    current_display_move < current_display_line.pv.length - 1 &&
+	    current_display_line.pv[current_display_move + 1] === move.san) {
 		next_move();
 		return;
 	}
@@ -1963,7 +1975,7 @@ var onSnapEnd = function(source, target) {
 	// order (history first, then PV, then multi-PV lines).
 	for (var i = 0; i < display_lines.length; ++i) {
 		var line = display_lines[i];
-		if (line.pretty_pv[line.start_display_move_num] === move.san) {
+		if (line.pv[line.start_display_move_num] === move.san) {
 			show_line(i, 0);
 			return;
 		}

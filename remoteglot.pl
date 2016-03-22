@@ -844,9 +844,7 @@ sub output_json {
 	$json->{'tbhits'} = $info->{'tbhits'};
 	$json->{'seldepth'} = $info->{'seldepth'};
 	$json->{'tablebase'} = $info->{'tablebase'};
-
-	$json->{'pv_uci'} = $info->{'pv'};  # Still needs to be there for the JS to calculate arrows; only for the primary PV, though!
-	$json->{'pv_pretty'} = [ prettyprint_pv($pos_calculating, @{$info->{'pv'}}) ];
+	$json->{'pv'} = [ prettyprint_pv($pos_calculating, @{$info->{'pv'}}) ];
 
 	my %refutation_lines = ();
 	my @refutation_lines = ();
@@ -862,12 +860,11 @@ sub output_json {
 				my $pv = $info->{'pv' . $mpv};
 				my $pretty_move = join('', prettyprint_pv($pos_calculating, $pv->[0]));
 				my @pretty_pv = prettyprint_pv($pos_calculating, @$pv);
-				$refutation_lines{$pv->[0]} = {
-					sort_key => $pretty_move,
+				$refutation_lines{$pretty_move} = {
 					depth => $info->{'depth' . $mpv},
 					score => score_digest($info, $pos_calculating, $mpv),
 					pretty_move => $pretty_move,
-					pv_pretty => \@pretty_pv,
+					pv => \@pretty_pv,
 				};
 			};
 		}

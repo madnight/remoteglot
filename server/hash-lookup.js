@@ -160,7 +160,7 @@ var translate_line = function(board, fen, line) {
 		}
 		pv.push(decoded.san);
 	}
-	r['pv_pretty'] = pv;
+	r['pv'] = pv;
 
 	// Convert the score. Use the static eval if no search.
 	var value = line['value'] || line['eval'];
