@@ -1681,12 +1681,17 @@ var find_display_line_matching_num = function() {
 	return null;
 }
 
+/** Update the board based on the currently displayed line.
+ * 
+ * TODO: This should really be called only whenever something changes,
+ * instead of all the time.
+ */
 var update_displayed_line = function() {
 	if (current_display_line === null) {
 		$("#linenav").hide();
 		$("#linemsg").show();
 		display_fen = base_fen;
-		board.position(base_fen);
+		set_board_position(base_fen);
 		update_imbalance(base_fen);
 		return;
 	}
@@ -1706,18 +1711,23 @@ var update_displayed_line = function() {
 	}
 
 	var hiddenboard = chess_from(current_display_line.start_fen, current_display_line.pretty_pv, current_display_move);
-	display_fen = hiddenboard.fen();
-	board_is_animating = true;
-	var old_fen = board.fen();
-	board.position(hiddenboard.fen());
-	if (board.fen() === old_fen) {
-		board_is_animating = false;
-	} else if (!current_display_line_is_history) {
+	set_board_position(hiddenboard.fen());
+	if (display_fen !== hiddenboard.fen() && !current_display_line_is_history) {
 		// Fire off a hash request, since we're now off the main position
 		// and it just changed.
-		explore_hash(display_fen);
+		explore_hash(hiddenboard.fen());
 	}
+	display_fen = hiddenboard.fen();
 	update_imbalance(hiddenboard.fen());
+}
+
+var set_board_position = function(new_fen) {
+	board_is_animating = true;
+	var old_fen = board.fen();
+	board.position(new_fen);
+	if (board.fen() === old_fen) {
+		board_is_animating = false;
+	}
 }
 
 /**
