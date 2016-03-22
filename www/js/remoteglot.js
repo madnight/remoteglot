@@ -1806,6 +1806,15 @@ var get_best_move = function(game, source, target, invert) {
 		move_hash[moves[i].san] = moves[i];
 	}
 
+	// See if we're already exploring some line.
+	if (current_display_line &&
+	    current_display_move < current_display_line.pretty_pv.length - 1) {
+		var first_move = current_display_line.pretty_pv[current_display_move + 1];
+		if (move_hash[first_move]) {
+			return move_hash[first_move];
+		}
+	}
+
 	// History and PV take priority over the display lines.
 	for (var i = 0; i < 2; ++i) {
 		var line = display_lines[i];
