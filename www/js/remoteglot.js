@@ -952,11 +952,10 @@ var update_board = function() {
 	if (current_data['games']) {
 		current_games = current_data['games'];
 		possibly_switch_game_from_hash();
-		update_game_list(current_data['games']);
 	} else {
 		current_games = null;
-		update_game_list(null);
 	}
+	update_game_list(current_games);
 
 	// The headline. Names are always fetched from current_data;
 	// the rest can depend a bit.
@@ -1518,6 +1517,24 @@ var next_move = function() {
 	update_move_highlight();
 }
 window['next_move'] = next_move;
+
+var next_game = function() {
+	if (current_games === null) {
+		return;
+	}
+
+	// Try to find the game we are currently looking at.
+	for (var game_num = 0; game_num < current_games.length; ++game_num) {
+		var game = current_games[game_num];
+		if (game['url'] === backend_url) {
+			var next_game_num = (game_num + 1) % current_games.length;
+			switch_backend(current_games[next_game_num]['url'], current_games[next_game_num]['hashurl']);
+			return;
+		}
+	}
+
+	// Couldn't find it; give up.
+}
 
 var update_historic_analysis = function() {
 	if (!current_display_line_is_history) {
@@ -2085,10 +2102,17 @@ var init = function() {
 		redraw_arrows();
 	});
 	$(window).keyup(function(event) {
-		if (event.which == 39) {
+		if (event.which == 39) {  // Left arrow.
 			next_move();
-		} else if (event.which == 37) {
+		} else if (event.which == 37) {  // Right arrow.
 			prev_move();
+		} else if (event.which >= 49 && event.which <= 57) {  // 1-9.
+			var num = event.which - 49;
+			if (current_games && current_games.length >= num) {
+				switch_backend(current_games[num]['url'], current_games[num]['hashurl']);
+			}
+		} else if (event.which == 78) {  // N.
+			next_game();
 		}
 	});
 	window.addEventListener('hashchange', possibly_switch_game_from_hash, false);
