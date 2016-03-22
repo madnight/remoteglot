@@ -1905,14 +1905,6 @@ var onSnapEnd = function(source, target) {
 }
 // End of dragging-related code.
 
-var pad = function(val, num_digits) {
-	var s = val.toString();
-	while (s.length < num_digits) {
-		s = " " + s;
-	}
-	return s;
-}
-
 var fmt_cp = function(v) {
 	if (v === 0) {
 		return "0.00";
@@ -1930,9 +1922,9 @@ var format_short_score = function(score) {
 	}
 	if (score[0] === 'm') {
 		if (score[2]) {  // Is a bound.
-			return score[2] + "\u00a0M" + pad(score[1], 3);
+			return score[2] + "\u00a0M " + score[1];
 		} else {
-			return "M" + pad(score[1], 3);
+			return "M " + score[1];
 		}
 	} else if (score[0] === 'd') {
 		return "TB draw";
@@ -1940,7 +1932,7 @@ var format_short_score = function(score) {
 		if (score[2]) {  // Is a bound.
 			return score[2] + "\u00a0" + fmt_cp(score[1]);
 		} else {
-			return pad(fmt_cp(score[1]), 5);
+			return fmt_cp(score[1]);
 		}
 	}
 	return null;
