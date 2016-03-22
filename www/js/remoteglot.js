@@ -48,8 +48,8 @@ var displayed_analysis_data = null;
  *      name: string,
  *      url: string,
  *      id: string,
- *      score: =Object,
- *      result: =string,
+ *      score: Object=,
+ *      result: string=,
  * }>}
  * @private
  */
@@ -572,7 +572,7 @@ var compare_by_score = function(refutation_lines, invert, a, b) {
  * @param {!Object} data
  * @param {number} margin The maximum number of centipawns worse than the
  *     best move can be and still be included.
- * @param {boolean} margin Whether black is to play.
+ * @param {boolean} invert Whether black is to play.
  * @return {Array.<string>} The FEN representation (e.g. Ne4) of all
  *     moves, in score order.
  */
@@ -1076,7 +1076,7 @@ var update_board = function() {
 		// from the start.
 		var hiddenboard = chess_from(null, current_display_line.pv, current_display_move);
 		var moves = hiddenboard.history({ verbose: true });
-		var last_move = moves.pop();
+		last_move = moves.pop();
 		highlight_from = last_move.from;
 		highlight_to = last_move.to;
 	} else {
@@ -1204,7 +1204,7 @@ var update_board = function() {
 				break;
 			}
 			var line = data['refutation_lines'][nonstupid_moves[i]];
-			var hiddenboard = new Chess(base_fen);
+			hiddenboard = new Chess(base_fen);
 			hiddenboard.move(line['pv'][0]);
 			var this_response = hiddenboard.move(line['pv'][1]);
 			if (response.from !== this_response.from || response.to !== this_response.to) {
@@ -1336,7 +1336,6 @@ var update_clock = function() {
 
 	var white_clock_ms = null;
 	var black_clock_ms = null;
-	var show_seconds = false;
 
 	// Static clocks.
 	if (data['position'] &&

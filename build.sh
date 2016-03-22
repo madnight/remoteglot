@@ -12,7 +12,6 @@ java -jar closure/compiler.jar \
 	--language_in ECMASCRIPT5 \
 	--compilation_level SIMPLE \
 	--js_output_file=www/js/remoteglot.min.js \
-	--externs externs/webstorage.js \
         www/js/jquery-deprecated-sizzle.js \
 	www/js/chessboard-0.3.0.js \
 	www/js/chess.js \
