@@ -2003,6 +2003,9 @@ var format_short_score = function(score) {
 }
 
 var format_long_score = function(score) {
+	if (!score) {
+		return "???";
+	}
 	if (score[0] === 'm') {
 		if (score[1] > 0) {
 			return "White mates in " + score[1];
