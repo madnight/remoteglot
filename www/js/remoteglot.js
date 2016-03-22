@@ -1085,7 +1085,7 @@ var update_board = function() {
 	update_clock();
 
 	// The score.
-	if (current_display_line) {
+	if (current_display_line && !current_display_line_is_history) {
 		if (current_display_line.score) {
 			$("#score").text(format_long_score(current_display_line.score));
 		} else {
