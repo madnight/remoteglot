@@ -560,8 +560,8 @@ var compare_by_sort_key = function(refutation_lines, invert, a, b) {
 };
 
 var compare_by_score = function(refutation_lines, invert, a, b) {
-	var sa = compute_score_sort_key(refutation_lines[b]['score'], invert);
-	var sb = compute_score_sort_key(refutation_lines[a]['score'], invert);
+	var sa = compute_score_sort_key(refutation_lines[b]['score'], refutation_lines[b]['depth'], invert);
+	var sb = compute_score_sort_key(refutation_lines[a]['score'], refutation_lines[a]['depth'], invert);
 	return sa - sb;
 }
 
@@ -583,14 +583,15 @@ var find_nonstupid_moves = function(data, margin, invert) {
 	var best_score = undefined;
 	var pv_score = undefined;
 	for (var move in data['refutation_lines']) {
-		var score = compute_score_sort_key(data['refutation_lines'][move]['score'], invert);
+		var line = data['refutation_lines'][move];
+		var score = compute_score_sort_key(line['score'], line['depth'], invert);
 		if (move == data['pv_uci'][0]) {
 			pv_score = score;
 		}
 		if (best_score === undefined || score > best_score) {
 			best_score = score;
 		}
-		if (!(data['refutation_lines'][move]['depth'] >= 8)) {
+		if (line['depth'] < 8) {
 			return [];
 		}
 	}
@@ -603,7 +604,8 @@ var find_nonstupid_moves = function(data, margin, invert) {
 	// The PV move will always be first.
 	var moves = [];
 	for (var move in data['refutation_lines']) {
-		var score = compute_score_sort_key(data['refutation_lines'][move]['score'], invert);
+		var line = data['refutation_lines'][move];
+		var score = compute_score_sort_key(line['score'], line['depth'], invert);
 		if (move != data['pv_uci'][0] && best_score - score <= margin) {
 			moves.push(move);
 		}
@@ -1882,7 +1884,7 @@ var get_best_move = function(game, source, target, invert) {
 		}
 		var first_move = line['pv_pretty'][0];
 		if (move_hash[first_move]) {
-			var score = compute_score_sort_key(line['score'], invert);
+			var score = compute_score_sort_key(line['score'], line['depth'], invert);
 			if (best_move_score === null || score > best_move_score) {
 				best_move = move_hash[first_move];
 				best_move_score = score;
@@ -2024,10 +2026,11 @@ var compute_plot_score = function(score) {
 
 /**
  * @param score The score digest tuple.
+ * @param {?number} depth Depth the move has been computed to, or null.
  * @param {boolean} invert Whether black is to play.
  * @return {number}
  */
-var compute_score_sort_key = function(score, invert) {
+var compute_score_sort_key = function(score, depth, invert) {
 	var s;
 	if (!score) {
 		return -10000000;
@@ -2040,14 +2043,17 @@ var compute_score_sort_key = function(score, invert) {
 			// Black mates (note the double negative for score[1]).
 			s = -99999 - score[1];
 		}
-		if (invert) s = -s;
-		return s;
 	} else if (score[0] === 'd') {
-		return 0;
+		s = 0;
 	} else if (score[0] === 'cp') {
-		return invert ? -score[1] : score[1];
+		s = score[1];
 	}
-	return null;
+	if (s) {
+		if (invert) s = -s;
+		return s * 200 + (depth || 0);
+	} else {
+		return null;
+	}
 }
 
 /**
