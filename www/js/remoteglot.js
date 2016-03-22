@@ -645,8 +645,8 @@ var add_pv = function(start_fen, pretty_pv, move_num, toplay, score, start_displ
 
 /**
  * @param {number} line_num
- * @param {number=} opt_limit
- * @param {boolean=} opt_showlast
+ * @param {number=} opt_limit If set, show at most this number of moves.
+ * @param {boolean=} opt_showlast If limit is set, show the last moves instead of the first ones.
  */
 var print_pv = function(line_num, opt_limit, opt_showlast) {
 	var display_line = display_lines[line_num];
@@ -732,7 +732,7 @@ var update_history = function() {
 	} else {
 		$("#history").html(
 			'(<a class="move" href="javascript:collapse_history(true)">collapse</a>) ' +
-			print_pv(0, 1, 'W'));
+			print_pv(0));
 	}
 }
 
