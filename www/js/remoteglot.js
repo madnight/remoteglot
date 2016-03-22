@@ -7,7 +7,7 @@
  * @type {Number}
  * @const
  * @private */
-var SCRIPT_VERSION = 2016032201;
+var SCRIPT_VERSION = 2016032202;
 
 /**
  * The current backend URL.
