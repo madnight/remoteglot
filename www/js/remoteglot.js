@@ -890,21 +890,31 @@ var update_game_list = function(games) {
 
 		var game_name = document.createTextNode(game['name']);
 		if (game['url'] === backend_url) {
+			// This game.
 			game_span.appendChild(game_name);
+
+			var score;
+			if (current_analysis_data['position']['result']) {
+				score = " (" + current_analysis_data['position']['result'] + ")";
+			} else {
+				score = " (" + format_short_score(current_analysis_data['score']) + ")";
+			}
+			game_span.appendChild(document.createTextNode(score));
 		} else {
+			// Some other game.
 			var game_a = document.createElement("a");
 			game_a.setAttribute("href", "#" + game['id']);
 			game_a.appendChild(game_name);
 			game_span.appendChild(game_a);
-		}
 
-		var score;
-		if (game['result']) {
-			score = " (" + game['result'] + ")";
-		} else {
-			score = " (" + format_short_score(game['score']) + ")";
+			var score;
+			if (game['result']) {
+				score = " (" + game['result'] + ")";
+			} else {
+				score = " (" + format_short_score(game['score']) + ")";
+			}
+			game_span.appendChild(document.createTextNode(score));
 		}
-		game_span.appendChild(document.createTextNode(score));
 
 		games_div.appendChild(game_span);
 	}

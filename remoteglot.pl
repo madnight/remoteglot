@@ -918,6 +918,7 @@ sub output_json {
 	}
 
 	# Give out a list of other games going on. (Empty is fine.)
+	# TODO: Don't bother reading our own file, the data will be stale anyway.
 	if (!$historic_json_only) {
 		my @games = ();
 
