@@ -291,7 +291,11 @@ sub handle_pgn {
 			}
 
 			$pgn->parse_game({ save_comments => 'yes' });
-			my $pos = Position->start_pos($pgn->white, $pgn->black);
+			my $white = $pgn->white;
+			my $black = $pgn->black;
+			$white =~ s/,.*//;  # Remove first name.
+			$black =~ s/,.*//;  # Remove first name.
+			my $pos = Position->start_pos($white, $black);
 			my $moves = $pgn->moves;
 			my @uci_moves = ();
 			my @repretty_moves = ();
