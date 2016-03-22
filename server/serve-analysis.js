@@ -10,8 +10,8 @@ var path = require('path');
 var zlib = require('zlib');
 var readline = require('readline');
 var child_process = require('child_process');
-var delta = require('./js/json_delta.js');
-var hash_lookup = require('./js/hash-lookup.js');
+var delta = require('../www/js/json_delta.js');
+var hash_lookup = require('./hash-lookup.js');
 
 // Constants.
 var HISTORY_TO_KEEP = 5;
@@ -36,8 +36,8 @@ if (process.argv.length >= 5) {
 
 // TCP port to listen on.
 var port = 5000;
-if (process.argv.length >= 5) {
-	port = parseInt(process.argv[4]);
+if (process.argv.length >= 6) {
+	port = parseInt(process.argv[5]);
 }
 
 // If set to 1, we are already processing a JSON update and should not

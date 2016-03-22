@@ -1,5 +1,5 @@
 var grpc = require('grpc');
-var Chess = require(__dirname + '/chess.min.js').Chess;
+var Chess = require('../www/js/chess.min.js').Chess;
 
 var PROTO_PATH = __dirname + '/hashprobe.proto';
 var hashprobe_proto = grpc.load(PROTO_PATH).hashprobe;
