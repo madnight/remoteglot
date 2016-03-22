@@ -4,10 +4,16 @@ var Chess = require('../www/js/chess.min.js').Chess;
 var PROTO_PATH = __dirname + '/hashprobe.proto';
 var hashprobe_proto = grpc.load(PROTO_PATH).hashprobe;
 
-// TODO: Make destination configurable.
-var client = new hashprobe_proto.HashProbe('localhost:50051', grpc.credentials.createInsecure());
-
 var board = new Chess();
+
+var clients = [];
+
+var init = function(servers) {
+	for (var i = 0; i < servers.length; ++i) {
+		clients.push(new hashprobe_proto.HashProbe(servers[i], grpc.credentials.createInsecure()));
+	}
+}
+exports.init = init;
 
 var handle_request = function(fen, response) {
 	if (!board.validate_fen(fen).valid) {
@@ -15,18 +21,35 @@ var handle_request = function(fen, response) {
 		response.end();
 		return;
 	}
-	client.probe({fen: fen}, function(err, probe_response) {
-		if (err) {
-			response.writeHead(500, {});
-			response.end();
-		} else {
-			handle_response(fen, response, probe_response);
-		}
-	});
+
+	var rpc_status = {
+		failed: false,
+		left: clients.length,
+		responses: [],
+	}
+	for (var i = 0; i < clients.length; ++i) {
+		clients[i].probe({fen: fen}, function(err, probe_response) {
+			if (err) {
+				rpc_status.failed = true;
+			} else {
+				rpc_status.responses.push(probe_response);
+			}
+			if (--rpc_status.left == 0) {
+				// All probes have come back.
+				if (rpc_status.failed) {
+					response.writeHead(500, {});
+					response.end();
+				} else {
+					handle_response(fen, response, rpc_status.responses);
+				}
+			}
+		});
+	}
 }
 exports.handle_request = handle_request;
 
-var handle_response = function(fen, response, probe_response) {
+var handle_response = function(fen, response, probe_responses) {
+	var probe_response = reconcile_responses(probe_responses);
 	var lines = {};
 
 	var root = translate_line(board, fen, probe_response['root']);
@@ -48,6 +71,59 @@ var handle_response = function(fen, response, probe_response) {
 	response.write(text);
 	response.end();
 }
+
+var reconcile_responses = function(probe_responses) {
+	var probe_response = {};
+
+	// Select the root that has searched the deepest, plain and simple.
+	probe_response['root'] = probe_responses[0]['root'];
+	for (var i = 1; i < probe_responses.length; ++i) {
+		var root = probe_responses[i]['root'];
+		if (root['depth'] > probe_response['root']['depth']) {
+			probe_response['root'] = root;
+		}
+	}
+
+	// Do the same ting for each move, combining on move.
+	var moves = {};
+	for (var i = 0; i < probe_responses.length; ++i) {
+		for (var j = 0; j < probe_responses[i]['line'].length; ++j) {
+			var line = probe_responses[i]['line'][j];
+			var uci_move = line['move']['from_sq'] + line['move']['to_sq'] + line['move']['promotion'];
+
+			if (!moves[uci_move]) {
+				moves[uci_move] = line;
+			} else {
+				moves[uci_move] = reconcile_moves(line, moves[uci_move]);
+			}
+		}
+	}
+	probe_response['line'] = [];
+	for (var move in moves) {
+		probe_response['line'].push(moves[move]);
+	}
+	return probe_response;
+}
+
+var reconcile_moves = function(a, b) {
+	// Prefer exact bounds, unless the depth is just so much higher.
+	if (a['bound'] === 'BOUND_EXACT' &&
+	    b['bound'] !== 'BOUND_EXACT' &&
+	    a['depth'] + 10 >= b['depth']) {
+		return a;
+	}
+	if (b['bound'] === 'BOUND_EXACT' &&
+	    a['bound'] !== 'BOUND_EXACT' &&
+	    b['depth'] + 10 >= a['depth']) {
+		return b;
+	}
+
+	if (a['depth'] > b['depth']) {
+		return a;
+	} else {
+		return b;
+	}
+}	
 
 var translate_line = function(board, fen, line) {
 	var r = {};

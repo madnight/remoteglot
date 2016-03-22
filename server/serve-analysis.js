@@ -40,6 +40,13 @@ if (process.argv.length >= 6) {
 	port = parseInt(process.argv[5]);
 }
 
+// gRPC backends.
+var grpc_backends = ["localhost:50051", "localhost:50052"];
+if (process.argv.length >= 7) {
+	grpc_backends = process.argv[6].split(",");
+}
+hash_lookup.init(grpc_backends);
+
 // If set to 1, we are already processing a JSON update and should not
 // start a new one. If set to 2, we are _also_ having one in the queue.
 var json_lock = 0;
