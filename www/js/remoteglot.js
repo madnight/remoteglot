@@ -7,7 +7,7 @@
  * @type {Number}
  * @const
  * @private */
-var SCRIPT_VERSION = 2016032200;
+var SCRIPT_VERSION = 2016032201;
 
 /**
  * The current backend URL.
@@ -48,7 +48,8 @@ var displayed_analysis_data = null;
  *      name: string,
  *      url: string,
  *      id: string,
- *      score: Object
+ *      score: =Object,
+ *      result: =string,
  * }>}
  * @private
  */
@@ -897,7 +898,12 @@ var update_game_list = function(games) {
 			game_span.appendChild(game_a);
 		}
 
-		var score = " (" + format_short_score(game['score']) + ")";
+		var score;
+		if (game['result']) {
+			score = " (" + game['result'] + ")";
+		} else {
+			score = " (" + format_short_score(game['score']) + ")";
+		}
 		game_span.appendChild(document.createTextNode(score));
 
 		games_div.appendChild(game_span);
@@ -1028,8 +1034,10 @@ var update_board = function() {
 
 	// The <title> contains a very brief headline.
 	var title_elems = [];
-	if (data['score']) {
-		title_elems.push(format_short_score(data['score']).replace(/^ /, ""));
+	if (data['position'] && data['position']['result']) {
+		title_elems.push(data['position']['result']);
+	} else if (data['score']) {
+		title_elems.push(format_short_score(data['score']));
 	}
 	if (last_move !== null) {
 		title_elems.push(last_move);

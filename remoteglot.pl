@@ -309,7 +309,9 @@ sub handle_pgn {
 				push @repretty_moves, $pretty;
 				$pos = $npos;
 			}
-			$pos->{'result'} = $pgn->result;
+			if ($pgn->result eq '1-0' || $pgn->result eq '1/2-1/2' || $pgn->result eq '0-1') {
+				$pos->{'result'} = $pgn->result;
+			}
 			$pos->{'pretty_history'} = \@repretty_moves;
 
 			extract_clock($pgn, $pos);
@@ -930,13 +932,18 @@ sub output_json {
 				my $white = $other_game_json->{'position'}{'player_w'} // die 'Missing white';
 				my $black = $other_game_json->{'position'}{'player_b'} // die 'Missing black';
 
-				push @games, {
+				my $game = {
 					id => $ref->{'id'},
 					name => "$white–$black",
 					url => $ref->{'url'},
 					hashurl => $ref->{'hash_url'},
-					score => $other_game_json->{'score'}
 				};
+				if (defined($other_game_json->{'position'}{'result'})) {
+					$game->{'result'} = $other_game_json->{'position'}{'result'};
+				} else {
+					$game->{'score'} = $other_game_json->{'score'};
+				}
+				push @games, $game;
 			};
 			if ($@) {
 				warn "Could not add external game " . $ref->{'json_path'} . ": $@";
