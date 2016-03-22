@@ -1104,17 +1104,19 @@ var update_board = function() {
 
 	// The score.
 	if (current_display_line && !current_display_line_is_history) {
+		var score;
 		if (current_display_line.scores && current_display_line.scores.length > 0) {
-			var score;
 			for (var i = 0; i < current_display_line.scores.length; ++i) {
 				if (current_display_move < current_display_line.scores[i].first_move) {
 					break;
 				}
 				score = current_display_line.scores[i].score;
 			}
+		}
+		if (score) {
 			$("#score").text(format_long_score(score));
 		} else {
-			$("#score").text("No score for this move");
+			$("#score").text("No score for this line");
 		}
 	} else if (data['score']) {
 		$("#score").text(format_long_score(data['score']));
