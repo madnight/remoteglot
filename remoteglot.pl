@@ -929,7 +929,8 @@ sub output_json {
 				push @games, {
 					id => $ref->{'id'},
 					name => "$white–$black",
-					url => $ref->{'url'}
+					url => $ref->{'url'},
+					hashurl => $ref->{'hash_url'},
 				};
 			};
 			if ($@) {

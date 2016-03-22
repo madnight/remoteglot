@@ -19,5 +19,6 @@ CREATE TABLE current_games (
 	id varchar not null primary key,
 	json_path varchar not null,
 	url varchar not null,
+	hashurl varchar not null,
 	priority integer not null default 0,
 );

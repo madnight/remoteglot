@@ -912,7 +912,7 @@ var possibly_switch_game_from_hash = function() {
 	for (var i = 0; i < current_games.length; ++i) {
 		if (current_games[i]['id'] === hash) {
 			if (backend_url !== current_games[i]['url']) {
-				switch_backend(current_games[i]['url']);
+				switch_backend(current_games[i]['url'], current_games[i]['hashurl']);
 			}
 			return;
 		}
@@ -1999,7 +1999,7 @@ var compute_score_sort_key = function(score, invert) {
 /**
  * @param {string} new_backend_url
  */
-var switch_backend = function(new_backend_url) {
+var switch_backend = function(new_backend_url, new_backend_hash_url) {
 	// Stop looking at historic data.
 	current_display_line = null;
 	current_display_move = null;
@@ -2029,6 +2029,7 @@ var switch_backend = function(new_backend_url) {
 
 	// Request an immediate fetch with the new backend.
 	backend_url = new_backend_url;
+	backend_hash_url = new_backend_hash_url;
 	current_analysis_data = null;
 	ims = 0;
 	request_update();
