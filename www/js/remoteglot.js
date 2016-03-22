@@ -899,13 +899,15 @@ var update_game_list = function(games) {
 			// This game.
 			game_span.appendChild(game_name);
 
-			var score;
-			if (current_analysis_data['position']['result']) {
-				score = " (" + current_analysis_data['position']['result'] + ")";
-			} else {
-				score = " (" + format_short_score(current_analysis_data['score']) + ")";
+			if (current_analysis_data && current_analysis_data['position']) {
+				var score;
+				if (current_analysis_data['position']['result']) {
+					score = " (" + current_analysis_data['position']['result'] + ")";
+				} else {
+					score = " (" + format_short_score(current_analysis_data['score']) + ")";
+				}
+				game_span.appendChild(document.createTextNode(score));
 			}
-			game_span.appendChild(document.createTextNode(score));
 		} else {
 			// Some other game.
 			var game_a = document.createElement("a");
@@ -1291,6 +1293,8 @@ var update_clock = function() {
 	clearTimeout(clock_timer);
 
 	var data = displayed_analysis_data || current_analysis_data;
+	if (!data) return;
+
 	if (data['position']) {
 		var result = data['position']['result'];
 		if (result === '1-0') {
