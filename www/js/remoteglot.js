@@ -160,7 +160,7 @@ var display_fen = null;
  *    pretty_pv: Array.<string>,
  *    move_num: number,
  *    toplay: string,
- *    score: string,
+ *    scores: Array<{first_move: number, score: Object}>,
  *    start_display_move_num: number
  * }} DisplayLine
  *
@@ -627,18 +627,18 @@ var thousands = function(x) {
  * @param {Array.<string>} pretty_pv
  * @param {number} move_num
  * @param {!string} toplay
- * @param {!string} score
+ * @param {Array<{ first_move: integer, score: Object }>} scores
  * @param {number} start_display_move_num
  * @param {number=} opt_limit
  * @param {boolean=} opt_showlast
  */
-var add_pv = function(start_fen, pretty_pv, move_num, toplay, score, start_display_move_num, opt_limit, opt_showlast) {
+var add_pv = function(start_fen, pretty_pv, move_num, toplay, scores, start_display_move_num, opt_limit, opt_showlast) {
 	display_lines.push({
 		start_fen: start_fen,
 		pretty_pv: pretty_pv,
 		move_num: parseInt(move_num),
 		toplay: toplay,
-		score: score,
+		scores: scores,
 		start_display_move_num: start_display_move_num
 	});
 	return print_pv(display_lines.length - 1, opt_limit, opt_showlast);
@@ -763,9 +763,11 @@ var update_refutation_lines = function() {
 
 	// Find out where the lines start from.
 	var base_line = [];
+	var base_scores = [];
 	var start_display_move_num = 0;
 	if (hash_refutation_lines) {
 		base_line = current_display_line.pretty_pv.slice(0, current_display_move + 1);
+		base_scores = current_display_line.scores;
 		start_display_move_num = base_line.length;
 	}
 
@@ -789,6 +791,8 @@ var update_refutation_lines = function() {
 		tr.appendChild(move_td);
 		$(move_td).addClass("move");
 
+		var scores = base_scores.concat([{ first_move: start_display_move_num, score: line['score'] }]);
+
 		if (line['pv_pretty'].length == 0) {
 			// Not found, so just make a one-move PV.
 			var move = "<a class=\"move\" href=\"javascript:show_line(" + display_lines.length + ", " + 0 + ");\">" + line['pretty_move'] + "</a>";
@@ -807,7 +811,7 @@ var update_refutation_lines = function() {
 			var pv_td = document.createElement("td");
 			tr.appendChild(pv_td);
 			$(pv_td).addClass("pv");
-			$(pv_td).html(add_pv(base_fen, base_line.concat([ line['pretty_move'] ]), move_num, toplay, line['score'], start_display_move_num));
+			$(pv_td).html(add_pv(base_fen, base_line.concat([ line['pretty_move'] ]), move_num, toplay, scores, start_display_move_num));
 
 			tbl.append(tr);
 			continue;
@@ -833,7 +837,7 @@ var update_refutation_lines = function() {
 		var pv_td = document.createElement("td");
 		tr.appendChild(pv_td);
 		$(pv_td).addClass("pv");
-		$(pv_td).html(add_pv(base_fen, base_line.concat(line['pv_pretty']), move_num, toplay, line['score'], start_display_move_num, 10));
+		$(pv_td).html(add_pv(base_fen, base_line.concat(line['pv_pretty']), move_num, toplay, scores, start_display_move_num, 10));
 
 		tbl.append(tr);
 	}
@@ -1096,8 +1100,15 @@ var update_board = function() {
 
 	// The score.
 	if (current_display_line && !current_display_line_is_history) {
-		if (current_display_line.score) {
-			$("#score").text(format_long_score(current_display_line.score));
+		if (current_display_line.scores && current_display_line.scores.length > 0) {
+			var score;
+			for (var i = 0; i < current_display_line.scores.length; ++i) {
+				if (current_display_move < current_display_line.scores[i].first_move) {
+					break;
+				}
+				score = current_display_line.scores[i].score;
+			}
+			$("#score").text(format_long_score(score));
 		} else {
 			$("#score").text("No score for this move");
 		}
@@ -1134,7 +1145,9 @@ var update_board = function() {
 
 	// Print the PV.
 	$("#pvtitle").text("PV:");
-	$("#pv").html(add_pv(data['position']['fen'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay'], data['score'], 0));
+
+	var scores = [{ first_move: 0, score: data['score'] }];
+	$("#pv").html(add_pv(data['position']['fen'], data['pv_pretty'], data['position']['move_num'], data['position']['toplay'], scores, 0));
 
 	// Update the PV arrow.
 	clear_arrows();
