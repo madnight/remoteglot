@@ -552,8 +552,8 @@ var create_arrow = function(from_square, to_square, fg_color, line_width, arrow_
 
 // Note: invert is ignored.
 var compare_by_name = function(refutation_lines, invert, a, b) {
-	var ska = refutation_lines[a]['pretty_move'];
-	var skb = refutation_lines[b]['pretty_move'];
+	var ska = refutation_lines[a]['move'];
+	var skb = refutation_lines[b]['move'];
 	if (ska < skb) return -1;
 	if (ska > skb) return 1;
 	return 0;
@@ -797,7 +797,7 @@ var update_refutation_lines = function() {
 
 		if (line['pv'].length == 0) {
 			// Not found, so just make a one-move PV.
-			var move = "<a class=\"move\" href=\"javascript:show_line(" + display_lines.length + ", " + 0 + ");\">" + line['pretty_move'] + "</a>";
+			var move = "<a class=\"move\" href=\"javascript:show_line(" + display_lines.length + ", " + 0 + ");\">" + line['move'] + "</a>";
 			$(move_td).html(move);
 			var score_td = document.createElement("td");
 
@@ -813,13 +813,13 @@ var update_refutation_lines = function() {
 			var pv_td = document.createElement("td");
 			tr.appendChild(pv_td);
 			$(pv_td).addClass("pv");
-			$(pv_td).html(add_pv(base_fen, base_line.concat([ line['pretty_move'] ]), move_num, toplay, scores, start_display_move_num));
+			$(pv_td).html(add_pv(base_fen, base_line.concat([ line['move'] ]), move_num, toplay, scores, start_display_move_num));
 
 			tbl.append(tr);
 			continue;
 		}
 
-		var move = "<a class=\"move\" href=\"javascript:show_line(" + display_lines.length + ", " + 0 + ");\">" + line['pretty_move'] + "</a>";
+		var move = "<a class=\"move\" href=\"javascript:show_line(" + display_lines.length + ", " + 0 + ");\">" + line['move'] + "</a>";
 		$(move_td).html(move);
 
 		var score_td = document.createElement("td");
@@ -959,8 +959,8 @@ var update_board = function() {
 	// Print the history. This is pretty much the only thing that's
 	// unconditionally taken from current_data (we're not interested in
 	// historic history).
-	if (current_data['position']['pretty_history']) {
-		add_pv('start', current_data['position']['pretty_history'], 1, 'W', null, 0, 8, true);
+	if (current_data['position']['history']) {
+		add_pv('start', current_data['position']['history'], 1, 'W', null, 0, 8, true);
 	} else {
 		display_lines.push(null);
 	}
@@ -1465,14 +1465,14 @@ var format_halfmove_with_number = function(move, halfmove_num) {
  */
 var format_tooltip = function(data, halfmove_num) {
 	if (data['score_history'][halfmove_num] ||
-	    halfmove_num === data['position']['pretty_history'].length) {
+	    halfmove_num === data['position']['history'].length) {
 		var move;
 		var short_score;
-		if (halfmove_num === data['position']['pretty_history'].length) {
+		if (halfmove_num === data['position']['history'].length) {
 			move = data['position']['last_move'];
 			short_score = format_short_score(data['score']);
 		} else {
-			move = data['position']['pretty_history'][halfmove_num];
+			move = data['position']['history'][halfmove_num];
 			short_score = format_short_score(data['score_history'][halfmove_num]);
 		}
 		var move_with_number = format_halfmove_with_number(move, halfmove_num);
@@ -1481,7 +1481,7 @@ var format_tooltip = function(data, halfmove_num) {
 	} else {
 		for (var i = halfmove_num; i --> 0; ) {
 			if (data['score_history'][i]) {
-				var move = data['position']['pretty_history'][i];
+				var move = data['position']['history'][i];
 				return "[Analysis kept from " + format_halfmove_with_number(move, i) + "]";
 			}
 		}

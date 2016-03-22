@@ -133,14 +133,13 @@ var translate_line = function(board, fen, line) {
 	if (line['move'] && line['move']['from_sq']) {
 		var promo = line['move']['promotion'];
 		if (promo) {
-			r['pretty_move'] = board.move({ from: line['move']['from_sq'], to: line['move']['to_sq'], promotion: promo.toLowerCase() }).san;
+			r['move'] = board.move({ from: line['move']['from_sq'], to: line['move']['to_sq'], promotion: promo.toLowerCase() }).san;
 		} else {
-			r['pretty_move'] = board.move({ from: line['move']['from_sq'], to: line['move']['to_sq'] }).san;
+			r['move'] = board.move({ from: line['move']['from_sq'], to: line['move']['to_sq'] }).san;
 		}
 	} else {
-		r['pretty_move'] = '';
+		r['move'] = '';
 	}
-	r['sort_key'] = r['pretty_move'];
 	if (!line['found']) {
 		r['pv_pretty'] = [];
 		return r;
@@ -149,8 +148,8 @@ var translate_line = function(board, fen, line) {
 
 	// Convert the PV.
 	var pv = [];
-	if (r['pretty_move']) {
-		pv.push(r['pretty_move']);
+	if (r['move']) {
+		pv.push(r['move']);
 	}
 	for (var j = 0; j < line['pv'].length; ++j) {
 		var move = line['pv'][j];

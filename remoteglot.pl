@@ -220,7 +220,7 @@ sub handle_fics {
 		for my $pos ($pos_waiting, $pos_calculating) {
 			next if (!defined($pos));
 			if ($pos->fen() eq $pos_for_movelist->fen()) {
-				$pos->{'pretty_history'} = \@pretty_movelist;
+				$pos->{'history'} = \@pretty_movelist;
 			}
 		}
 		$getting_movelist = 0;
@@ -312,7 +312,7 @@ sub handle_pgn {
 			if ($pgn->result eq '1-0' || $pgn->result eq '1/2-1/2' || $pgn->result eq '0-1') {
 				$pos->{'result'} = $pgn->result;
 			}
-			$pos->{'pretty_history'} = \@repretty_moves;
+			$pos->{'history'} = \@repretty_moves;
 
 			extract_clock($pgn, $pos);
 
@@ -863,7 +863,7 @@ sub output_json {
 				$refutation_lines{$pretty_move} = {
 					depth => $info->{'depth' . $mpv},
 					score => score_digest($info, $pos_calculating, $mpv),
-					pretty_move => $pretty_move,
+					move => $pretty_move,
 					pv => \@pretty_pv,
 				};
 			};
@@ -872,13 +872,13 @@ sub output_json {
 	$json->{'refutation_lines'} = \%refutation_lines;
 
 	# Piece together historic score information, to the degree we have it.
-	if (!$historic_json_only && exists($pos_calculating->{'pretty_history'})) {
+	if (!$historic_json_only && exists($pos_calculating->{'history'})) {
 		my %score_history = ();
 
 		my $q = $dbh->prepare('SELECT * FROM scores WHERE id=?');
 		my $pos = Position->start_pos('white', 'black');
 		my $halfmove_num = 0;
-		for my $move (@{$pos_calculating->{'pretty_history'}}) {
+		for my $move (@{$pos_calculating->{'history'}}) {
 			my $id = id_for_pos($pos, $halfmove_num);
 			my $ref = $dbh->selectrow_hashref($q, undef, $id);
 			if (defined($ref)) {
@@ -962,7 +962,7 @@ sub output_json {
 		$last_written_json = $encoded;
 	}
 
-	if (exists($pos_calculating->{'pretty_history'}) &&
+	if (exists($pos_calculating->{'history'}) &&
 	    defined($remoteglotconf::json_history_dir)) {
 		my $id = id_for_pos($pos_calculating);
 		my $filename = $remoteglotconf::json_history_dir . "/" . $id . ".json";
@@ -1008,7 +1008,7 @@ sub atomic_set_contents {
 sub id_for_pos {
 	my ($pos, $halfmove_num) = @_;
 
-	$halfmove_num //= scalar @{$pos->{'pretty_history'}};
+	$halfmove_num //= scalar @{$pos->{'history'}};
 	(my $fen = $pos->fen()) =~ tr,/ ,-_,;
 	return "move$halfmove_num-$fen";
 }
@@ -1265,7 +1265,7 @@ sub find_clock_start {
 
 	# TODO(sesse): Maybe we can get the number of moves somehow else for FICS games.
 	# The history is needed for id_for_pos.
-	if (!exists($pos->{'pretty_history'})) {
+	if (!exists($pos->{'history'})) {
 		return;
 	}
 
