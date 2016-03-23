@@ -584,7 +584,7 @@ var find_nonstupid_moves = function(data, margin, invert) {
 	var pv_score = undefined;
 	for (var move in data['refutation_lines']) {
 		var line = data['refutation_lines'][move];
-		var score = compute_score_sort_key(line['score'], line['depth'], invert);
+		var score = compute_score_sort_key(line['score'], line['depth'], invert, false);
 		if (move == data['pv'][0]) {
 			pv_score = score;
 		}
@@ -2061,9 +2061,10 @@ var compute_plot_score = function(score) {
  * @param score The score digest tuple.
  * @param {?number} depth Depth the move has been computed to, or null.
  * @param {boolean} invert Whether black is to play.
+ * @param {boolean=} depth_secondary_key
  * @return {number}
  */
-var compute_score_sort_key = function(score, depth, invert) {
+var compute_score_sort_key = function(score, depth, invert, depth_secondary_key) {
 	var s;
 	if (!score) {
 		return -10000000;
@@ -2083,7 +2084,11 @@ var compute_score_sort_key = function(score, depth, invert) {
 	}
 	if (s) {
 		if (invert) s = -s;
-		return s * 200 + (depth || 0);
+		if (depth_secondary_key) {
+			return s * 200 + (depth || 0);
+		} else {
+			return s;
+		}
 	} else {
 		return null;
 	}
