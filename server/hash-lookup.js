@@ -141,7 +141,7 @@ var translate_line = function(board, fen, line) {
 		r['move'] = '';
 	}
 	if (!line['found']) {
-		r['pv_pretty'] = [];
+		r['pv'] = [];
 		return r;
 	}
 	r['depth'] = line['depth'];
