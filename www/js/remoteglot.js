@@ -47,6 +47,7 @@ var displayed_analysis_data = null;
  * @type {?Array.<{
  *      name: string,
  *      url: string,
+ *      hashurl: string,
  *      id: string,
  *      score: Object=,
  *      result: string=,
@@ -941,7 +942,7 @@ var possibly_switch_game_from_hash = function() {
 	for (var i = 0; i < current_games.length; ++i) {
 		if (current_games[i]['id'] === hash) {
 			if (backend_url !== current_games[i]['url']) {
-				switch_backend(current_games[i]['url'], current_games[i]['hashurl']);
+				switch_backend(current_games[i]);
 			}
 			return;
 		}
@@ -1570,7 +1571,7 @@ var next_game = function() {
 		var game = current_games[game_num];
 		if (game['url'] === backend_url) {
 			var next_game_num = (game_num + 1) % current_games.length;
-			switch_backend(current_games[next_game_num]['url'], current_games[next_game_num]['hashurl']);
+			switch_backend(current_games[next_game_num]);
 			return;
 		}
 	}
@@ -2099,9 +2100,9 @@ var compute_score_sort_key = function(score, depth, invert, depth_secondary_key)
 }
 
 /**
- * @param {string} new_backend_url
+ * @param {Object} game
  */
-var switch_backend = function(new_backend_url, new_backend_hash_url) {
+var switch_backend = function(game) {
 	// Stop looking at historic data.
 	current_display_line = null;
 	current_display_move = null;
@@ -2130,8 +2131,9 @@ var switch_backend = function(new_backend_url, new_backend_hash_url) {
 	}
 
 	// Request an immediate fetch with the new backend.
-	backend_url = new_backend_url;
-	backend_hash_url = new_backend_hash_url;
+	backend_url = game['url'];
+	backend_hash_url = game['hashurl'];
+	window.location.hash = '#' + game['id'];
 	current_analysis_data = null;
 	ims = 0;
 	request_update();
@@ -2180,7 +2182,7 @@ var init = function() {
 		} else if (event.which >= 49 && event.which <= 57) {  // 1-9.
 			var num = event.which - 49;
 			if (current_games && current_games.length >= num) {
-				switch_backend(current_games[num]['url'], current_games[num]['hashurl']);
+				switch_backend(current_games[num]);
 			}
 		} else if (event.which == 78) {  // N.
 			next_game();
