@@ -536,6 +536,8 @@ sub prettyprint_pv {
 	}
 }
 
+my %tbprobe_cache = ();
+
 sub complete_using_tbprobe {
 	my ($pos, $info, $mpv) = @_;
 
@@ -553,10 +555,10 @@ sub complete_using_tbprobe {
 	# Run through the PV until we are at a 6-man position.
 	# TODO: We could in theory only have 5-man data.
 	my @pv = @{$info->{'pv' . $mpv}};
-	my $key = join('', @pv);
+	my $key = $pos->fen() . " " . join('', @pv);
 	my @moves = ();
-	if (exists($pos->{'tbprobe_cache'}{$key})) {
-		@moves = @{$pos->{'tbprobe_cache'}{$key}};
+	if (exists($tbprobe_cache{$key})) {
+		@moves = @{$tbprobe_cache{$key}};
 	} else {
 		if ($mpv ne '') {
 			# Force doing at least one move of the PV.
@@ -587,7 +589,7 @@ sub complete_using_tbprobe {
 			push @moves, $uci_move;
 		}
 
-		$pos->{'tbprobe_cache'}{$key} = \@moves;
+		$tbprobe_cache{$key} = \@moves;
 	}
 
 	$info->{'pv' . $mpv} = \@moves;
