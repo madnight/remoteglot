@@ -556,7 +556,7 @@ sub complete_using_tbprobe {
 	my $key = join('', @pv);
 	my @moves = ();
 	if (exists($pos->{'tbprobe_cache'}{$key})) {
-		@moves = $pos->{'tbprobe_cache'}{$key};
+		@moves = @{$pos->{'tbprobe_cache'}{$key}};
 	} else {
 		if ($mpv ne '') {
 			# Force doing at least one move of the PV.
@@ -586,6 +586,8 @@ sub complete_using_tbprobe {
 			($pos, $uci_move) = $pos->make_pretty_move($move);
 			push @moves, $uci_move;
 		}
+
+		$pos->{'tbprobe_cache'}{$key} = \@moves;
 	}
 
 	$info->{'pv' . $mpv} = \@moves;
