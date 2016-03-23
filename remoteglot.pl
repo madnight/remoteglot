@@ -558,6 +558,13 @@ sub complete_using_tbprobe {
 	if (exists($pos->{'tbprobe_cache'}{$key})) {
 		@moves = $pos->{'tbprobe_cache'}{$key};
 	} else {
+		if ($mpv ne '') {
+			# Force doing at least one move of the PV.
+			my $move = shift @pv;
+			push @moves, $move;
+			$pos = $pos->make_move(parse_uci_move($move));
+		}
+
 		while ($pos->num_pieces() > 6 && $#pv > -1) {
 			my $move = shift @pv;
 			push @moves, $move;
