@@ -1973,6 +1973,10 @@ var onSnapEnd = function(source, target) {
 	// this move, then select that. Note that this gives us a good priority
 	// order (history first, then PV, then multi-PV lines).
 	for (var i = 0; i < display_lines.length; ++i) {
+		if (i == 1 && current_display_line) {
+			// Do not choose PV if not on it.
+			continue;
+		}
 		var line = display_lines[i];
 		if (line.pv[line.start_display_move_num] === move.san) {
 			show_line(i, 0);
