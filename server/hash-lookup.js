@@ -16,7 +16,7 @@ var init = function(servers) {
 exports.init = init;
 
 var handle_request = function(fen, response) {
-	if (!board.validate_fen(fen).valid) {
+	if (fen === undefined || fen === null || fen === '' || !board.validate_fen(fen).valid) {
 		response.writeHead(400, {});
 		response.end();
 		return;
