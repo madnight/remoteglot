@@ -145,7 +145,7 @@ var reread_file = function(event, filename) {
 	if (json_lock == 1) {
 		// Already processing; wait a bit.
 		json_lock = 2;
-		setTimeout(function() { json_lock = 1; reread_file(event, filename); }, 100);
+		setTimeout(function() { if (json_lock == 2) json_lock = 1; reread_file(event, filename); }, 100);
 		return;
 	}
 	json_lock = 1;
