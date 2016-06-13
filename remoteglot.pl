@@ -1090,7 +1090,7 @@ sub score_digest {
 			if ($score == 0 && $info->{'tablebase'}) {
 				return ['d', undef];
 			} else {
-				return ['cp', $score];
+				return ['cp', int($score)];
 			}
 		}
 	}
